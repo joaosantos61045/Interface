@@ -1,9 +1,10 @@
 import { useDnD } from './DnDContext';
-import React from "react";
+import React, { useState } from "react";
 import { useFloating, offset, shift } from "@floating-ui/react";
 
 const Sidebar = () => {
   const [_, setType] = useDnD();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // State to track sidebar collapse/expand
   
   const onDragStart = (event, nodeType) => {
     setType(nodeType);
@@ -15,6 +16,9 @@ const Sidebar = () => {
     middleware: [offset(10), shift()],
   });
 
+  // Toggle sidebar visibility
+  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
+
   return (
     <div
       ref={refs.setFloating}
@@ -23,45 +27,69 @@ const Sidebar = () => {
         background: "#fff",
         boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
         padding: "10px",
-        width: "220px",
+        width: isSidebarOpen ? "220px" : "50px", // Adjust width based on collapse state
         position: "absolute",
         zIndex: 1000,
         borderRadius: "8px",
+        transition: "width 0.3s ease-in-out", // Smooth transition for collapse/expand
       }}
     >
-      <h3>Sidebar</h3>
-      <p>Drag elements to the canvas</p>
-      <aside>
-        <div className="description">Drag these nodes to the canvas.</div>
+      {/* Button to toggle the sidebar */}
+      <button
+        onClick={toggleSidebar}
+        style={{
+          backgroundColor: "#007BFF",
+          color: "white",
+          border: "1px solid ",
+          padding: "8px",
+          cursor: "pointer",
+          fontSize: "14px",
+          marginBottom: "5px",
+          borderRadius: "4px",
+          width: "100%",
+        }}
+      >
+        {isSidebarOpen ? "Collapse" : "Open"}
+      </button>
 
-        {/* Input, Default, and Output remain the same */}
-        <div className="dndnode input" onDragStart={(event) => onDragStart(event, 'input')} draggable>
-          Input Node
-        </div>
-        <div className="dndnode" onDragStart={(event) => onDragStart(event, 'default')} draggable>
-          Default Node
-        </div>
-        <div className="dndnode output" onDragStart={(event) => onDragStart(event, 'output')} draggable>
-          Output Node
-        </div>
+      {/* Sidebar content */}
+      {isSidebarOpen && (
+        <div>
+          <aside>
+            <div className="description">Drag these nodes to the canvas.</div>
 
-        {/* Nodes with custom shapes */}
-        <div className="dndnode variable shape-circle" onDragStart={(event) => onDragStart(event, 'variable')} draggable>
-          Variable
+            {/* Node types with drag events */
+            /*<div className="dndnode input" onDragStart={(event) => onDragStart(event, 'input')} draggable>
+              Input Node
+            </div>
+            <div className="dndnode" onDragStart={(event) => onDragStart(event, 'default')} draggable>
+              Default Node
+            </div>
+            <div className="dndnode output" onDragStart={(event) => onDragStart(event, 'output')} draggable>
+              Output Node
+            </div>*/
+            }
+            
+            
+            {/* Custom-shaped nodes */}
+            <div className="dndnode variable shape-circle" onDragStart={(event) => onDragStart(event, 'Variable')} draggable>
+              Variable
+            </div>
+            <div className="dndnode definition shape-diamond" onDragStart={(event) => onDragStart(event, 'Definition')} draggable>
+              Definition
+            </div>
+            <div className="dndnode action shape-hexagon" onDragStart={(event) => onDragStart(event, 'Action')} draggable>
+              Action
+            </div>
+            <div className="dndnode table shape-rectangle" onDragStart={(event) => onDragStart(event, 'Table')} draggable>
+              Table
+            </div>
+            <div className="dndnode html shape-triangle" onDragStart={(event) => onDragStart(event, 'HTML')} draggable>
+              HTML
+            </div>
+          </aside>
         </div>
-        <div className="dndnode definition shape-diamond " onDragStart={(event) => onDragStart(event, 'definition')} draggable>
-          Definition
-        </div>
-        <div className="dndnode action shape-hexagon" onDragStart={(event) => onDragStart(event, 'action')} draggable>
-          Action
-        </div>
-        <div className="dndnode table shape-rectangle" onDragStart={(event) => onDragStart(event, 'table')} draggable>
-          Table
-        </div>
-        <div className="dndnode html shape-triangle" onDragStart={(event) => onDragStart(event, 'html')} draggable>
-          HTML
-        </div>
-      </aside>
+      )}
 
       {/* Styling for custom shapes */}
       <style>
@@ -89,7 +117,6 @@ const Sidebar = () => {
           .shape-triangle { width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent; border-bottom: 70px solid #f44336; }
           .shape-rectangle { width: 100px; height: 60px; background: #2196F3; border-radius: 5px; }
           .shape-diamond { width: 70px; height: 70px; background: #9c27b0; transform: rotate(45deg); }
-
         `}
       </style>
     </div>

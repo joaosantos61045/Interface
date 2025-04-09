@@ -18575,7 +18575,7 @@ var _reactDefault = parcelHelpers.interopDefault(_react);
 var _react1 = require("@floating-ui/react");
 var _consoleJs = require("./console.js");
 var _consoleJsDefault = parcelHelpers.interopDefault(_consoleJs);
-var _meerkatRemoteConsoleV2Js = require("../pkg/meerkat_remote_console_V2.js"); // Import your existing functions
+var _meerkatRemoteConsoleV2Js = require("../pkg/meerkat_remote_console_V2.js");
 var _meerkatRemoteConsoleV2JsDefault = parcelHelpers.interopDefault(_meerkatRemoteConsoleV2Js);
 var _react2 = require("@xyflow/react");
 var _styleCss = require("@xyflow/react/dist/style.css");
@@ -18594,15 +18594,16 @@ var _html = require("./nodes/HTML");
 var _htmlDefault = parcelHelpers.interopDefault(_html);
 var _actionEdge = require("./edges/ActionEdge");
 var _actionEdgeDefault = parcelHelpers.interopDefault(_actionEdge);
-var _storeJs = require("./store/store.js"); // Import the zustand store
+var _storeJs = require("./store/store.js");
 var _storeJsDefault = parcelHelpers.interopDefault(_storeJs);
+var _typesDTs = require("./types.d.ts");
 var _s = $RefreshSig$(), _s1 = $RefreshSig$();
 const nodeTypes = {
-    variable: (0, _variableDefault.default),
-    definition: (0, _definitionDefault.default),
-    action: (0, _actionDefault.default),
-    table: (0, _tableDefault.default),
-    html: (0, _htmlDefault.default)
+    Variable: (0, _variableDefault.default),
+    Definition: (0, _definitionDefault.default),
+    Action: (0, _actionDefault.default),
+    Table: (0, _tableDefault.default),
+    HTML: (0, _htmlDefault.default)
 };
 const edgeTypes = {
     action: (0, _actionEdgeDefault.default)
@@ -18612,17 +18613,24 @@ const getId = ()=>`dndnode_${id++}`;
 const DnDFlow = ()=>{
     _s();
     const reactFlowWrapper = (0, _react.useRef)(null);
-    const { nodes, edges, onNodesChange, onEdgesChange, onConnect, setNodes, setEdges } = (0, _storeJsDefault.default)(); // Use Zustand store
+    const { nodes, edges, onNodesChange, onEdgesChange, onConnect, setNodes, setEdges } = (0, _storeJsDefault.default)();
     const { screenToFlowPosition } = (0, _react2.useReactFlow)();
     const [type] = (0, _dnDContext.useDnD)();
     const { refs, floatingStyles } = (0, _react1.useFloating)();
     const addNode = (0, _storeJsDefault.default)((state)=>state.addNode);
+    const updateNode = (0, _storeJsDefault.default)((state)=>state.updateNode);
+    const removeNode = (0, _storeJsDefault.default)((state)=>state.removeNode);
+    const addEdge = (0, _storeJsDefault.default)((state)=>state.addEdge);
+    const checkExists = (0, _storeJsDefault.default)((state)=>state.checkExists);
     const [pendingNode, setPendingNode] = (0, _react.useState)(null);
     const [formData, setFormData] = (0, _react.useState)({});
+    const [editFormData, setEditFormData] = (0, _react.useState)({});
+    const [selectedNode, setSelectedNode] = (0, _react.useState)(null);
     (0, _react.useEffect)(()=>{
         const interval = setInterval(()=>{
-            console.log("nodes", nodes.length);
-        }, 2000);
+            console.log("nodes", nodes);
+            console.log("edges", edges);
+        }, 5000);
         return ()=>clearInterval(interval);
     }, []);
     const onNodesDelete = (0, _react.useCallback)((deleted)=>{
@@ -18648,20 +18656,40 @@ const DnDFlow = ()=>{
         edges,
         setEdges
     ]);
+    const onBeforeDelete = (0, _react.useCallback)(({ nodes: nodesToDelete })=>{
+        // Check if any node has edges (incoming or outgoing)
+        const hasEdges = nodesToDelete.some((node)=>edges.some((edge)=>edge.source === node.id || edge.target === node.id));
+        if (hasEdges) console.warn("Cannot delete nodes that have edges.");
+        return true; // Allow deletion if no edges exist
+    }, [
+        edges
+    ]);
     const onDragOver = (0, _react.useCallback)((event)=>{
         event.preventDefault();
         event.dataTransfer.dropEffect = "move";
     }, []);
-    const updateNodeData = (id, field, value)=>{
-        setNodes((nds)=>nds.map((node)=>node.id === id ? {
-                    ...node,
-                    data: {
-                        ...node.data,
-                        [field]: value
-                    }
-                } : node));
+    /* const updateNodeData = (id, field, value) => {
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === id ? { ...node, data: { ...node.data, [field]: value } } : node
+      )
+    );
+  };*/ const handleSave = ()=>{
+        if (!selectedNode) return;
+        updateNode(selectedNode.id, editFormData);
+        setSelectedNode(null);
+        setEditFormData({});
     };
-    const onDrop = (0, _react.useCallback)((event)=>{
+    const handleDelete = ()=>{
+        if (!selectedNode) return;
+        removeNode(selectedNode.id);
+        setSelectedNode(null); // Close modal
+        setEditFormData({}); // Reset form
+    };
+    /**
+   * Handles dropping a node onto the canvas.
+   * @param {DragEvent} event - The drag event.
+   */ const onDrop = (0, _react.useCallback)((event)=>{
         event.preventDefault();
         if (!type) return;
         const position = screenToFlowPosition({
@@ -18672,70 +18700,180 @@ const DnDFlow = ()=>{
             type,
             position
         });
-        // Pre-fill default values based on type
-        let initialData = {};
-        switch(type){
-            case "variable":
-                initialData = {
-                    label: "",
-                    value: ""
-                };
-                break;
-            case "definition":
-                initialData = {
-                    label: "",
-                    definition: ""
-                };
-                break;
-            case "action":
-                initialData = {
-                    name: "",
-                    action: ""
-                };
-                break;
-            case "table":
-                initialData = {
-                    rows: [
-                        [
-                            "Row 1",
-                            "Data 1"
-                        ],
-                        [
-                            "Row 2",
-                            "Data 2"
-                        ]
-                    ]
-                };
-                break;
-            case "html":
-                initialData = {
-                    content: "<p>Enter HTML here</p>"
-                };
-                break;
-            default:
-                initialData = {
-                    label: ""
-                };
-        }
-        setFormData(initialData);
+        /** @type {Record<NodeType, NodeData>} */ const defaultData = {
+            Variable: {
+                label: "var",
+                value: 1
+            },
+            Definition: {
+                label: "d",
+                definition: "",
+                val: ""
+            },
+            Action: {
+                label: "x",
+                target: "",
+                action: ""
+            },
+            Table: {
+                label: "s",
+                columns: [
+                    {
+                        name: "",
+                        type: "text"
+                    }
+                ],
+                rows: []
+            },
+            HTML: {
+                label: "c",
+                definition: "<p>Enter HTML here</p>"
+            }
+        };
+        setFormData(defaultData[type] || {
+            label: ""
+        });
     }, [
         screenToFlowPosition,
         type
     ]);
+    const handleEditCancel = ()=>{
+        setSelectedNode(null);
+        setEditFormData({});
+    };
     const handleConfirm = ()=>{
         if (!pendingNode) return;
+        checkExists(formData.label);
         const newNode = {
-            id: getId(),
+            id: formData.label,
             type: pendingNode.type,
             position: pendingNode.position,
             data: {
-                ...formData,
-                onChange: (value)=>updateNodeData(newNode.id, "label", value)
+                ...formData
             }
         };
         addNode(newNode);
         setPendingNode(null);
         setFormData({});
+    };
+    const onNodeDoubleClick = (_, node)=>{
+        setSelectedNode(node);
+        setEditFormData(node.data);
+    };
+    const onConnectEnd = (0, _react.useCallback)((event, connectionState)=>{
+        if (connectionState.isValid || connectionState.fromHandle.type === 'target') return;
+        const fromNodeId = connectionState.fromNode.id;
+        const fromNodeType = connectionState.fromNode.type;
+        const id = getId();
+        const { clientX, clientY } = 'changedTouches' in event ? event.changedTouches[0] : event;
+        let newNodeType = '';
+        let newNodeData = {};
+        let edgeType = 'default';
+        if (fromNodeType === 'Action') {
+            newNodeType = 'Variable';
+            newNodeData = {
+                label: id,
+                value: ""
+            };
+            edgeType = 'action';
+            updateNode(fromNodeId, {
+                target: id
+            });
+        } else if (fromNodeType === 'Variable') {
+            newNodeType = 'Definition';
+            newNodeData = {
+                label: id,
+                definition: "" + connectionState.fromNode.data.label
+            };
+        } else return;
+        const newNode = {
+            id,
+            type: newNodeType,
+            position: screenToFlowPosition({
+                x: clientX,
+                y: clientY
+            }),
+            data: newNodeData
+        };
+        const newEdge = {
+            id: `${fromNodeId}->${id}`,
+            source: fromNodeId,
+            target: id,
+            type: edgeType,
+            reconnectable: 'target'
+        };
+        // Update nodes and edges
+        addNode(newNode);
+    //addEdge(newEdge);
+    // Optionally trigger the pending node form with the new node
+    // set the pendingNode to the newNode to show form
+    //setPendingNode(newNode);
+    }, [
+        setNodes,
+        setEdges,
+        screenToFlowPosition,
+        setPendingNode
+    ]);
+    const handleColumnChange = (index, field, value)=>{
+        setFormData((prev)=>{
+            const columns = [
+                ...prev.columns
+            ];
+            columns[index][field] = value;
+            return {
+                ...prev,
+                columns
+            };
+        });
+    };
+    const handleDeleteColumn = (index)=>{
+        console.log(formData.columns);
+        const updatedColumns = formData.columns.filter((_, i)=>i !== index);
+        setFormData({
+            ...formData,
+            columns: updatedColumns
+        });
+    };
+    const handleAddColumn = ()=>{
+        setFormData((prev)=>({
+                ...prev,
+                columns: [
+                    ...prev.columns,
+                    {
+                        name: "",
+                        type: "text"
+                    }
+                ]
+            }));
+    };
+    const handleEditAddColumn = ()=>{
+        setEditFormData({
+            ...editFormData,
+            columns: [
+                ...editFormData.columns,
+                {
+                    name: "",
+                    type: "text"
+                }
+            ]
+        });
+    };
+    const handleEditDeleteColumn = (index)=>{
+        const updatedColumns = editFormData.columns.filter((_, i)=>i !== index);
+        setEditFormData({
+            ...editFormData,
+            columns: updatedColumns
+        });
+    };
+    const handleEditColumnChange = (index, key, value)=>{
+        const updatedColumns = editFormData.columns.map((col, i)=>i === index ? {
+                ...col,
+                [key]: value
+            } : col);
+        setEditFormData({
+            ...editFormData,
+            columns: updatedColumns
+        });
     };
     return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
         style: {
@@ -18760,11 +18898,10 @@ const DnDFlow = ()=>{
                     children: "Meerkat UI"
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 161,
+                    lineNumber: 299,
                     columnNumber: 9
                 }, undefined),
                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                    className: "reactflow-wrapper",
                     ref: reactFlowWrapper,
                     style: {
                         flex: 1,
@@ -18777,10 +18914,13 @@ const DnDFlow = ()=>{
                         onNodesChange: onNodesChange,
                         onEdgesChange: onEdgesChange,
                         onNodesDelete: onNodesDelete,
+                        onBeforeDelete: onBeforeDelete,
                         nodeTypes: nodeTypes,
                         edgeTypes: edgeTypes,
                         onConnect: onConnect,
+                        onConnectEnd: onConnectEnd,
                         onDrop: onDrop,
+                        onNodeDoubleClick: onNodeDoubleClick,
                         onDragOver: onDragOver,
                         fitView: true,
                         style: {
@@ -18789,38 +18929,38 @@ const DnDFlow = ()=>{
                         children: [
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _sidebarDefault.default), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 178,
+                                lineNumber: 319,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _consoleJsDefault.default), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 179,
+                                lineNumber: 320,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.Controls), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 180,
+                                lineNumber: 321,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.Background), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 181,
+                                lineNumber: 322,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.MiniMap), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 182,
+                                lineNumber: 323,
                                 columnNumber: 13
                             }, undefined)
                         ]
                     }, void 0, true, {
                         fileName: "App.js",
-                        lineNumber: 164,
+                        lineNumber: 302,
                         columnNumber: 11
                     }, undefined)
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 163,
+                    lineNumber: 301,
                     columnNumber: 9
                 }, undefined),
                 pendingNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -18834,70 +18974,547 @@ const DnDFlow = ()=>{
                             ]
                         }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 188,
-                            columnNumber: 11
+                            lineNumber: 329,
+                            columnNumber: 13
                         }, undefined),
-                        Object.keys(formData).map((key)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("label", {
-                                children: [
-                                    key.charAt(0).toUpperCase() + key.slice(1),
-                                    ":",
-                                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
-                                        type: "text",
-                                        value: formData[key],
-                                        onChange: (e)=>setFormData({
-                                                ...formData,
-                                                [key]: e.target.value
-                                            }),
-                                        style: styles.input
-                                    }, void 0, false, {
+                        pendingNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            style: styles.configPanel,
+                            children: [
+                                /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h3", {
+                                    children: [
+                                        "Configure ",
+                                        pendingNode.type,
+                                        " Node"
+                                    ]
+                                }, void 0, true, {
+                                    fileName: "App.js",
+                                    lineNumber: 333,
+                                    columnNumber: 17
+                                }, undefined),
+                                pendingNode.type === "Table" ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _jsxDevRuntime.Fragment), {
+                                    children: [
+                                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("label", {
+                                            style: {
+                                                display: "block",
+                                                marginBottom: "10px"
+                                            },
+                                            children: [
+                                                "Table Name:",
+                                                /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
+                                                    value: formData.label || "",
+                                                    onChange: (e)=>setFormData({
+                                                            ...formData,
+                                                            label: e.target.value
+                                                        }),
+                                                    style: styles.input,
+                                                    required: true
+                                                }, void 0, false, {
+                                                    fileName: "App.js",
+                                                    lineNumber: 340,
+                                                    columnNumber: 23
+                                                }, undefined)
+                                            ]
+                                        }, void 0, true, {
+                                            fileName: "App.js",
+                                            lineNumber: 338,
+                                            columnNumber: 21
+                                        }, undefined),
+                                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
+                                            children: "Columns:"
+                                        }, void 0, false, {
+                                            fileName: "App.js",
+                                            lineNumber: 347,
+                                            columnNumber: 21
+                                        }, undefined),
+                                        formData.columns.map((col, index)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                                                style: {
+                                                    display: "flex",
+                                                    gap: "10px",
+                                                    marginBottom: "10px"
+                                                },
+                                                children: [
+                                                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
+                                                        placeholder: "Column Name",
+                                                        value: col.name || "",
+                                                        onChange: (e)=>handleColumnChange(index, "name", e.target.value),
+                                                        style: styles.input
+                                                    }, void 0, false, {
+                                                        fileName: "App.js",
+                                                        lineNumber: 352,
+                                                        columnNumber: 25
+                                                    }, undefined),
+                                                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("select", {
+                                                        value: col.type || "text",
+                                                        onChange: (e)=>handleColumnChange(index, "type", e.target.value),
+                                                        style: styles.input,
+                                                        children: [
+                                                            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
+                                                                value: "text",
+                                                                children: "Text"
+                                                            }, void 0, false, {
+                                                                fileName: "App.js",
+                                                                lineNumber: 365,
+                                                                columnNumber: 27
+                                                            }, undefined),
+                                                            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
+                                                                value: "number",
+                                                                children: "Number"
+                                                            }, void 0, false, {
+                                                                fileName: "App.js",
+                                                                lineNumber: 366,
+                                                                columnNumber: 27
+                                                            }, undefined),
+                                                            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
+                                                                value: "boolean",
+                                                                children: "Boolean"
+                                                            }, void 0, false, {
+                                                                fileName: "App.js",
+                                                                lineNumber: 367,
+                                                                columnNumber: 27
+                                                            }, undefined)
+                                                        ]
+                                                    }, void 0, true, {
+                                                        fileName: "App.js",
+                                                        lineNumber: 360,
+                                                        columnNumber: 25
+                                                    }, undefined),
+                                                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                                        onClick: ()=>handleDeleteColumn(index),
+                                                        style: styles.deleteButton,
+                                                        children: "\u2716"
+                                                    }, void 0, false, {
+                                                        fileName: "App.js",
+                                                        lineNumber: 371,
+                                                        columnNumber: 25
+                                                    }, undefined)
+                                                ]
+                                            }, index, true, {
+                                                fileName: "App.js",
+                                                lineNumber: 350,
+                                                columnNumber: 23
+                                            }, undefined)),
+                                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                            onClick: handleAddColumn,
+                                            style: styles.button,
+                                            children: "+ Add Column"
+                                        }, void 0, false, {
+                                            fileName: "App.js",
+                                            lineNumber: 378,
+                                            columnNumber: 21
+                                        }, undefined)
+                                    ]
+                                }, void 0, true) : // Generic Form for Other Node Types
+                                Object.keys(formData).map((key)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("label", {
+                                        style: {
+                                            display: "block",
+                                            marginBottom: "10px"
+                                        },
+                                        children: [
+                                            key.charAt(0).toUpperCase() + key.slice(1),
+                                            ":",
+                                            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
+                                                value: formData[key],
+                                                onChange: (e)=>setFormData({
+                                                        ...formData,
+                                                        [key]: e.target.value
+                                                    }),
+                                                style: styles.input
+                                            }, void 0, false, {
+                                                fileName: "App.js",
+                                                lineNumber: 387,
+                                                columnNumber: 23
+                                            }, undefined)
+                                        ]
+                                    }, key, true, {
                                         fileName: "App.js",
-                                        lineNumber: 194,
-                                        columnNumber: 15
-                                    }, undefined)
-                                ]
-                            }, key, true, {
-                                fileName: "App.js",
-                                lineNumber: 192,
-                                columnNumber: 13
-                            }, undefined)),
-                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
-                            onClick: handleConfirm,
-                            style: styles.button,
-                            children: "Confirm"
-                        }, void 0, false, {
+                                        lineNumber: 385,
+                                        columnNumber: 21
+                                    }, undefined)),
+                                /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                                    style: {
+                                        display: "flex",
+                                        justifyContent: "space-between"
+                                    },
+                                    children: [
+                                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                            onClick: ()=>setPendingNode(null),
+                                            style: styles.cancel_button,
+                                            children: "Cancel"
+                                        }, void 0, false, {
+                                            fileName: "App.js",
+                                            lineNumber: 398,
+                                            columnNumber: 19
+                                        }, undefined),
+                                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                            onClick: handleConfirm,
+                                            style: styles.button,
+                                            children: "Confirm"
+                                        }, void 0, false, {
+                                            fileName: "App.js",
+                                            lineNumber: 401,
+                                            columnNumber: 19
+                                        }, undefined)
+                                    ]
+                                }, void 0, true, {
+                                    fileName: "App.js",
+                                    lineNumber: 397,
+                                    columnNumber: 17
+                                }, undefined)
+                            ]
+                        }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 203,
-                            columnNumber: 11
+                            lineNumber: 332,
+                            columnNumber: 15
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            style: {
+                                display: "flex",
+                                justifyContent: "space-between"
+                            },
+                            children: [
+                                /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                    onClick: ()=>setPendingNode(null),
+                                    style: styles.cancel_button,
+                                    children: "Cancel"
+                                }, void 0, false, {
+                                    fileName: "App.js",
+                                    lineNumber: 410,
+                                    columnNumber: 15
+                                }, undefined),
+                                /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                    onClick: handleConfirm,
+                                    style: styles.button,
+                                    children: "Confirm"
+                                }, void 0, false, {
+                                    fileName: "App.js",
+                                    lineNumber: 413,
+                                    columnNumber: 15
+                                }, undefined)
+                            ]
+                        }, void 0, true, {
+                            fileName: "App.js",
+                            lineNumber: 409,
+                            columnNumber: 13
                         }, undefined)
                     ]
                 }, void 0, true, {
                     fileName: "App.js",
-                    lineNumber: 187,
-                    columnNumber: 9
+                    lineNumber: 328,
+                    columnNumber: 11
+                }, undefined),
+                selectedNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                    style: styles.modalOverlay,
+                    children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                        style: styles.modal,
+                        children: [
+                            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h3", {
+                                children: [
+                                    "Edit ",
+                                    selectedNode.type,
+                                    " Node"
+                                ]
+                            }, void 0, true, {
+                                fileName: "App.js",
+                                lineNumber: 424,
+                                columnNumber: 7
+                            }, undefined),
+                            selectedNode.type === "Table" ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _jsxDevRuntime.Fragment), {
+                                children: [
+                                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("label", {
+                                        style: styles.label,
+                                        children: [
+                                            "Table Name:",
+                                            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
+                                                value: editFormData.label || "",
+                                                onChange: (e)=>setEditFormData({
+                                                        ...editFormData,
+                                                        label: e.target.value
+                                                    }),
+                                                style: styles.input
+                                            }, void 0, false, {
+                                                fileName: "App.js",
+                                                lineNumber: 431,
+                                                columnNumber: 13
+                                            }, undefined)
+                                        ]
+                                    }, void 0, true, {
+                                        fileName: "App.js",
+                                        lineNumber: 429,
+                                        columnNumber: 11
+                                    }, undefined),
+                                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
+                                        children: "Columns:"
+                                    }, void 0, false, {
+                                        fileName: "App.js",
+                                        lineNumber: 440,
+                                        columnNumber: 11
+                                    }, undefined),
+                                    editFormData.columns.map((col, index)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                                            style: {
+                                                display: "flex",
+                                                gap: "10px",
+                                                marginBottom: "10px"
+                                            },
+                                            children: [
+                                                /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
+                                                    placeholder: "Column Name",
+                                                    value: col.name || "",
+                                                    onChange: (e)=>handleEditColumnChange(index, "name", e.target.value),
+                                                    style: styles.input
+                                                }, void 0, false, {
+                                                    fileName: "App.js",
+                                                    lineNumber: 447,
+                                                    columnNumber: 15
+                                                }, undefined),
+                                                /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("select", {
+                                                    value: col.type || "text",
+                                                    onChange: (e)=>handleEditColumnChange(index, "type", e.target.value),
+                                                    style: styles.input,
+                                                    children: [
+                                                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
+                                                            value: "text",
+                                                            children: "Text"
+                                                        }, void 0, false, {
+                                                            fileName: "App.js",
+                                                            lineNumber: 464,
+                                                            columnNumber: 17
+                                                        }, undefined),
+                                                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
+                                                            value: "number",
+                                                            children: "Number"
+                                                        }, void 0, false, {
+                                                            fileName: "App.js",
+                                                            lineNumber: 465,
+                                                            columnNumber: 17
+                                                        }, undefined),
+                                                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
+                                                            value: "boolean",
+                                                            children: "Boolean"
+                                                        }, void 0, false, {
+                                                            fileName: "App.js",
+                                                            lineNumber: 466,
+                                                            columnNumber: 17
+                                                        }, undefined)
+                                                    ]
+                                                }, void 0, true, {
+                                                    fileName: "App.js",
+                                                    lineNumber: 457,
+                                                    columnNumber: 15
+                                                }, undefined),
+                                                /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                                    onClick: ()=>handleEditDeleteColumn(index),
+                                                    style: styles.deleteButton,
+                                                    children: "\u2716"
+                                                }, void 0, false, {
+                                                    fileName: "App.js",
+                                                    lineNumber: 470,
+                                                    columnNumber: 15
+                                                }, undefined)
+                                            ]
+                                        }, index, true, {
+                                            fileName: "App.js",
+                                            lineNumber: 442,
+                                            columnNumber: 13
+                                        }, undefined)),
+                                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                        onClick: handleEditAddColumn,
+                                        style: styles.button,
+                                        children: "+ Add Column"
+                                    }, void 0, false, {
+                                        fileName: "App.js",
+                                        lineNumber: 480,
+                                        columnNumber: 11
+                                    }, undefined)
+                                ]
+                            }, void 0, true) : /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _jsxDevRuntime.Fragment), {
+                                children: [
+                                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                                        style: {
+                                            marginBottom: "10px"
+                                        },
+                                        children: [
+                                            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
+                                                children: "Related Nodes:"
+                                            }, void 0, false, {
+                                                fileName: "App.js",
+                                                lineNumber: 488,
+                                                columnNumber: 13
+                                            }, undefined),
+                                            edges.filter((edge)=>edge.target === selectedNode.id).map((edge)=>{
+                                                const sourceNode = nodes.find((node)=>node.id === edge.source);
+                                                return sourceNode ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                                    onClick: ()=>{
+                                                        setEditFormData((prev)=>({
+                                                                ...prev,
+                                                                definition: prev.definition ? `${prev.definition} ${sourceNode.data.label}` : sourceNode.data.label
+                                                            }));
+                                                    },
+                                                    style: styles.button,
+                                                    children: sourceNode.data.label
+                                                }, sourceNode.id, false, {
+                                                    fileName: "App.js",
+                                                    lineNumber: 494,
+                                                    columnNumber: 19
+                                                }, undefined) : null;
+                                            })
+                                        ]
+                                    }, void 0, true, {
+                                        fileName: "App.js",
+                                        lineNumber: 487,
+                                        columnNumber: 11
+                                    }, undefined),
+                                    [
+                                        "label",
+                                        "definition",
+                                        "target",
+                                        "action",
+                                        "content",
+                                        "value"
+                                    ].map((key)=>selectedNode.data[key] !== undefined && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("label", {
+                                            style: styles.label,
+                                            children: [
+                                                key.charAt(0).toUpperCase() + key.slice(1),
+                                                ":",
+                                                /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("textarea", {
+                                                    name: key,
+                                                    value: editFormData[key] || "",
+                                                    onChange: (e)=>{
+                                                        setEditFormData({
+                                                            ...editFormData,
+                                                            [key]: e.target.value
+                                                        });
+                                                        e.target.style.height = "auto"; // Reset height
+                                                        e.target.style.height = `${e.target.scrollHeight}px`; // Expand dynamically
+                                                    },
+                                                    style: {
+                                                        ...styles.input,
+                                                        minHeight: "40px",
+                                                        resize: "none",
+                                                        overflow: "hidden"
+                                                    }
+                                                }, void 0, false, {
+                                                    fileName: "App.js",
+                                                    lineNumber: 520,
+                                                    columnNumber: 19
+                                                }, undefined)
+                                            ]
+                                        }, key, true, {
+                                            fileName: "App.js",
+                                            lineNumber: 518,
+                                            columnNumber: 17
+                                        }, undefined))
+                                ]
+                            }, void 0, true),
+                            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                                style: styles.buttonContainer,
+                                children: [
+                                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                        onClick: handleSave,
+                                        style: styles.saveButton,
+                                        children: "Save"
+                                    }, void 0, false, {
+                                        fileName: "App.js",
+                                        lineNumber: 546,
+                                        columnNumber: 9
+                                    }, undefined),
+                                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                        onClick: handleEditCancel,
+                                        style: styles.saveButton,
+                                        children: "Cancel"
+                                    }, void 0, false, {
+                                        fileName: "App.js",
+                                        lineNumber: 549,
+                                        columnNumber: 9
+                                    }, undefined),
+                                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                        onClick: handleDelete,
+                                        style: styles.deleteButton,
+                                        children: "Delete"
+                                    }, void 0, false, {
+                                        fileName: "App.js",
+                                        lineNumber: 552,
+                                        columnNumber: 9
+                                    }, undefined)
+                                ]
+                            }, void 0, true, {
+                                fileName: "App.js",
+                                lineNumber: 545,
+                                columnNumber: 7
+                            }, undefined)
+                        ]
+                    }, void 0, true, {
+                        fileName: "App.js",
+                        lineNumber: 423,
+                        columnNumber: 5
+                    }, undefined)
+                }, void 0, false, {
+                    fileName: "App.js",
+                    lineNumber: 422,
+                    columnNumber: 3
                 }, undefined)
             ]
         }, void 0, true, {
             fileName: "App.js",
-            lineNumber: 160,
+            lineNumber: 298,
             columnNumber: 7
         }, undefined)
     }, void 0, false, {
         fileName: "App.js",
-        lineNumber: 158,
+        lineNumber: 296,
         columnNumber: 5
     }, undefined);
 };
-_s(DnDFlow, "RVXTiUkBk+aOCBD3QkIR4XfPklA=", false, function() {
+_s(DnDFlow, "ec2OzTjrsdKavidhkOJWxDq4ziQ=", false, function() {
     return [
         (0, _storeJsDefault.default),
         (0, _react2.useReactFlow),
         (0, _dnDContext.useDnD),
         (0, _react1.useFloating),
+        (0, _storeJsDefault.default),
+        (0, _storeJsDefault.default),
+        (0, _storeJsDefault.default),
+        (0, _storeJsDefault.default),
         (0, _storeJsDefault.default)
     ];
 });
 _c = DnDFlow;
 const styles = {
+    modalOverlay: {
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        background: "rgba(0, 0, 0, 0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000
+    },
+    modal: {
+        background: "#fff",
+        padding: "20px",
+        borderRadius: "8px",
+        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+        textAlign: "center",
+        width: "300px"
+    },
+    saveButton: {
+        padding: "8px 16px",
+        background: "#007BFF",
+        color: "white",
+        border: "none",
+        borderRadius: "4px",
+        cursor: "pointer"
+    },
+    deleteButton: {
+        padding: "8px 16px",
+        background: "#FF0000",
+        color: "white",
+        border: "none",
+        borderRadius: "4px",
+        cursor: "pointer"
+    },
     configPanel: {
         position: "fixed",
         top: "50%",
@@ -18912,7 +19529,7 @@ const styles = {
         textAlign: "center"
     },
     input: {
-        width: "100%",
+        width: "95%",
         padding: "8px",
         marginBottom: "8px",
         fontSize: "14px"
@@ -18920,6 +19537,15 @@ const styles = {
     button: {
         padding: "8px 16px",
         background: "#007BFF",
+        color: "white",
+        border: "none",
+        borderRadius: "4px",
+        cursor: "pointer",
+        width: "100%"
+    },
+    cancel_button: {
+        padding: "8px 16px",
+        background: "#FF0000",
         color: "white",
         border: "none",
         borderRadius: "4px",
@@ -18941,17 +19567,17 @@ const App = ()=>{
         children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _dnDContext.DnDProvider), {
             children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)(DnDFlow, {}, void 0, false, {
                 fileName: "App.js",
-                lineNumber: 253,
+                lineNumber: 658,
                 columnNumber: 9
             }, undefined)
         }, void 0, false, {
             fileName: "App.js",
-            lineNumber: 252,
+            lineNumber: 657,
             columnNumber: 7
         }, undefined)
     }, void 0, false, {
         fileName: "App.js",
-        lineNumber: 251,
+        lineNumber: 656,
         columnNumber: 5
     }, undefined);
 };
@@ -18967,7 +19593,7 @@ $RefreshReg$(_c1, "App");
   window.$RefreshReg$ = prevRefreshReg;
   window.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"iTorj","react":"21dqq","@xyflow/react":"6yYHF","@xyflow/react/dist/style.css":"hYaEO","./Sidebar":"3BXdz","./DnDContext":"eOTkP","./nodes/Variable":"62CwH","./nodes/Definition":"cpPer","./nodes/Action":"bYIwW","./nodes/Table":"c84h1","./nodes/HTML":"2rIsa","./edges/ActionEdge":"e1Mth","./store/store.js":"8jylR","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"km3Ru","@floating-ui/react":"h9nu5","./console.js":"4I8Lw","../pkg/meerkat_remote_console_V2.js":"1ieD2"}],"6yYHF":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"iTorj","react":"21dqq","@xyflow/react":"6yYHF","@xyflow/react/dist/style.css":"hYaEO","./Sidebar":"3BXdz","./DnDContext":"eOTkP","./nodes/Variable":"62CwH","./nodes/Definition":"cpPer","./nodes/Action":"bYIwW","./nodes/Table":"c84h1","./nodes/HTML":"2rIsa","./edges/ActionEdge":"e1Mth","./store/store.js":"8jylR","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"km3Ru","@floating-ui/react":"h9nu5","./console.js":"4I8Lw","../pkg/meerkat_remote_console_V2.js":"1ieD2","./types.d.ts":"ck5oB"}],"6yYHF":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "ConnectionLineType", ()=>(0, _system.ConnectionLineType));
@@ -32665,6 +33291,7 @@ var _s = $RefreshSig$();
 const Sidebar = ()=>{
     _s();
     const [_, setType] = (0, _dnDContext.useDnD)();
+    const [isSidebarOpen, setIsSidebarOpen] = (0, _react.useState)(true); // State to track sidebar collapse/expand
     const onDragStart = (event, nodeType)=>{
         setType(nodeType);
         event.dataTransfer.effectAllowed = 'move';
@@ -32676,6 +33303,8 @@ const Sidebar = ()=>{
             (0, _react1.shift)()
         ]
     });
+    // Toggle sidebar visibility
+    const toggleSidebar = ()=>setIsSidebarOpen((prev)=>!prev);
     return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
         ref: refs.setFloating,
         style: {
@@ -32683,121 +33312,103 @@ const Sidebar = ()=>{
             background: "#fff",
             boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
             padding: "10px",
-            width: "220px",
+            width: isSidebarOpen ? "220px" : "50px",
             position: "absolute",
             zIndex: 1000,
-            borderRadius: "8px"
+            borderRadius: "8px",
+            transition: "width 0.3s ease-in-out"
         },
         children: [
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h3", {
-                children: "Sidebar"
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                onClick: toggleSidebar,
+                style: {
+                    backgroundColor: "#007BFF",
+                    color: "white",
+                    border: "1px solid ",
+                    padding: "8px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    marginBottom: "5px",
+                    borderRadius: "4px",
+                    width: "100%"
+                },
+                children: isSidebarOpen ? "Collapse" : "Open"
             }, void 0, false, {
                 fileName: "Sidebar.js",
-                lineNumber: 32,
+                lineNumber: 38,
                 columnNumber: 7
             }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
-                children: "Drag elements to the canvas"
+            isSidebarOpen && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("aside", {
+                    children: [
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            className: "description",
+                            children: "Drag these nodes to the canvas."
+                        }, void 0, false, {
+                            fileName: "Sidebar.js",
+                            lineNumber: 59,
+                            columnNumber: 13
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            className: "dndnode variable shape-circle",
+                            onDragStart: (event)=>onDragStart(event, 'Variable'),
+                            draggable: true,
+                            children: "Variable"
+                        }, void 0, false, {
+                            fileName: "Sidebar.js",
+                            lineNumber: 75,
+                            columnNumber: 13
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            className: "dndnode definition shape-diamond",
+                            onDragStart: (event)=>onDragStart(event, 'Definition'),
+                            draggable: true,
+                            children: "Definition"
+                        }, void 0, false, {
+                            fileName: "Sidebar.js",
+                            lineNumber: 78,
+                            columnNumber: 13
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            className: "dndnode action shape-hexagon",
+                            onDragStart: (event)=>onDragStart(event, 'Action'),
+                            draggable: true,
+                            children: "Action"
+                        }, void 0, false, {
+                            fileName: "Sidebar.js",
+                            lineNumber: 81,
+                            columnNumber: 13
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            className: "dndnode table shape-rectangle",
+                            onDragStart: (event)=>onDragStart(event, 'Table'),
+                            draggable: true,
+                            children: "Table"
+                        }, void 0, false, {
+                            fileName: "Sidebar.js",
+                            lineNumber: 84,
+                            columnNumber: 13
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            className: "dndnode html shape-triangle",
+                            onDragStart: (event)=>onDragStart(event, 'HTML'),
+                            draggable: true,
+                            children: "HTML"
+                        }, void 0, false, {
+                            fileName: "Sidebar.js",
+                            lineNumber: 87,
+                            columnNumber: 13
+                        }, undefined)
+                    ]
+                }, void 0, true, {
+                    fileName: "Sidebar.js",
+                    lineNumber: 58,
+                    columnNumber: 11
+                }, undefined)
             }, void 0, false, {
                 fileName: "Sidebar.js",
-                lineNumber: 33,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("aside", {
-                children: [
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                        className: "description",
-                        children: "Drag these nodes to the canvas."
-                    }, void 0, false, {
-                        fileName: "Sidebar.js",
-                        lineNumber: 35,
-                        columnNumber: 9
-                    }, undefined),
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                        className: "dndnode input",
-                        onDragStart: (event)=>onDragStart(event, 'input'),
-                        draggable: true,
-                        children: "Input Node"
-                    }, void 0, false, {
-                        fileName: "Sidebar.js",
-                        lineNumber: 38,
-                        columnNumber: 9
-                    }, undefined),
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                        className: "dndnode",
-                        onDragStart: (event)=>onDragStart(event, 'default'),
-                        draggable: true,
-                        children: "Default Node"
-                    }, void 0, false, {
-                        fileName: "Sidebar.js",
-                        lineNumber: 41,
-                        columnNumber: 9
-                    }, undefined),
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                        className: "dndnode output",
-                        onDragStart: (event)=>onDragStart(event, 'output'),
-                        draggable: true,
-                        children: "Output Node"
-                    }, void 0, false, {
-                        fileName: "Sidebar.js",
-                        lineNumber: 44,
-                        columnNumber: 9
-                    }, undefined),
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                        className: "dndnode variable shape-circle",
-                        onDragStart: (event)=>onDragStart(event, 'variable'),
-                        draggable: true,
-                        children: "Variable"
-                    }, void 0, false, {
-                        fileName: "Sidebar.js",
-                        lineNumber: 49,
-                        columnNumber: 9
-                    }, undefined),
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                        className: "dndnode definition shape-diamond ",
-                        onDragStart: (event)=>onDragStart(event, 'definition'),
-                        draggable: true,
-                        children: "Definition"
-                    }, void 0, false, {
-                        fileName: "Sidebar.js",
-                        lineNumber: 52,
-                        columnNumber: 9
-                    }, undefined),
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                        className: "dndnode action shape-hexagon",
-                        onDragStart: (event)=>onDragStart(event, 'action'),
-                        draggable: true,
-                        children: "Action"
-                    }, void 0, false, {
-                        fileName: "Sidebar.js",
-                        lineNumber: 55,
-                        columnNumber: 9
-                    }, undefined),
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                        className: "dndnode table shape-rectangle",
-                        onDragStart: (event)=>onDragStart(event, 'table'),
-                        draggable: true,
-                        children: "Table"
-                    }, void 0, false, {
-                        fileName: "Sidebar.js",
-                        lineNumber: 58,
-                        columnNumber: 9
-                    }, undefined),
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                        className: "dndnode html shape-triangle",
-                        onDragStart: (event)=>onDragStart(event, 'html'),
-                        draggable: true,
-                        children: "HTML"
-                    }, void 0, false, {
-                        fileName: "Sidebar.js",
-                        lineNumber: 61,
-                        columnNumber: 9
-                    }, undefined)
-                ]
-            }, void 0, true, {
-                fileName: "Sidebar.js",
-                lineNumber: 34,
-                columnNumber: 7
+                lineNumber: 57,
+                columnNumber: 9
             }, undefined),
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("style", {
                 children: `
@@ -32824,21 +33435,20 @@ const Sidebar = ()=>{
           .shape-triangle { width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent; border-bottom: 70px solid #f44336; }
           .shape-rectangle { width: 100px; height: 60px; background: #2196F3; border-radius: 5px; }
           .shape-diamond { width: 70px; height: 70px; background: #9c27b0; transform: rotate(45deg); }
-
         `
             }, void 0, false, {
                 fileName: "Sidebar.js",
-                lineNumber: 67,
+                lineNumber: 95,
                 columnNumber: 7
             }, undefined)
         ]
     }, void 0, true, {
         fileName: "Sidebar.js",
-        lineNumber: 19,
+        lineNumber: 23,
         columnNumber: 5
     }, undefined);
 };
-_s(Sidebar, "W1c5+3D7hkMNDtI6KuVYSHQQ1vE=", false, function() {
+_s(Sidebar, "JwfWLw8JJksmNcomVsvY9Pn5lAY=", false, function() {
     return [
         (0, _dnDContext.useDnD),
         (0, _react1.useFloating)
@@ -40353,95 +40963,127 @@ var _jsxDevRuntime = require("react/jsx-dev-runtime");
 var _react = require("react");
 var _reactDefault = parcelHelpers.interopDefault(_react);
 var _react1 = require("@xyflow/react");
-const VariableNode = ({ data, isConnectable })=>{
+var _s = $RefreshSig$();
+const VariableNode = ({ id, data, isConnectable })=>{
+    _s();
+    const connection = (0, _react1.useConnection)();
+    const isTarget = connection.inProgress && connection.fromNode.id !== id;
     return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
         style: styles.node,
         children: [
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("label", {
-                children: [
-                    "Name:",
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
-                        type: "text",
-                        value: data.label,
-                        onChange: (e)=>data.onChange(e.target.value),
-                        style: styles.input
-                    }, void 0, false, {
-                        fileName: "nodes/Variable.js",
-                        lineNumber: 10,
-                        columnNumber: 9
-                    }, undefined)
-                ]
-            }, void 0, true, {
-                fileName: "nodes/Variable.js",
-                lineNumber: 8,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("label", {
-                children: [
-                    "Value:",
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
-                        type: "text",
-                        value: data.value,
-                        onChange: (e)=>data.onValueChange(e.target.value),
-                        style: styles.input
-                    }, void 0, false, {
-                        fileName: "nodes/Variable.js",
-                        lineNumber: 21,
-                        columnNumber: 9
-                    }, undefined)
-                ]
-            }, void 0, true, {
-                fileName: "nodes/Variable.js",
-                lineNumber: 19,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                type: "target",
-                position: (0, _react1.Position).Left,
-                isConnectable: isConnectable
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
+                style: styles.text,
+                children: data.label || "Unnamed Variable"
             }, void 0, false, {
                 fileName: "nodes/Variable.js",
-                lineNumber: 30,
+                lineNumber: 12,
                 columnNumber: 7
             }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                type: "source",
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
+                style: styles.text,
+                children: data.value || "No Value"
+            }, void 0, false, {
+                fileName: "nodes/Variable.js",
+                lineNumber: 13,
+                columnNumber: 7
+            }, undefined),
+            !connection.inProgress && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                className: "customHandle",
                 position: (0, _react1.Position).Right,
-                isConnectable: isConnectable
+                type: "source"
             }, void 0, false, {
                 fileName: "nodes/Variable.js",
-                lineNumber: 35,
-                columnNumber: 7
+                lineNumber: 17,
+                columnNumber: 11
+            }, undefined),
+            (!connection.inProgress || isTarget) && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                className: "customHandle",
+                position: (0, _react1.Position).Left,
+                type: "target",
+                isConnectableStart: false
+            }, void 0, false, {
+                fileName: "nodes/Variable.js",
+                lineNumber: 25,
+                columnNumber: 11
             }, undefined)
         ]
     }, void 0, true, {
         fileName: "nodes/Variable.js",
-        lineNumber: 6,
+        lineNumber: 11,
         columnNumber: 5
     }, undefined);
 };
+_s(VariableNode, "lPaYy4JnAxzDf77n5AVJEeBzM14=", false, function() {
+    return [
+        (0, _react1.useConnection)
+    ];
+});
 _c = VariableNode;
 const styles = {
     node: {
         padding: "10px",
-        border: "1px solid #ddd",
+        border: "2px solid rgb(225, 0, 255)",
         borderRadius: "5px",
         background: "#fff",
-        width: "150px",
+        width: "auto",
+        maxwidth: "550px",
         textAlign: "center",
-        boxShadow: "2px 2px 5px rgba(0,0,0,0.1)"
+        boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
+        cursor: "pointer"
     },
-    input: {
-        width: "90%",
-        marginTop: "5px",
-        padding: "5px",
-        fontSize: "12px"
+    overlay: {
+        position: "fixed",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        width: "300px",
+        height: "auto",
+        background: "rgba(0, 0, 0, 0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000
+    },
+    modal: {
+        background: "#fff",
+        padding: "20px",
+        borderRadius: "8px",
+        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+        textAlign: "center",
+        width: "280px"
+    },
+    buttonContainer: {
+        display: "flex",
+        justifyContent: "space-between",
+        marginTop: "10px"
+    },
+    button: {
+        padding: "8px 16px",
+        background: "#007BFF",
+        color: "white",
+        border: "none",
+        borderRadius: "4px",
+        cursor: "pointer"
+    },
+    cancelButton: {
+        padding: "8px 16px",
+        background: "#6c757d",
+        color: "white",
+        border: "none",
+        borderRadius: "4px",
+        cursor: "pointer"
+    },
+    text: {
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        width: "100%",
+        display: "block"
     }
 };
-exports.default = /*#__PURE__*/ _c1 = (0, _react.memo)(VariableNode);
-var _c, _c1;
+exports.default = VariableNode;
+var _c;
 $RefreshReg$(_c, "VariableNode");
-$RefreshReg$(_c1, "%default%");
 
   $parcel$ReactRefreshHelpers$dc0c.postlude(module);
 } finally {
@@ -40461,82 +41103,120 @@ var _jsxDevRuntime = require("react/jsx-dev-runtime");
 var _react = require("react");
 var _reactDefault = parcelHelpers.interopDefault(_react);
 var _react1 = require("@xyflow/react");
-const DefinitionNode = ({ data, isConnectable })=>{
+var _s = $RefreshSig$();
+const DefinitionNode = ({ id, data, isConnectable })=>{
+    _s();
+    const connection = (0, _react1.useConnection)();
+    const isTarget = connection.inProgress && connection.fromNode.id !== id;
     return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-        style: styles.node,
+        style: styles.wrapper,
         children: [
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
-                children: "Definition"
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                style: styles.node,
+                children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                    style: styles.content,
+                    children: [
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
+                            style: styles.text,
+                            children: data.label || "Unnamed"
+                        }, void 0, false, {
+                            fileName: "nodes/Definition.js",
+                            lineNumber: 13,
+                            columnNumber: 11
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
+                            style: styles.text,
+                            children: data.definition || "No Value"
+                        }, void 0, false, {
+                            fileName: "nodes/Definition.js",
+                            lineNumber: 14,
+                            columnNumber: 11
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
+                            style: styles.text,
+                            children: data.val || "No Value"
+                        }, void 0, false, {
+                            fileName: "nodes/Definition.js",
+                            lineNumber: 15,
+                            columnNumber: 11
+                        }, undefined)
+                    ]
+                }, void 0, true, {
+                    fileName: "nodes/Definition.js",
+                    lineNumber: 12,
+                    columnNumber: 9
+                }, undefined)
             }, void 0, false, {
                 fileName: "nodes/Definition.js",
-                lineNumber: 7,
+                lineNumber: 11,
                 columnNumber: 7
             }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
-                type: "text",
-                value: data.label,
-                onChange: (e)=>data.onTitleChange(e.target.value),
-                placeholder: "Title",
-                style: styles.input
-            }, void 0, false, {
-                fileName: "nodes/Definition.js",
-                lineNumber: 8,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("textarea", {
-                value: data.definition,
-                onChange: (e)=>data.onDefinitionChange(e.target.value),
-                placeholder: "Definition",
-                style: styles.textarea
-            }, void 0, false, {
-                fileName: "nodes/Definition.js",
-                lineNumber: 15,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                type: "target",
-                position: (0, _react1.Position).Left,
-                isConnectable: isConnectable
+            !connection.inProgress && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                className: "customHandle",
+                position: (0, _react1.Position).Right,
+                type: "source"
             }, void 0, false, {
                 fileName: "nodes/Definition.js",
                 lineNumber: 21,
-                columnNumber: 7
+                columnNumber: 9
             }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                type: "source",
-                position: (0, _react1.Position).Right,
-                isConnectable: isConnectable
+            (!connection.inProgress || isTarget) && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                className: "customHandle",
+                position: (0, _react1.Position).Left,
+                type: "target",
+                isConnectableStart: false
             }, void 0, false, {
                 fileName: "nodes/Definition.js",
-                lineNumber: 22,
-                columnNumber: 7
+                lineNumber: 28,
+                columnNumber: 9
             }, undefined)
         ]
     }, void 0, true, {
         fileName: "nodes/Definition.js",
-        lineNumber: 6,
+        lineNumber: 10,
         columnNumber: 5
     }, undefined);
 };
+_s(DefinitionNode, "lPaYy4JnAxzDf77n5AVJEeBzM14=", false, function() {
+    return [
+        (0, _react1.useConnection)
+    ];
+});
 _c = DefinitionNode;
 const styles = {
+    wrapper: {
+        position: "relative"
+    },
     node: {
-        padding: "10px",
-        border: "1px solid #ddd",
-        borderRadius: "5px",
+        width: "120px",
+        height: "120px",
         background: "#fff",
-        width: "200px"
+        border: "2px solid rgb(19, 223, 29)",
+        transform: "rotate(45deg)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
+        position: "relative",
+        padding: "10px"
     },
-    input: {
+    content: {
+        transform: "rotate(-45deg)",
+        textAlign: "center",
+        fontSize: "12px",
+        wordBreak: "break-word",
+        maxWidth: "100%",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center"
+    },
+    text: {
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
         width: "100%",
-        marginTop: "5px",
-        padding: "5px"
-    },
-    textarea: {
-        width: "96%",
-        marginTop: "5px",
-        padding: "5px",
-        height: "50px"
+        display: "block",
+        textAlign: "center"
     }
 };
 exports.default = /*#__PURE__*/ _c1 = (0, _react.memo)(DefinitionNode);
@@ -40562,69 +41242,78 @@ var _jsxDevRuntime = require("react/jsx-dev-runtime");
 var _react = require("react");
 var _reactDefault = parcelHelpers.interopDefault(_react);
 var _react1 = require("@xyflow/react");
-const ActionNode = ({ data, isConnectable })=>{
+var _s = $RefreshSig$();
+const ActionNode = ({ id, data, isConnectable })=>{
+    _s();
+    const connection = (0, _react1.useConnection)();
+    const isTarget = connection.inProgress && connection.fromNode.id !== id;
     return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
         style: styles.node,
         children: [
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
-                children: "Action"
+                style: styles.text,
+                children: data.label
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 7,
+                lineNumber: 10,
                 columnNumber: 7
             }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
-                type: "text",
-                value: data.buttonText,
-                onChange: (e)=>data.onButtonTextChange(e.target.value),
-                placeholder: "Button Text",
-                style: styles.input
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
+                style: styles.text,
+                children: data.target || "No target"
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 8,
+                lineNumber: 11,
                 columnNumber: 7
             }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
-                style: styles.button,
-                children: data.buttonText || "Click Me"
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
+                style: styles.text,
+                children: data.action || "No action defined"
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 15,
+                lineNumber: 12,
                 columnNumber: 7
             }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                type: "target",
-                position: (0, _react1.Position).Left,
-                isConnectable: isConnectable
+            !connection.inProgress && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                className: "customHandle",
+                position: (0, _react1.Position).Right,
+                type: "source"
             }, void 0, false, {
                 fileName: "nodes/Action.js",
                 lineNumber: 16,
-                columnNumber: 7
+                columnNumber: 17
             }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                type: "source",
-                position: (0, _react1.Position).Right,
-                isConnectable: isConnectable
+            (!connection.inProgress || isTarget) && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                className: "customHandle",
+                position: (0, _react1.Position).Left,
+                type: "target",
+                isConnectableStart: false
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 17,
-                columnNumber: 7
+                lineNumber: 24,
+                columnNumber: 17
             }, undefined)
         ]
     }, void 0, true, {
         fileName: "nodes/Action.js",
-        lineNumber: 6,
+        lineNumber: 9,
         columnNumber: 5
     }, undefined);
 };
+_s(ActionNode, "lPaYy4JnAxzDf77n5AVJEeBzM14=", false, function() {
+    return [
+        (0, _react1.useConnection)
+    ];
+});
 _c = ActionNode;
 const styles = {
     node: {
         padding: "10px",
-        border: "1px solid #ddd",
+        border: "2px solid rgb(252, 0, 55)",
         borderRadius: "5px",
         background: "#fff",
-        width: "150px",
+        width: "auto",
+        maxwidth: "550px",
         textAlign: "center"
     },
     input: {
@@ -40637,6 +41326,13 @@ const styles = {
         padding: "5px",
         cursor: "pointer",
         width: "100%"
+    },
+    text: {
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        width: "100%",
+        display: "block"
     }
 };
 exports.default = /*#__PURE__*/ _c1 = (0, _react.memo)(ActionNode);
@@ -40662,75 +41358,237 @@ var _jsxDevRuntime = require("react/jsx-dev-runtime");
 var _react = require("react");
 var _reactDefault = parcelHelpers.interopDefault(_react);
 var _react1 = require("@xyflow/react");
-const TableNode = ({ isConnectable })=>{
+var _storeJs = require("../store/store.js");
+var _storeJsDefault = parcelHelpers.interopDefault(_storeJs);
+var _s = $RefreshSig$();
+const TableNode = ({ id, data, isConnectable })=>{
+    _s();
+    const [rowsForm, setRowsForm] = (0, _react.useState)([]);
+    const [newRowCount, setNewRowCount] = (0, _react.useState)(1); // Default to 1 row
+    const [isEditing, setIsEditing] = (0, _react.useState)(false); // Toggle for editing
+    const updateNode = (0, _storeJsDefault.default)((state)=>state.updateNode);
+    // Handle input change for adding new rows
+    const handleRowInputChange = (e, rowIdx, colIdx)=>{
+        const value = e.target.value;
+        const updatedRows = [
+            ...rowsForm
+        ];
+        updatedRows[rowIdx][colIdx] = value;
+        setRowsForm(updatedRows);
+    };
+    // Handle adding multiple rows
+    const handleAddMultipleRows = ()=>{
+        const newRows = Array.from({
+            length: newRowCount
+        }, ()=>data.columns.map(()=>""));
+        setRowsForm(newRows);
+    };
+    // Submit rows to the table
+    const handleSubmitRows = ()=>{
+        updateNode(id, {
+            rows: [
+                ...data.rows || [],
+                ...rowsForm
+            ]
+        });
+        setRowsForm([]);
+    };
+    // Enable editing mode
+    const handleEditRows = ()=>{
+        setIsEditing(!isEditing);
+    };
+    // Handle row edits
+    const handleEditRowInputChange = (e, rowIdx, colIdx)=>{
+        const value = e.target.value;
+        const updatedRows = [
+            ...data.rows
+        ];
+        updatedRows[rowIdx][colIdx] = value;
+        updateNode(id, {
+            rows: updatedRows
+        });
+    };
+    // Handle deleting a row
+    const handleDeleteRow = (rowIdx)=>{
+        const updatedRows = data.rows.filter((_, index)=>index !== rowIdx);
+        updateNode(id, {
+            rows: updatedRows
+        });
+    };
     return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
         style: styles.node,
         children: [
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
-                children: "Table"
+                children: data.label || "Database Table"
             }, void 0, false, {
                 fileName: "nodes/Table.js",
-                lineNumber: 7,
+                lineNumber: 52,
                 columnNumber: 7
             }, undefined),
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("table", {
                 style: styles.table,
-                children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("tbody", {
-                    children: [
-                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("tr", {
-                            children: [
-                                /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("td", {
-                                    children: "Row 1, Col 1"
-                                }, void 0, false, {
+                children: [
+                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("thead", {
+                        children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("tr", {
+                            children: data.columns && data.columns.map((col, idx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("th", {
+                                    style: styles.th,
+                                    children: col.name
+                                }, idx, false, {
                                     fileName: "nodes/Table.js",
-                                    lineNumber: 11,
-                                    columnNumber: 13
-                                }, undefined),
-                                /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("td", {
-                                    children: "Row 1, Col 2"
-                                }, void 0, false, {
-                                    fileName: "nodes/Table.js",
-                                    lineNumber: 12,
-                                    columnNumber: 13
-                                }, undefined)
-                            ]
-                        }, void 0, true, {
+                                    lineNumber: 58,
+                                    columnNumber: 15
+                                }, undefined))
+                        }, void 0, false, {
                             fileName: "nodes/Table.js",
-                            lineNumber: 10,
-                            columnNumber: 11
-                        }, undefined),
-                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("tr", {
-                            children: [
-                                /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("td", {
-                                    children: "Row 2, Col 1"
-                                }, void 0, false, {
-                                    fileName: "nodes/Table.js",
-                                    lineNumber: 15,
-                                    columnNumber: 13
-                                }, undefined),
-                                /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("td", {
-                                    children: "Row 2, Col 2"
-                                }, void 0, false, {
-                                    fileName: "nodes/Table.js",
-                                    lineNumber: 16,
-                                    columnNumber: 13
-                                }, undefined)
-                            ]
-                        }, void 0, true, {
-                            fileName: "nodes/Table.js",
-                            lineNumber: 14,
+                            lineNumber: 56,
                             columnNumber: 11
                         }, undefined)
-                    ]
-                }, void 0, true, {
-                    fileName: "nodes/Table.js",
-                    lineNumber: 9,
-                    columnNumber: 9
-                }, undefined)
+                    }, void 0, false, {
+                        fileName: "nodes/Table.js",
+                        lineNumber: 55,
+                        columnNumber: 9
+                    }, undefined),
+                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("tbody", {
+                        children: data.rows && data.rows.map((row, rowIdx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("tr", {
+                                children: [
+                                    row.map((cell, cellIdx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("td", {
+                                            style: styles.td,
+                                            children: isEditing ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
+                                                type: "text",
+                                                value: cell,
+                                                onChange: (e)=>handleEditRowInputChange(e, rowIdx, cellIdx),
+                                                style: styles.input
+                                            }, void 0, false, {
+                                                fileName: "nodes/Table.js",
+                                                lineNumber: 68,
+                                                columnNumber: 21
+                                            }, undefined) : cell
+                                        }, cellIdx, false, {
+                                            fileName: "nodes/Table.js",
+                                            lineNumber: 66,
+                                            columnNumber: 17
+                                        }, undefined)),
+                                    isEditing && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("td", {
+                                        children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                            onClick: ()=>handleDeleteRow(rowIdx),
+                                            style: styles.deleteButton,
+                                            children: "X"
+                                        }, void 0, false, {
+                                            fileName: "nodes/Table.js",
+                                            lineNumber: 81,
+                                            columnNumber: 19
+                                        }, undefined)
+                                    }, void 0, false, {
+                                        fileName: "nodes/Table.js",
+                                        lineNumber: 80,
+                                        columnNumber: 17
+                                    }, undefined)
+                                ]
+                            }, rowIdx, true, {
+                                fileName: "nodes/Table.js",
+                                lineNumber: 64,
+                                columnNumber: 13
+                            }, undefined))
+                    }, void 0, false, {
+                        fileName: "nodes/Table.js",
+                        lineNumber: 62,
+                        columnNumber: 9
+                    }, undefined)
+                ]
+            }, void 0, true, {
+                fileName: "nodes/Table.js",
+                lineNumber: 54,
+                columnNumber: 7
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("label", {
+                style: {
+                    display: "block",
+                    margin: "10px 0"
+                },
+                children: [
+                    "Number of rows to add:",
+                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
+                        type: "number",
+                        value: newRowCount,
+                        onChange: (e)=>setNewRowCount(Number(e.target.value)),
+                        min: "1",
+                        style: styles.input
+                    }, void 0, false, {
+                        fileName: "nodes/Table.js",
+                        lineNumber: 92,
+                        columnNumber: 9
+                    }, undefined)
+                ]
+            }, void 0, true, {
+                fileName: "nodes/Table.js",
+                lineNumber: 90,
+                columnNumber: 7
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                onClick: handleAddMultipleRows,
+                style: styles.button,
+                children: [
+                    "Add ",
+                    newRowCount,
+                    " Row(s)"
+                ]
+            }, void 0, true, {
+                fileName: "nodes/Table.js",
+                lineNumber: 100,
+                columnNumber: 7
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                onClick: handleEditRows,
+                style: styles.editButton,
+                children: isEditing ? "Finish Editing" : "Edit Rows"
             }, void 0, false, {
                 fileName: "nodes/Table.js",
-                lineNumber: 8,
+                lineNumber: 101,
                 columnNumber: 7
+            }, undefined),
+            rowsForm.length > 0 && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                children: [
+                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
+                        children: "Fill Row Values:"
+                    }, void 0, false, {
+                        fileName: "nodes/Table.js",
+                        lineNumber: 108,
+                        columnNumber: 11
+                    }, undefined),
+                    rowsForm.map((row, rowIdx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            style: {
+                                marginBottom: "10px"
+                            },
+                            children: data.columns.map((col, colIdx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
+                                    type: "text",
+                                    value: row[colIdx] || "",
+                                    placeholder: col.name,
+                                    onChange: (e)=>handleRowInputChange(e, rowIdx, colIdx),
+                                    style: styles.input
+                                }, colIdx, false, {
+                                    fileName: "nodes/Table.js",
+                                    lineNumber: 112,
+                                    columnNumber: 17
+                                }, undefined))
+                        }, rowIdx, false, {
+                            fileName: "nodes/Table.js",
+                            lineNumber: 110,
+                            columnNumber: 13
+                        }, undefined)),
+                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                        onClick: handleSubmitRows,
+                        style: styles.button,
+                        children: "Submit Rows"
+                    }, void 0, false, {
+                        fileName: "nodes/Table.js",
+                        lineNumber: 123,
+                        columnNumber: 11
+                    }, undefined)
+                ]
+            }, void 0, true, {
+                fileName: "nodes/Table.js",
+                lineNumber: 107,
+                columnNumber: 9
             }, undefined),
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
                 type: "target",
@@ -40738,7 +41596,7 @@ const TableNode = ({ isConnectable })=>{
                 isConnectable: isConnectable
             }, void 0, false, {
                 fileName: "nodes/Table.js",
-                lineNumber: 20,
+                lineNumber: 127,
                 columnNumber: 7
             }, undefined),
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
@@ -40747,34 +41605,82 @@ const TableNode = ({ isConnectable })=>{
                 isConnectable: isConnectable
             }, void 0, false, {
                 fileName: "nodes/Table.js",
-                lineNumber: 21,
+                lineNumber: 128,
                 columnNumber: 7
             }, undefined)
         ]
     }, void 0, true, {
         fileName: "nodes/Table.js",
-        lineNumber: 6,
+        lineNumber: 51,
         columnNumber: 5
     }, undefined);
 };
+_s(TableNode, "xJovSpz+Be6us0m5xyka5AXVm60=", false, function() {
+    return [
+        (0, _storeJsDefault.default)
+    ];
+});
 _c = TableNode;
 const styles = {
     node: {
         padding: "10px",
-        border: "1px solid #ddd",
+        border: "2px solid #2196F3",
         borderRadius: "5px",
         background: "#fff",
-        width: "200px",
-        textAlign: "center"
+        width: "auto",
+        textAlign: "center",
+        boxShadow: "2px 2px 5px rgba(0,0,0,0.1)"
     },
     table: {
         width: "100%",
         borderCollapse: "collapse",
-        marginTop: "5px"
+        marginTop: "10px"
+    },
+    th: {
+        border: "1px solid #ddd",
+        padding: "8px",
+        backgroundColor: "#f2f2f2",
+        textAlign: "center",
+        fontWeight: "bold"
     },
     td: {
         border: "1px solid #ddd",
-        padding: "5px"
+        padding: "8px",
+        textAlign: "center"
+    },
+    input: {
+        padding: "5px",
+        margin: "5px",
+        borderRadius: "4px",
+        border: "1px solid #ccc",
+        width: "90px"
+    },
+    button: {
+        backgroundColor: "#4CAF50",
+        color: "white",
+        border: "none",
+        padding: "8px 16px",
+        cursor: "pointer",
+        margin: "5px 0",
+        borderRadius: "4px"
+    },
+    deleteButton: {
+        backgroundColor: "#ff4d4d",
+        color: "white",
+        border: "none",
+        padding: "5px 10px",
+        cursor: "pointer",
+        borderRadius: "4px",
+        marginLeft: "5px"
+    },
+    editButton: {
+        backgroundColor: "#2196F3",
+        color: "white",
+        border: "none",
+        padding: "8px 16px",
+        cursor: "pointer",
+        margin: "5px 5px",
+        borderRadius: "4px"
     }
 };
 exports.default = /*#__PURE__*/ _c1 = (0, _react.memo)(TableNode);
@@ -40787,200 +41693,7 @@ $RefreshReg$(_c1, "%default%");
   window.$RefreshReg$ = prevRefreshReg;
   window.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"iTorj","react":"21dqq","@xyflow/react":"6yYHF","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"km3Ru"}],"2rIsa":[function(require,module,exports,__globalThis) {
-var $parcel$ReactRefreshHelpers$6a91 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
-var prevRefreshReg = window.$RefreshReg$;
-var prevRefreshSig = window.$RefreshSig$;
-$parcel$ReactRefreshHelpers$6a91.prelude(module);
-
-try {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _jsxDevRuntime = require("react/jsx-dev-runtime");
-var _react = require("react");
-var _reactDefault = parcelHelpers.interopDefault(_react);
-var _react1 = require("@xyflow/react");
-const HtmlNode = ({ data, isConnectable })=>{
-    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-        style: styles.node,
-        children: [
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
-                children: "HTML"
-            }, void 0, false, {
-                fileName: "nodes/HTML.js",
-                lineNumber: 7,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("textarea", {
-                value: data.content,
-                onChange: (e)=>data.onHtmlChange(e.target.value),
-                placeholder: "Enter HTML",
-                style: styles.textarea
-            }, void 0, false, {
-                fileName: "nodes/HTML.js",
-                lineNumber: 8,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                dangerouslySetInnerHTML: {
-                    __html: data.html
-                },
-                style: styles.preview
-            }, void 0, false, {
-                fileName: "nodes/HTML.js",
-                lineNumber: 14,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                type: "target",
-                position: (0, _react1.Position).Left,
-                isConnectable: isConnectable
-            }, void 0, false, {
-                fileName: "nodes/HTML.js",
-                lineNumber: 15,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                type: "source",
-                position: (0, _react1.Position).Right,
-                isConnectable: isConnectable
-            }, void 0, false, {
-                fileName: "nodes/HTML.js",
-                lineNumber: 16,
-                columnNumber: 7
-            }, undefined)
-        ]
-    }, void 0, true, {
-        fileName: "nodes/HTML.js",
-        lineNumber: 6,
-        columnNumber: 5
-    }, undefined);
-};
-_c = HtmlNode;
-const styles = {
-    node: {
-        backgroundImage: "url('https://www.pngmart.com/files/23/Iphone-PNG-Isolated-Pic-Frame-PNG-HD.png')",
-        backgroundSize: "cover",
-        width: "100px",
-        height: "100px",
-        borderRadius: "10px",
-        border: "2px solid #ccc"
-    }
-};
-exports.default = /*#__PURE__*/ _c1 = (0, _react.memo)(HtmlNode);
-var _c, _c1;
-$RefreshReg$(_c, "HtmlNode");
-$RefreshReg$(_c1, "%default%");
-
-  $parcel$ReactRefreshHelpers$6a91.postlude(module);
-} finally {
-  window.$RefreshReg$ = prevRefreshReg;
-  window.$RefreshSig$ = prevRefreshSig;
-}
-},{"react/jsx-dev-runtime":"iTorj","react":"21dqq","@xyflow/react":"6yYHF","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"km3Ru"}],"e1Mth":[function(require,module,exports,__globalThis) {
-var $parcel$ReactRefreshHelpers$b869 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
-var prevRefreshReg = window.$RefreshReg$;
-var prevRefreshSig = window.$RefreshSig$;
-$parcel$ReactRefreshHelpers$b869.prelude(module);
-
-try {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-parcelHelpers.export(exports, "default", ()=>ActionEdge);
-var _jsxDevRuntime = require("react/jsx-dev-runtime");
-var _react = require("react");
-var _reactDefault = parcelHelpers.interopDefault(_react);
-var _react1 = require("@xyflow/react");
-var _s = $RefreshSig$();
-const buttonEdgeLabelStyle = {
-    position: "absolute",
-    pointerEvents: "all",
-    transformOrigin: "center"
-};
-const buttonEdgeButtonStyle = {
-    width: "30px",
-    height: "30px",
-    border: "5px solidrgb(30, 113, 197)",
-    color: "var(--xy-edge-label-color-default)",
-    backgroundColor: "#f3f3f4",
-    cursor: "pointer",
-    borderRadius: "50%",
-    fontSize: "12px",
-    paddingTop: "0px"
-};
-const buttonEdgeButtonHoverStyle = {
-    backgroundColor: "var(--xy-theme-hover)"
-};
-function ActionEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style = {}, markerEnd }) {
-    _s();
-    const { setEdges } = (0, _react1.useReactFlow)();
-    const [edgePath, labelX, labelY] = (0, _react1.getBezierPath)({
-        sourceX,
-        sourceY,
-        sourcePosition,
-        targetX,
-        targetY,
-        targetPosition
-    });
-    const onEdgeClick = ()=>{
-        setEdges((edges)=>edges.filter((edge)=>edge.id !== id));
-    };
-    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _jsxDevRuntime.Fragment), {
-        children: [
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.BaseEdge), {
-                path: edgePath,
-                markerEnd: markerEnd,
-                style: style
-            }, void 0, false, {
-                fileName: "edges/ActionEdge.js",
-                lineNumber: 58,
-                columnNumber: 7
-            }, this),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.EdgeLabelRenderer), {
-                children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                    style: {
-                        ...buttonEdgeLabelStyle,
-                        transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`
-                    },
-                    children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
-                        style: buttonEdgeButtonStyle,
-                        onClick: onEdgeClick,
-                        onMouseOver: (e)=>e.target.style.backgroundColor = buttonEdgeButtonHoverStyle.backgroundColor,
-                        onMouseOut: (e)=>e.target.style.backgroundColor = buttonEdgeButtonStyle.backgroundColor,
-                        children: "Do Action"
-                    }, void 0, false, {
-                        fileName: "edges/ActionEdge.js",
-                        lineNumber: 66,
-                        columnNumber: 11
-                    }, this)
-                }, void 0, false, {
-                    fileName: "edges/ActionEdge.js",
-                    lineNumber: 60,
-                    columnNumber: 9
-                }, this)
-            }, void 0, false, {
-                fileName: "edges/ActionEdge.js",
-                lineNumber: 59,
-                columnNumber: 7
-            }, this)
-        ]
-    }, void 0, true);
-}
-_s(ActionEdge, "KDsJmDADS/2iu8L7zOmcKW/z10k=", false, function() {
-    return [
-        (0, _react1.useReactFlow)
-    ];
-});
-_c = ActionEdge;
-var _c;
-$RefreshReg$(_c, "ActionEdge");
-
-  $parcel$ReactRefreshHelpers$b869.postlude(module);
-} finally {
-  window.$RefreshReg$ = prevRefreshReg;
-  window.$RefreshSig$ = prevRefreshSig;
-}
-},{"react/jsx-dev-runtime":"iTorj","react":"21dqq","@xyflow/react":"6yYHF","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"km3Ru"}],"8jylR":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"iTorj","react":"21dqq","@xyflow/react":"6yYHF","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"km3Ru","../store/store.js":"8jylR"}],"8jylR":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 var _zustand = require("zustand");
@@ -40989,9 +41702,35 @@ var _react = require("@xyflow/react");
 const initialNodes = [
     {
         id: "1",
-        type: "input",
+        type: "Table",
         data: {
-            label: "Input Node"
+            label: "Table Node",
+            columns: [
+                {
+                    name: "Column 1",
+                    type: "text"
+                },
+                {
+                    name: "Column 2",
+                    type: "text"
+                },
+                {
+                    name: "Column 3",
+                    type: "text"
+                }
+            ],
+            rows: [
+                [
+                    "Row 1, Col 1",
+                    "Row 1, Col 2",
+                    "Row 1, Col 3"
+                ],
+                [
+                    "Row 2, Col 1",
+                    "Row 2, Col 2",
+                    "Row 2, Col 3"
+                ] // Example row
+            ]
         },
         position: {
             x: 250,
@@ -40999,17 +41738,15 @@ const initialNodes = [
         }
     },
     {
-        id: '2',
-        type: 'variable',
+        id: 'X',
+        type: 'Variable',
         data: {
-            label: 'Variable Node',
-            value: 'some value',
-            onChange: (value)=>console.log('Variable Name Change: ', value),
-            onValueChange: (value)=>console.log('Variable Value Change: ', value)
+            label: 'X',
+            value: 3
         },
         position: {
-            x: 200,
-            y: 200
+            x: 700,
+            y: 100
         }
     }
 ];
@@ -41018,7 +41755,11 @@ const initialEdges = [
         id: 'edge-button',
         source: '1',
         target: '2',
-        type: 'action'
+        type: 'default',
+        markerEnd: {
+            type: 'arrow',
+            color: 'grey'
+        }
     }
 ];
 // Create Zustand store
@@ -41040,8 +41781,34 @@ const useStore = (0, _zustand.create)((set, get)=>({
         },
         // Handles connection of edges between nodes
         onConnect: (connection)=>{
+            const { nodes, edges } = get();
+            // Find source and target nodes
+            const sourceNode = nodes.find((node)=>node.id === connection.source);
+            const targetNode = nodes.find((node)=>node.id === connection.target);
+            let markerEnd = {
+                type: "arrow",
+                color: "rgb(85, 86, 87)"
+            };
+            if (!sourceNode || !targetNode) return; // Ensure nodes exist
+            // Determine edge type based on source and target types
+            let edgeType = "default"; // Default edge type
+            if (sourceNode.type === "Action" && (targetNode.type === "Variable" || targetNode.type === "Table")) {
+                edgeType = "action";
+                // Update the Action node's target field to the label of the target node
+                get().updateNode(sourceNode.id, {
+                    target: targetNode.data.label
+                });
+            }
+            // Create the new edge with the determined type
+            const newEdge = {
+                ...connection,
+                id: `edge-${connection.source}-${connection.target}`,
+                type: edgeType,
+                markerEnd: markerEnd
+            };
+            // Add the new edge to the state
             set({
-                edges: (0, _react.addEdge)(connection, get().edges)
+                edges: (0, _react.addEdge)(newEdge, edges)
             });
         },
         // Set the entire list of nodes
@@ -41058,10 +41825,89 @@ const useStore = (0, _zustand.create)((set, get)=>({
         },
         // Add a new node to the existing list
         addNode: (node)=>{
-            set({
-                nodes: [
-                    ...get().nodes,
+            set((state)=>{
+                const updatedNodes = [
+                    ...state.nodes,
                     node
+                ];
+                const existingEdges = state.edges;
+                let newEdges = [];
+                // Evaluate Definition helper function
+                const evaluateDefinition = (definition, nodes)=>{
+                    try {
+                        const variables = nodes.filter((node)=>node.type === "Variable").reduce((acc, node)=>{
+                            acc[node.data.label] = node.data.value;
+                            return acc;
+                        }, {});
+                        const replacedExpression = definition.replace(/\b[A-Za-z_]\w*\b/g, (match)=>{
+                            if (variables[match] !== undefined) return variables[match]; // Replace with actual value
+                            throw new Error(`Undefined variable in definition: ${match}`);
+                        });
+                        return eval(replacedExpression); // Evaluate the expression
+                    } catch (error) {
+                        console.error("Evaluation error:", error.message);
+                        return "Error";
+                    }
+                };
+                // Handle adding new nodes
+                if ((node.type === "Definition" || node.type === "HTML") && node.data.definition) {
+                    // Find referenced variables in the definition
+                    const usedVariables = node.data.definition.match(/\b[A-Za-z_]\w*\b/g) || [];
+                    usedVariables.forEach((varLabel)=>{
+                        const variableNode = updatedNodes.find((n)=>n.type === "Variable" && n.data.label === varLabel);
+                        if (variableNode) {
+                            // Check if edge already exists
+                            const edgeExists = existingEdges.some((edge)=>edge.source === variableNode.id && edge.target === node.id);
+                            if (!edgeExists) newEdges.push({
+                                id: `edge-${variableNode.id}-${node.id}`,
+                                source: variableNode.id,
+                                target: node.id
+                            });
+                        }
+                    });
+                    // **Update the Definition Node's Value**
+                    try {
+                        const newValue = evaluateDefinition(node.data.definition, updatedNodes);
+                        node = {
+                            ...node,
+                            data: {
+                                ...node.data,
+                                val: newValue
+                            }
+                        };
+                    } catch (error) {
+                        console.error("Error updating definition value:", error);
+                    }
+                }
+                // Handle adding Action node and creating action-type edges if target is a variable
+                if (node.type === "Action" && node.data.target) {
+                    const targetVariableNode = updatedNodes.find((n)=>n.type === "Variable" && n.data.label === node.data.target);
+                    if (targetVariableNode) {
+                        // Check if edge already exists between the Action node and the Variable node
+                        const edgeExists = existingEdges.some((edge)=>edge.source === node.id && edge.target === targetVariableNode.id);
+                        if (!edgeExists) newEdges.push({
+                            id: `edge-${node.id}-${targetVariableNode.id}`,
+                            source: node.id,
+                            target: targetVariableNode.id,
+                            type: "action"
+                        });
+                    }
+                }
+                // Update state with the new nodes and edges
+                return {
+                    nodes: updatedNodes.map((n)=>n.id === node.id ? node : n),
+                    edges: [
+                        ...existingEdges,
+                        ...newEdges
+                    ]
+                };
+            });
+        },
+        addVariable: (variable)=>{
+            set({
+                variables: [
+                    ...get().variables,
+                    variable
                 ]
             });
         },
@@ -41088,15 +41934,108 @@ const useStore = (0, _zustand.create)((set, get)=>({
         },
         // Update a specific node by its ID
         updateNode: (nodeId, data)=>{
-            const updatedNodes = get().nodes.map((node)=>node.id === nodeId ? {
-                    ...node,
-                    data: {
-                        ...node.data,
-                        ...data
+            set((state)=>{
+                const updatedNodes = state.nodes.map((node)=>node.id === nodeId ? {
+                        ...node,
+                        data: {
+                            ...node.data,
+                            ...data
+                        }
+                    } : node);
+                const evaluateDefinition = (definition, nodes)=>{
+                    try {
+                        const variables = nodes.filter((node)=>node.type === "Variable").reduce((acc, node)=>{
+                            acc[node.data.label] = node.data.value;
+                            return acc;
+                        }, {});
+                        const replacedExpression = definition.replace(/\b[A-Za-z_]\w*\b/g, (match)=>{
+                            if (variables[match] !== undefined) return variables[match]; // Replace with actual value
+                            throw new Error(`Undefined variable in definition: ${match}`);
+                        });
+                        return eval(replacedExpression);
+                    } catch (error) {
+                        console.error("Invalid expression:", error.message);
+                        return "Error";
                     }
-                } : node);
-            set({
-                nodes: updatedNodes
+                };
+                // **Evaluate all Definition nodes**
+                const updatedDefinitionNodes = updatedNodes.map((node)=>{
+                    if (node.type === "Definition") try {
+                        const newValue = evaluateDefinition(node.data.definition, updatedNodes);
+                        return {
+                            ...node,
+                            data: {
+                                ...node.data,
+                                val: newValue
+                            }
+                        };
+                    } catch (error) {
+                        console.error("Evaluation error:", error.message);
+                        return node;
+                    }
+                    return node;
+                });
+                // **Update Edges**
+                let existingEdges = state.edges;
+                let newEdges = [];
+                // Handle edges for Definition nodes
+                updatedDefinitionNodes.forEach((defNode)=>{
+                    if (defNode.type === "Definition" && defNode.data.definition) {
+                        const usedVariables = defNode.data.definition.match(/\b[A-Za-z_]\w*\b/g) || [];
+                        // **Find and remove outdated edges**
+                        existingEdges = existingEdges.filter((edge)=>{
+                            if (edge.target === defNode.id) {
+                                const sourceNode = updatedNodes.find((node)=>node.id === edge.source);
+                                if (sourceNode && sourceNode.type === "Variable") return usedVariables.includes(sourceNode.data.label);
+                            }
+                            return true;
+                        });
+                        // **Add new edges for used variables**
+                        usedVariables.forEach((varLabel)=>{
+                            const variableNode = updatedNodes.find((node)=>node.type === "Variable" && node.data.label === varLabel);
+                            if (variableNode) {
+                                const edgeExists = existingEdges.some((edge)=>edge.source === variableNode.id && edge.target === defNode.id);
+                                if (!edgeExists) newEdges.push({
+                                    id: `edge-${variableNode.id}-${defNode.id}`,
+                                    source: variableNode.id,
+                                    target: defNode.id
+                                });
+                            }
+                        });
+                    }
+                });
+                // Handle edges for Action nodes and create edge if target is a Variable label
+                updatedDefinitionNodes.forEach((actionNode)=>{
+                    if (actionNode.type === "Action" && actionNode.data.target) {
+                        const targetVariableNode = updatedNodes.find((n)=>n.type === "Variable" && n.data.label === actionNode.data.target);
+                        // **Remove outdated edges if the target label no longer exists**
+                        existingEdges = existingEdges.filter((edge)=>{
+                            if (edge.source === actionNode.id) {
+                                const targetNode = updatedNodes.find((node)=>node.id === edge.target);
+                                if (targetNode && targetNode.type === "Variable" && targetNode.data.label !== actionNode.data.target) // Remove the edge if the target is no longer a valid variable
+                                return false;
+                            }
+                            return true;
+                        });
+                        // **Add new edges for Action to Variable**
+                        if (targetVariableNode) {
+                            const edgeExists = existingEdges.some((edge)=>edge.source === actionNode.id && edge.target === targetVariableNode.id);
+                            if (!edgeExists) newEdges.push({
+                                id: `edge-${actionNode.id}-${targetVariableNode.id}`,
+                                source: actionNode.id,
+                                target: targetVariableNode.id,
+                                type: "action"
+                            });
+                        }
+                    }
+                });
+                return {
+                    nodes: updatedDefinitionNodes,
+                    edges: [
+                        ...existingEdges,
+                        ...newEdges
+                    ]
+                };
             });
         },
         // Update a specific edge by its ID
@@ -41108,6 +42047,13 @@ const useStore = (0, _zustand.create)((set, get)=>({
             set({
                 edges: updatedEdges
             });
+        },
+        checkExists: (nodeId)=>{
+            if (nodeId) {
+                const existingNode = get().nodes.find((node)=>node.data.label === nodeId);
+                if (existingNode) // Node with the same label exists, remove it
+                get().removeNode(existingNode.id); // Access `removeNode` using `get()`
+            }
         }
     }));
 exports.default = useStore;
@@ -41184,7 +42130,288 @@ const create = (createState)=>createState ? createImpl(createState) : createImpl
 exports.create = create;
 exports.useStore = useStore;
 
-},{"6a69048f974f8971":"21dqq","985957b117977eb9":"2SLIN"}],"4I8Lw":[function(require,module,exports,__globalThis) {
+},{"6a69048f974f8971":"21dqq","985957b117977eb9":"2SLIN"}],"2rIsa":[function(require,module,exports,__globalThis) {
+var $parcel$ReactRefreshHelpers$6a91 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
+var prevRefreshReg = window.$RefreshReg$;
+var prevRefreshSig = window.$RefreshSig$;
+$parcel$ReactRefreshHelpers$6a91.prelude(module);
+
+try {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _jsxDevRuntime = require("react/jsx-dev-runtime");
+var _react = require("react");
+var _reactDefault = parcelHelpers.interopDefault(_react);
+var _react1 = require("@xyflow/react");
+const HtmlNode = ({ data, isConnectable })=>{
+    const openHtmlContent = ()=>{
+        const newWindow = window.open();
+        newWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>${data.label || "HTML Page"}</title>
+      </head>
+      <body>
+          ${data.definition || "<p>No HTML content</p>"}
+      </body>
+      </html>
+    `);
+        newWindow.document.close();
+    };
+    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+        style: styles.node,
+        children: [
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                style: styles.screen,
+                children: [
+                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
+                        style: styles.label,
+                        children: data.label || "Unnamed HTML definition"
+                    }, void 0, false, {
+                        fileName: "nodes/HTML.js",
+                        lineNumber: 27,
+                        columnNumber: 9
+                    }, undefined),
+                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                        onClick: openHtmlContent,
+                        style: styles.button,
+                        children: "Open HTML"
+                    }, void 0, false, {
+                        fileName: "nodes/HTML.js",
+                        lineNumber: 28,
+                        columnNumber: 9
+                    }, undefined)
+                ]
+            }, void 0, true, {
+                fileName: "nodes/HTML.js",
+                lineNumber: 26,
+                columnNumber: 7
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                type: "target",
+                position: (0, _react1.Position).Left,
+                isConnectable: isConnectable
+            }, void 0, false, {
+                fileName: "nodes/HTML.js",
+                lineNumber: 34,
+                columnNumber: 7
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                type: "source",
+                position: (0, _react1.Position).Right,
+                isConnectable: isConnectable
+            }, void 0, false, {
+                fileName: "nodes/HTML.js",
+                lineNumber: 35,
+                columnNumber: 7
+            }, undefined)
+        ]
+    }, void 0, true, {
+        fileName: "nodes/HTML.js",
+        lineNumber: 24,
+        columnNumber: 5
+    }, undefined);
+};
+_c = HtmlNode;
+const styles = {
+    node: {
+        position: "relative",
+        width: "120px",
+        height: "220px",
+        borderRadius: "20px",
+        border: "5px solid #000",
+        backgroundColor: "#ccc",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        boxShadow: "0 4px 8px rgba(0,0,0,0.3)"
+    },
+    screen: {
+        backgroundImage: "url('https://miro.medium.com/v2/resize:fit:1400/1*bXww9rpeTUyZ1J31sgPR9A.jpeg')",
+        backgroundSize: "cover",
+        width: "85%",
+        height: "100%",
+        backgroundColor: "white",
+        borderRadius: "10px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "10px",
+        boxShadow: "inset 0 0 5px rgba(0,0,0,0.2)"
+    },
+    label: {
+        fontSize: "12px",
+        fontWeight: "bold",
+        marginBottom: "5px",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        width: "100%",
+        display: "block"
+    },
+    button: {
+        padding: "4px 8px",
+        fontSize: "10px",
+        background: "#007BFF",
+        color: "white",
+        border: "none",
+        borderRadius: "4px",
+        cursor: "pointer"
+    }
+};
+exports.default = /*#__PURE__*/ _c1 = (0, _react.memo)(HtmlNode);
+var _c, _c1;
+$RefreshReg$(_c, "HtmlNode");
+$RefreshReg$(_c1, "%default%");
+
+  $parcel$ReactRefreshHelpers$6a91.postlude(module);
+} finally {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+},{"react/jsx-dev-runtime":"iTorj","react":"21dqq","@xyflow/react":"6yYHF","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"km3Ru"}],"e1Mth":[function(require,module,exports,__globalThis) {
+var $parcel$ReactRefreshHelpers$b869 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
+var prevRefreshReg = window.$RefreshReg$;
+var prevRefreshSig = window.$RefreshSig$;
+$parcel$ReactRefreshHelpers$b869.prelude(module);
+
+try {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "default", ()=>ActionEdge);
+var _jsxDevRuntime = require("react/jsx-dev-runtime");
+var _react = require("react");
+var _reactDefault = parcelHelpers.interopDefault(_react);
+var _react1 = require("@xyflow/react");
+var _s = $RefreshSig$();
+const buttonEdgeLabelStyle = {
+    position: "absolute",
+    pointerEvents: "all",
+    transformOrigin: "center"
+};
+const buttonEdgeButtonStyle = {
+    width: "30px",
+    height: "30px",
+    border: "5px solid rgb(252, 0, 55)",
+    color: "var(--xy-edge-label-color-default)",
+    backgroundColor: "#f3f3f4",
+    cursor: "pointer",
+    borderRadius: "50%",
+    fontSize: "12px",
+    paddingTop: "0px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative"
+};
+const checkmarkStyle = {
+    position: "absolute",
+    left: "6px",
+    bottom: "3px"
+};
+const buttonEdgeButtonHoverStyle = {
+    backgroundColor: "var(--xy-theme-hover)"
+};
+function ActionEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style = {}, markerEnd = {
+    type: "arrow",
+    color: "#f00"
+} }) {
+    _s();
+    const { nodes, setNodes } = (0, _react1.useReactFlow)();
+    const { setEdges } = (0, _react1.useReactFlow)();
+    const [edgePath, labelX, labelY] = (0, _react1.getBezierPath)({
+        sourceX,
+        sourceY,
+        sourcePosition,
+        targetX,
+        targetY,
+        targetPosition
+    });
+    // Action logic
+    const onEdgeClick = (0, _react.useCallback)(()=>{
+        setEdges((edges)=>edges.filter((edge)=>edge.id !== id));
+        var error, prevNodes, node;
+        return;
+    }, [
+        id,
+        nodes,
+        setNodes
+    ]);
+    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _jsxDevRuntime.Fragment), {
+        children: [
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.BaseEdge), {
+                path: edgePath,
+                markerEnd: markerEnd,
+                style: {
+                    ...style,
+                    stroke: "rgb(85, 86, 87)",
+                    strokeWidth: 2,
+                    strokeDasharray: "5,5"
+                }
+            }, void 0, false, {
+                fileName: "edges/ActionEdge.js",
+                lineNumber: 112,
+                columnNumber: 7
+            }, this),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.EdgeLabelRenderer), {
+                children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                    style: {
+                        ...buttonEdgeLabelStyle,
+                        transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`
+                    },
+                    children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                        style: buttonEdgeButtonStyle,
+                        onClick: onEdgeClick,
+                        onMouseOver: (e)=>e.target.style.backgroundColor = buttonEdgeButtonHoverStyle.backgroundColor,
+                        onMouseOut: (e)=>e.target.style.backgroundColor = buttonEdgeButtonStyle.backgroundColor,
+                        children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("span", {
+                            style: checkmarkStyle,
+                            children: ">"
+                        }, void 0, false, {
+                            fileName: "edges/ActionEdge.js",
+                            lineNumber: 141,
+                            columnNumber: 13
+                        }, this)
+                    }, void 0, false, {
+                        fileName: "edges/ActionEdge.js",
+                        lineNumber: 129,
+                        columnNumber: 11
+                    }, this)
+                }, void 0, false, {
+                    fileName: "edges/ActionEdge.js",
+                    lineNumber: 123,
+                    columnNumber: 9
+                }, this)
+            }, void 0, false, {
+                fileName: "edges/ActionEdge.js",
+                lineNumber: 122,
+                columnNumber: 7
+            }, this)
+        ]
+    }, void 0, true);
+}
+_s(ActionEdge, "FIxdky92mu8aO2fRtbr/OqmZteY=", false, function() {
+    return [
+        (0, _react1.useReactFlow),
+        (0, _react1.useReactFlow)
+    ];
+});
+_c = ActionEdge;
+var _c;
+$RefreshReg$(_c, "ActionEdge");
+
+  $parcel$ReactRefreshHelpers$b869.postlude(module);
+} finally {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+},{"react/jsx-dev-runtime":"iTorj","react":"21dqq","@xyflow/react":"6yYHF","@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"km3Ru"}],"4I8Lw":[function(require,module,exports,__globalThis) {
 var $parcel$ReactRefreshHelpers$e90e = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
 var prevRefreshReg = window.$RefreshReg$;
 var prevRefreshSig = window.$RefreshSig$;
@@ -41876,6 +43103,11 @@ exports.getBundleURL = getBundleURLCached;
 exports.getBaseURL = getBaseURL;
 exports.getOrigin = getOrigin;
 
-},{}]},["aQL8O","dIizP","bB7Pu"], "bB7Pu", "parcelRequire94c2")
+},{}],"ck5oB":[function(require,module,exports,__globalThis) {
+// types.d.ts
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"gkKU3"}]},["aQL8O","dIizP","bB7Pu"], "bB7Pu", "parcelRequire94c2")
 
 //# sourceMappingURL=index.3d214d75.js.map
