@@ -1,0 +1,15 @@
+{
+  "name": "meerkat_remote_console_V2",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "meerkat_remote_console_V2_bg.wasm",
+    "meerkat_remote_console_V2.js",
+    "meerkat_remote_console_V2.d.ts"
+  ],
+  "main": "meerkat_remote_console_V2.js",
+  "types": "meerkat_remote_console_V2.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
