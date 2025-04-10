@@ -60,12 +60,12 @@ const useStore = create((set, get) => ({
   // Handles connection of edges between nodes
   onConnect: (connection) => {
     const { nodes, edges } = get();
-  
+    
     // Find source and target nodes
     const sourceNode = nodes.find((node) => node.id === connection.source);
     const targetNode = nodes.find((node) => node.id === connection.target);
     let markerEnd = { type: "arrow", color: "rgb(85, 86, 87)" };
-  
+    let action = "";
     if (!sourceNode || !targetNode) return; // Ensure nodes exist
   
     // Determine edge type based on source and target types
@@ -73,7 +73,7 @@ const useStore = create((set, get) => ({
   
     if (sourceNode.type === "Action" && (targetNode.type === "Variable" || targetNode.type === "Table")) {
       edgeType = "action";
-  
+      action=sourceNode.data.action;
       // Update the Action node's target field to the label of the target node
       get().updateNode(sourceNode.id, { target: targetNode.data.label });
     }
@@ -82,6 +82,10 @@ const useStore = create((set, get) => ({
     const newEdge = {
       ...connection,
       id: `edge-${connection.source}-${connection.target}`,
+      data: {
+        action: action, // Assign action to the edge data
+      },
+      target:targetNode.id,
       type: edgeType, // Assign calculated edge type
       markerEnd: markerEnd, // Assign calculated marker end
     };
@@ -106,14 +110,14 @@ const useStore = create((set, get) => ({
     set((state) => {
       const updatedNodes = [...state.nodes, node];
       const existingEdges = state.edges;
-      console.log("Existing Edges:", existingEdges);
+      
       let newEdges = [];
   
-      // 🔗 Add edges if the node is a Definition or HTML and references any existing node (not just variables)
+      //  Add edges if the node is a Definition or HTML and references any existing node (not just variables)
       if ((node.type === "Definition" || node.type === "HTML") && node.data.definition) {
         const referencedLabels = [...new Set(node.data.definition.match(/\b[A-Za-z_]\w*\b/g))] || [];
 
-        console.log("Referenced Labels:", referencedLabels);
+        
         referencedLabels.forEach((label) => {
           const sourceNode = updatedNodes.find((n) => n.data.label === label);
   
@@ -133,7 +137,7 @@ const useStore = create((set, get) => ({
         });
       }
   
-      // 🔗 Handle Action nodes: edge from action to target if label matches
+      //  Handle Action nodes: edge from action to target if label matches
       if (node.type === "Action" && node.data.target) {
         const targetNode = updatedNodes.find((n) => n.data.label === node.data.target);
   
@@ -141,18 +145,22 @@ const useStore = create((set, get) => ({
           const edgeExists = existingEdges.some(
             (edge) => edge.source === node.id && edge.target === targetNode.id
           );
-  
+         
           if (!edgeExists) {
             newEdges.push({
               id: `edge-${node.id}-${targetNode.id}`,
               source: node.id,
               target: targetNode.id,
               type: "action",
+              data: {
+                action: node.data.action,
+              },
             });
+            
           }
         }
       }
-      console.log("New Edge:", newEdges);
+      
       return {
         nodes: updatedNodes.map((n) => (n.id === node.id ? node : n)),
         edges: [...existingEdges, ...newEdges],
@@ -220,6 +228,7 @@ const useStore = create((set, get) => ({
                   id: `edge-${sourceNode.id}-${defNode.id}`,
                   source: sourceNode.id,
                   target: defNode.id,
+                  
                 });
               }
             }
@@ -248,19 +257,42 @@ const useStore = create((set, get) => ({
             const edgeExists = existingEdges.some(
               (edge) => edge.source === actionNode.id && edge.target === targetNode.id
             );
+            
   
             if (!edgeExists) {
               newEdges.push({
                 id: `edge-${actionNode.id}-${targetNode.id}`,
                 source: actionNode.id,
+                data: {
+                action: actionNode.data.action,
+              },
                 target: targetNode.id,
                 type: "action",
               });
+            }else {
+              
+            
+              // Remove the old edge
+              existingEdges = existingEdges.filter(
+                (edge) => !(edge.source === actionNode.id && edge.target === targetNode.id)
+              );
+              
+              // Push the new edge with updated action
+              newEdges.push({
+                id: `edge-${actionNode.id}-${targetNode.id}`,
+                source: actionNode.id,
+                target: targetNode.id,
+                type: "action",
+                data: {
+                  action: actionNode.data.action,
+                },
+              });
             }
+            
           }
         }
       });
-      console.log("New Edge3:", newEdges);
+     
       return {
         nodes: updatedNodes,
         edges: [...existingEdges, ...newEdges],

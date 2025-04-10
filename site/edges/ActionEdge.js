@@ -5,7 +5,7 @@ import {
   getBezierPath,
   useReactFlow,
 } from "@xyflow/react";
-
+import init, { main,get_env, send_message_to_server } from "../../pkg/meerkat_remote_console_V2";
 const buttonEdgeLabelStyle = {
   position: "absolute",
   pointerEvents: "all",
@@ -39,6 +39,9 @@ const buttonEdgeButtonHoverStyle = {
 };
 
 export default function ActionEdge({
+  source,
+  data,
+  target,
   id,
   sourceX,
   sourceY,
@@ -62,48 +65,13 @@ export default function ActionEdge({
 
   // Action logic
   const onEdgeClick = useCallback(() => {
-    setEdges((edges) => edges.filter((edge) => edge.id !== id));
-    return;
-    // Find the action node (source of the edge)
-    const actionNode = nodes.find((node) => node.id === id.split("-")[0]);
-
-    if (!actionNode) return;
-
-    const { target, action } = actionNode.data;
-
-    // Find the target variable node by its label
-    const targetNode = nodes.find(
-      (node) => node.type === "Variable" && node.data.label === target
-    );
-
-    if (!targetNode) return; // If no matching target variable, exit
-
-    let newTargetValue = targetNode.data.value;
-
-    // Perform action
-    try {
-      if (action.includes("+=")) {
-        const valueToAdd = parseFloat(action.replace("+=", "").trim());
-        newTargetValue = parseFloat(newTargetValue) + valueToAdd;
-      } else if (action.includes("=")) {
-        const newValue = action.replace("=", "").trim();
-        newTargetValue = newValue;
-      } else {
-        newTargetValue = eval(action.replace(target, newTargetValue)); // Evaluating expression
-      }
-    } catch (error) {
-      console.error("Invalid action:", error.message);
-      return; // Stop if invalid action expression
-    }
-
-    // Update the target variable with the new value
-    setNodes((prevNodes) =>
-      prevNodes.map((node) =>
-        node.id === targetNode.id
-          ? { ...node, data: { ...node.data, value: newTargetValue } }
-          : node
-      )
-    );
+   
+    //setEdges((edges) => edges.filter((edge) => edge.id !== id));
+    
+        let message = "do {"+ target+"="+data.action+"}";
+        
+          send_message_to_server(message);
+        
   }, [id, nodes, setNodes]);
 
   return (

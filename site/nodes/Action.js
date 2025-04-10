@@ -1,10 +1,16 @@
 import React, { memo } from "react";
 import { Handle, Position,useConnection } from "@xyflow/react";
-
+import init, { main,get_env, send_message_to_server } from "../../pkg/meerkat_remote_console_V2";
 const ActionNode = ({id, data, isConnectable }) => {
   const connection = useConnection();
      
       const isTarget = connection.inProgress && connection.fromNode.id !== id;
+    const onEdgeClick = () => {
+      let message = "do "+ data.target+"="+data.action;
+        console.log(message);
+        send_message_to_server(message);
+            
+      };
   return (
     <div style={styles.node}>
       <strong style={styles.text}>{data.label}</strong>

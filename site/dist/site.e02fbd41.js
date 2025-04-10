@@ -16143,7 +16143,16 @@ const nodeTypes = {
 const edgeTypes = {
     action: (0, _actionEdgeDefault.default)
 };
-const getId = ()=>`dndnode_${(0, _nanoid.nanoid)(3)}`;
+let id = 0;
+const getId = ()=>{
+    let str = '';
+    let num = id++;
+    do {
+        str = String.fromCharCode(97 + num % 26) + str; // 'a' = 97
+        num = Math.floor(num / 26) - 1;
+    }while (num >= 0);
+    return `dndnode_${str}`;
+};
 const DnDFlow = ()=>{
     _s();
     const reactFlowWrapper = (0, _react.useRef)(null);
@@ -16171,6 +16180,9 @@ const DnDFlow = ()=>{
         try {
             const env = JSON.parse(envString); // e.g. {"x0":"Int(3)-Var-3","g0":"Int(6)-Def-(x + x)"}
             console.log("\uD83D\uDD01 Parsed environment:", env);
+            // Step 1: Create dependency mappings for each node
+            const dependencies = {}; // maps nodeId to a list of dependent node ids
+            const nodesToUpdate = [];
             for (const [rawLabel, rawValueAndType] of Object.entries(env)){
                 const baseLabel = rawLabel.replace(/\d+$/, ''); // "x0" -> "x"
                 // Split into parts: ["Int(6)", "Def", "(x + x)"]
@@ -16183,37 +16195,77 @@ const DnDFlow = ()=>{
                 const parsedValue = parsedValueMatch ? parsedValueMatch[1] : valuePart;
                 // Clean definition if it exists (remove surrounding parentheses)
                 const cleanDefinition = rawDefinition?.replace(/^\((.*)\)$/, '$1');
-                const node = nodes.find((node)=>node.id === baseLabel);
+                // Track node dependencies
+                const nodeDependencies = cleanDefinition ? cleanDefinition.match(/\b[A-Za-z_]\w*\b/g) || [] : [];
+                dependencies[baseLabel] = nodeDependencies;
+                // Save the nodes and their data
+                nodesToUpdate.push({
+                    label: baseLabel,
+                    value: parsedValue,
+                    type,
+                    definition: type === "Def" ? cleanDefinition : undefined
+                });
+            }
+            // Step 2: Sort nodes by dependency order (topological sort)
+            const sortedNodes = topologicalSort(nodesToUpdate, dependencies);
+            // Step 3: Update nodes in sorted order
+            sortedNodes.forEach(({ label, value, type, definition })=>{
+                const node = nodes.find((node)=>node.id === label);
+                const updateData = {
+                    value
+                };
+                if (type === "Def" && definition) updateData.definition = definition;
                 if (node) {
-                    // Update node value and maybe definition
-                    const updateData = {
-                        value: parsedValue
-                    };
-                    if (type === "Def" && cleanDefinition !== undefined) updateData.definition = cleanDefinition;
-                    updateNode(baseLabel, updateData);
+                    // Update existing node
+                    console.log(`Updating node ${label} with value: ${value}`);
+                    updateNode(label, updateData);
                 } else {
                     // Node doesn't exist, create it
-                    console.warn(`Node with label ${baseLabel} not found. Creating new node of type ${type}.`);
+                    console.warn(`Node with label ${label} not found. Creating new node of type ${type}.`);
                     const newNode = {
-                        id: baseLabel,
+                        id: label,
                         type: type === "Def" ? "Definition" : "Variable",
                         position: {
                             x: 0,
                             y: 0
                         },
                         data: {
-                            label: baseLabel,
-                            value: parsedValue,
-                            definition: type === "Def" && cleanDefinition !== undefined ? cleanDefinition : undefined
+                            label,
+                            value,
+                            definition: type === "Def" && definition !== undefined ? definition : undefined
                         }
                     };
                     addNode(newNode);
                 }
-            }
+            });
         } catch (e) {
             console.error("Failed to parse environment:", e);
         }
     };
+    // Helper function: Topological Sort (dependency resolution)
+    function topologicalSort(nodes, dependencies) {
+        const sorted = [];
+        const visited = new Set();
+        const tempMark = new Set(); // to detect cycles
+        function visit(node) {
+            if (tempMark.has(node.label)) throw new Error(`Circular dependency detected: ${node.label}`);
+            if (!visited.has(node.label)) {
+                tempMark.add(node.label);
+                const nodeDeps = dependencies[node.label] || [];
+                nodeDeps.forEach((dep)=>{
+                    const depNode = nodes.find((n)=>n.label === dep);
+                    if (depNode) visit(depNode);
+                });
+                visited.add(node.label);
+                tempMark.delete(node.label);
+                sorted.push(node);
+            }
+        }
+        nodes.forEach((node)=>{
+            visit(node);
+        });
+        return sorted;
+    }
     const onNodesDelete = (0, _react.useCallback)((deleted)=>{
         setEdges(deleted.reduce((acc, node)=>{
             const incomers = (0, _react2.getIncomers)(node, nodes, edges);
@@ -16386,6 +16438,7 @@ const DnDFlow = ()=>{
         let newNodeType = '';
         let newNodeData = {};
         let edgeType = 'default';
+        let action = "Unknown";
         if (fromNodeType === 'Action') {
             newNodeType = 'Variable';
             newNodeData = {
@@ -16393,6 +16446,9 @@ const DnDFlow = ()=>{
                 value: ""
             };
             edgeType = 'action';
+            console.log("ALO");
+            action = connectionState.fromNode.data.action;
+            console.log("Action", action);
             updateNode(fromNodeId, {
                 target: id
             });
@@ -16416,6 +16472,9 @@ const DnDFlow = ()=>{
             id: `${fromNodeId}->${id}`,
             source: fromNodeId,
             target: id,
+            data: {
+                action: action
+            },
             type: edgeType,
             reconnectable: 'target'
         };
@@ -16431,7 +16490,8 @@ const DnDFlow = ()=>{
         }
         // Update nodes and edges
         addNode(newNode);
-    //addEdge(newEdge);
+        console.log("Adding edge", newEdge);
+        if (fromNodeType === 'Action') addEdge(newEdge);
     // Optionally trigger the pending node form with the new node
     // set the pendingNode to the newNode to show form
     //setPendingNode(newNode);
@@ -16525,7 +16585,7 @@ const DnDFlow = ()=>{
                     children: "Meerkat UI"
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 402,
+                    lineNumber: 473,
                     columnNumber: 9
                 }, undefined),
                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16556,38 +16616,38 @@ const DnDFlow = ()=>{
                         children: [
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _sidebarDefault.default), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 422,
+                                lineNumber: 493,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _consoleJsDefault.default), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 423,
+                                lineNumber: 494,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.Controls), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 424,
+                                lineNumber: 495,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.Background), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 425,
+                                lineNumber: 496,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.MiniMap), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 426,
+                                lineNumber: 497,
                                 columnNumber: 13
                             }, undefined)
                         ]
                     }, void 0, true, {
                         fileName: "App.js",
-                        lineNumber: 405,
+                        lineNumber: 476,
                         columnNumber: 11
                     }, undefined)
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 404,
+                    lineNumber: 475,
                     columnNumber: 9
                 }, undefined),
                 pendingNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16601,7 +16661,7 @@ const DnDFlow = ()=>{
                             ]
                         }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 432,
+                            lineNumber: 503,
                             columnNumber: 13
                         }, undefined),
                         pendingNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16615,7 +16675,7 @@ const DnDFlow = ()=>{
                                     ]
                                 }, void 0, true, {
                                     fileName: "App.js",
-                                    lineNumber: 436,
+                                    lineNumber: 507,
                                     columnNumber: 17
                                 }, undefined),
                                 pendingNode.type === "Table" ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _jsxDevRuntime.Fragment), {
@@ -16637,20 +16697,20 @@ const DnDFlow = ()=>{
                                                     required: true
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 443,
+                                                    lineNumber: 514,
                                                     columnNumber: 23
                                                 }, undefined)
                                             ]
                                         }, void 0, true, {
                                             fileName: "App.js",
-                                            lineNumber: 441,
+                                            lineNumber: 512,
                                             columnNumber: 21
                                         }, undefined),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
                                             children: "Columns:"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 450,
+                                            lineNumber: 521,
                                             columnNumber: 21
                                         }, undefined),
                                         formData.columns.map((col, index)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16667,7 +16727,7 @@ const DnDFlow = ()=>{
                                                         style: styles.input
                                                     }, void 0, false, {
                                                         fileName: "App.js",
-                                                        lineNumber: 455,
+                                                        lineNumber: 526,
                                                         columnNumber: 25
                                                     }, undefined),
                                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("select", {
@@ -16680,7 +16740,7 @@ const DnDFlow = ()=>{
                                                                 children: "Text"
                                                             }, void 0, false, {
                                                                 fileName: "App.js",
-                                                                lineNumber: 468,
+                                                                lineNumber: 539,
                                                                 columnNumber: 27
                                                             }, undefined),
                                                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16688,7 +16748,7 @@ const DnDFlow = ()=>{
                                                                 children: "Number"
                                                             }, void 0, false, {
                                                                 fileName: "App.js",
-                                                                lineNumber: 469,
+                                                                lineNumber: 540,
                                                                 columnNumber: 27
                                                             }, undefined),
                                                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16696,13 +16756,13 @@ const DnDFlow = ()=>{
                                                                 children: "Boolean"
                                                             }, void 0, false, {
                                                                 fileName: "App.js",
-                                                                lineNumber: 470,
+                                                                lineNumber: 541,
                                                                 columnNumber: 27
                                                             }, undefined)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "App.js",
-                                                        lineNumber: 463,
+                                                        lineNumber: 534,
                                                         columnNumber: 25
                                                     }, undefined),
                                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16711,13 +16771,13 @@ const DnDFlow = ()=>{
                                                         children: "\u2716"
                                                     }, void 0, false, {
                                                         fileName: "App.js",
-                                                        lineNumber: 474,
+                                                        lineNumber: 545,
                                                         columnNumber: 25
                                                     }, undefined)
                                                 ]
                                             }, index, true, {
                                                 fileName: "App.js",
-                                                lineNumber: 453,
+                                                lineNumber: 524,
                                                 columnNumber: 23
                                             }, undefined)),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16726,7 +16786,7 @@ const DnDFlow = ()=>{
                                             children: "+ Add Column"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 481,
+                                            lineNumber: 552,
                                             columnNumber: 21
                                         }, undefined)
                                     ]
@@ -16748,13 +16808,13 @@ const DnDFlow = ()=>{
                                                 style: styles.input
                                             }, void 0, false, {
                                                 fileName: "App.js",
-                                                lineNumber: 490,
+                                                lineNumber: 561,
                                                 columnNumber: 23
                                             }, undefined)
                                         ]
                                     }, key, true, {
                                         fileName: "App.js",
-                                        lineNumber: 488,
+                                        lineNumber: 559,
                                         columnNumber: 21
                                     }, undefined)),
                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16769,7 +16829,7 @@ const DnDFlow = ()=>{
                                             children: "Cancel"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 501,
+                                            lineNumber: 572,
                                             columnNumber: 19
                                         }, undefined),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16778,19 +16838,19 @@ const DnDFlow = ()=>{
                                             children: "Confirm"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 504,
+                                            lineNumber: 575,
                                             columnNumber: 19
                                         }, undefined)
                                     ]
                                 }, void 0, true, {
                                     fileName: "App.js",
-                                    lineNumber: 500,
+                                    lineNumber: 571,
                                     columnNumber: 17
                                 }, undefined)
                             ]
                         }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 435,
+                            lineNumber: 506,
                             columnNumber: 15
                         }, undefined),
                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16805,7 +16865,7 @@ const DnDFlow = ()=>{
                                     children: "Cancel"
                                 }, void 0, false, {
                                     fileName: "App.js",
-                                    lineNumber: 513,
+                                    lineNumber: 584,
                                     columnNumber: 15
                                 }, undefined),
                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16814,19 +16874,19 @@ const DnDFlow = ()=>{
                                     children: "Confirm"
                                 }, void 0, false, {
                                     fileName: "App.js",
-                                    lineNumber: 516,
+                                    lineNumber: 587,
                                     columnNumber: 15
                                 }, undefined)
                             ]
                         }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 512,
+                            lineNumber: 583,
                             columnNumber: 13
                         }, undefined)
                     ]
                 }, void 0, true, {
                     fileName: "App.js",
-                    lineNumber: 431,
+                    lineNumber: 502,
                     columnNumber: 11
                 }, undefined),
                 selectedNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16842,7 +16902,7 @@ const DnDFlow = ()=>{
                                 ]
                             }, void 0, true, {
                                 fileName: "App.js",
-                                lineNumber: 527,
+                                lineNumber: 598,
                                 columnNumber: 7
                             }, undefined),
                             selectedNode.type === "Table" ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _jsxDevRuntime.Fragment), {
@@ -16860,20 +16920,20 @@ const DnDFlow = ()=>{
                                                 style: styles.input
                                             }, void 0, false, {
                                                 fileName: "App.js",
-                                                lineNumber: 534,
+                                                lineNumber: 605,
                                                 columnNumber: 13
                                             }, undefined)
                                         ]
                                     }, void 0, true, {
                                         fileName: "App.js",
-                                        lineNumber: 532,
+                                        lineNumber: 603,
                                         columnNumber: 11
                                     }, undefined),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
                                         children: "Columns:"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 543,
+                                        lineNumber: 614,
                                         columnNumber: 11
                                     }, undefined),
                                     editFormData.columns.map((col, index)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16890,7 +16950,7 @@ const DnDFlow = ()=>{
                                                     style: styles.input
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 550,
+                                                    lineNumber: 621,
                                                     columnNumber: 15
                                                 }, undefined),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("select", {
@@ -16903,7 +16963,7 @@ const DnDFlow = ()=>{
                                                             children: "Text"
                                                         }, void 0, false, {
                                                             fileName: "App.js",
-                                                            lineNumber: 567,
+                                                            lineNumber: 638,
                                                             columnNumber: 17
                                                         }, undefined),
                                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16911,7 +16971,7 @@ const DnDFlow = ()=>{
                                                             children: "Number"
                                                         }, void 0, false, {
                                                             fileName: "App.js",
-                                                            lineNumber: 568,
+                                                            lineNumber: 639,
                                                             columnNumber: 17
                                                         }, undefined),
                                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16919,13 +16979,13 @@ const DnDFlow = ()=>{
                                                             children: "Boolean"
                                                         }, void 0, false, {
                                                             fileName: "App.js",
-                                                            lineNumber: 569,
+                                                            lineNumber: 640,
                                                             columnNumber: 17
                                                         }, undefined)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "App.js",
-                                                    lineNumber: 560,
+                                                    lineNumber: 631,
                                                     columnNumber: 15
                                                 }, undefined),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16934,13 +16994,13 @@ const DnDFlow = ()=>{
                                                     children: "\u2716"
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 573,
+                                                    lineNumber: 644,
                                                     columnNumber: 15
                                                 }, undefined)
                                             ]
                                         }, index, true, {
                                             fileName: "App.js",
-                                            lineNumber: 545,
+                                            lineNumber: 616,
                                             columnNumber: 13
                                         }, undefined)),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16949,7 +17009,7 @@ const DnDFlow = ()=>{
                                         children: "+ Add Column"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 583,
+                                        lineNumber: 654,
                                         columnNumber: 11
                                     }, undefined)
                                 ]
@@ -16964,7 +17024,7 @@ const DnDFlow = ()=>{
                                                 children: "Related Nodes:"
                                             }, void 0, false, {
                                                 fileName: "App.js",
-                                                lineNumber: 591,
+                                                lineNumber: 662,
                                                 columnNumber: 13
                                             }, undefined),
                                             edges.filter((edge)=>edge.target === selectedNode.id).map((edge)=>{
@@ -16980,14 +17040,14 @@ const DnDFlow = ()=>{
                                                     children: sourceNode.data.label
                                                 }, sourceNode.id, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 597,
+                                                    lineNumber: 668,
                                                     columnNumber: 19
                                                 }, undefined) : null;
                                             })
                                         ]
                                     }, void 0, true, {
                                         fileName: "App.js",
-                                        lineNumber: 590,
+                                        lineNumber: 661,
                                         columnNumber: 11
                                     }, undefined),
                                     [
@@ -17021,13 +17081,13 @@ const DnDFlow = ()=>{
                                                     }
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 623,
+                                                    lineNumber: 694,
                                                     columnNumber: 19
                                                 }, undefined)
                                             ]
                                         }, key, true, {
                                             fileName: "App.js",
-                                            lineNumber: 621,
+                                            lineNumber: 692,
                                             columnNumber: 17
                                         }, undefined))
                                 ]
@@ -17041,7 +17101,7 @@ const DnDFlow = ()=>{
                                         children: "Save"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 649,
+                                        lineNumber: 720,
                                         columnNumber: 9
                                     }, undefined),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -17050,7 +17110,7 @@ const DnDFlow = ()=>{
                                         children: "Cancel"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 652,
+                                        lineNumber: 723,
                                         columnNumber: 9
                                     }, undefined),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -17059,35 +17119,35 @@ const DnDFlow = ()=>{
                                         children: "Delete"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 655,
+                                        lineNumber: 726,
                                         columnNumber: 9
                                     }, undefined)
                                 ]
                             }, void 0, true, {
                                 fileName: "App.js",
-                                lineNumber: 648,
+                                lineNumber: 719,
                                 columnNumber: 7
                             }, undefined)
                         ]
                     }, void 0, true, {
                         fileName: "App.js",
-                        lineNumber: 526,
+                        lineNumber: 597,
                         columnNumber: 5
                     }, undefined)
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 525,
+                    lineNumber: 596,
                     columnNumber: 3
                 }, undefined)
             ]
         }, void 0, true, {
             fileName: "App.js",
-            lineNumber: 401,
+            lineNumber: 472,
             columnNumber: 7
         }, undefined)
     }, void 0, false, {
         fileName: "App.js",
-        lineNumber: 399,
+        lineNumber: 470,
         columnNumber: 5
     }, undefined);
 };
@@ -17194,17 +17254,17 @@ const App = ()=>{
         children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _dnDContext.DnDProvider), {
             children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)(DnDFlow, {}, void 0, false, {
                 fileName: "App.js",
-                lineNumber: 762,
+                lineNumber: 833,
                 columnNumber: 9
             }, undefined)
         }, void 0, false, {
             fileName: "App.js",
-            lineNumber: 761,
+            lineNumber: 832,
             columnNumber: 7
         }, undefined)
     }, void 0, false, {
         fileName: "App.js",
-        lineNumber: 760,
+        lineNumber: 831,
         columnNumber: 5
     }, undefined);
 };
@@ -17220,7 +17280,7 @@ $RefreshReg$(_c1, "App");
   globalThis.$RefreshReg$ = prevRefreshReg;
   globalThis.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@floating-ui/react":"5AfIo","./console.js":"kFAFN","../pkg/meerkat_remote_console_V2":"l6TqD","@xyflow/react":"3Yr6S","@xyflow/react/dist/style.css":"hYaEO","./Sidebar":"jKMVG","./DnDContext":"kCi0m","./nodes/Variable":"blbnG","./nodes/Definition":"9u9Ii","./nodes/Action":"hpjEK","./nodes/Table":"jkwn0","./nodes/HTML":"J6fNR","./edges/ActionEdge":"dVi4c","./store/store.js":"2ZYKM","./types.d.ts":"1tVsp","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","nanoid":"328Fw"}],"5AfIo":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@floating-ui/react":"5AfIo","./console.js":"kFAFN","nanoid":"328Fw","../pkg/meerkat_remote_console_V2":"l6TqD","@xyflow/react":"3Yr6S","@xyflow/react/dist/style.css":"hYaEO","./Sidebar":"jKMVG","./DnDContext":"kCi0m","./nodes/Variable":"blbnG","./nodes/Definition":"9u9Ii","./nodes/Action":"hpjEK","./nodes/Table":"jkwn0","./nodes/HTML":"J6fNR","./edges/ActionEdge":"dVi4c","./store/store.js":"2ZYKM","./types.d.ts":"1tVsp","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"5AfIo":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "arrow", ()=>(0, _reactDom1.arrow));
@@ -27193,6 +27253,45 @@ function $da9882e673ac146b$var$ErrorOverlay() {
     });
     return null;
 }
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"328Fw":[function(require,module,exports,__globalThis) {
+/* @ts-self-types="./index.d.ts" */ var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "urlAlphabet", ()=>(0, _indexJs.urlAlphabet));
+parcelHelpers.export(exports, "random", ()=>random);
+parcelHelpers.export(exports, "customRandom", ()=>customRandom);
+parcelHelpers.export(exports, "customAlphabet", ()=>customAlphabet);
+parcelHelpers.export(exports, "nanoid", ()=>nanoid);
+var _indexJs = require("./url-alphabet/index.js");
+let random = (bytes)=>crypto.getRandomValues(new Uint8Array(bytes));
+let customRandom = (alphabet, defaultSize, getRandom)=>{
+    let mask = (2 << Math.log2(alphabet.length - 1)) - 1;
+    let step = -~(1.6 * mask * defaultSize / alphabet.length);
+    return (size = defaultSize)=>{
+        let id = '';
+        while(true){
+            let bytes = getRandom(step);
+            let j = step | 0;
+            while(j--){
+                id += alphabet[bytes[j] & mask] || '';
+                if (id.length >= size) return id;
+            }
+        }
+    };
+};
+let customAlphabet = (alphabet, size = 21)=>customRandom(alphabet, size | 0, random);
+let nanoid = (size = 21)=>{
+    let id = '';
+    let bytes = crypto.getRandomValues(new Uint8Array(size |= 0));
+    while(size--)id += (0, _indexJs.urlAlphabet)[bytes[size] & 63];
+    return id;
+};
+
+},{"./url-alphabet/index.js":"29KoN","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"29KoN":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "urlAlphabet", ()=>urlAlphabet);
+const urlAlphabet = 'useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict';
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"l6TqD":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
@@ -41798,11 +41897,18 @@ var _jsxDevRuntime = require("react/jsx-dev-runtime");
 var _react = require("react");
 var _reactDefault = parcelHelpers.interopDefault(_react);
 var _react1 = require("@xyflow/react");
+var _meerkatRemoteConsoleV2 = require("../../pkg/meerkat_remote_console_V2");
+var _meerkatRemoteConsoleV2Default = parcelHelpers.interopDefault(_meerkatRemoteConsoleV2);
 var _s = $RefreshSig$();
 const ActionNode = ({ id, data, isConnectable })=>{
     _s();
     const connection = (0, _react1.useConnection)();
     const isTarget = connection.inProgress && connection.fromNode.id !== id;
+    const onEdgeClick = ()=>{
+        let message = "do " + data.target + "=" + data.action;
+        console.log(message);
+        (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
+    };
     return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
         style: styles.node,
         children: [
@@ -41811,7 +41917,7 @@ const ActionNode = ({ id, data, isConnectable })=>{
                 children: data.label
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 10,
+                lineNumber: 16,
                 columnNumber: 7
             }, undefined),
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
@@ -41819,7 +41925,7 @@ const ActionNode = ({ id, data, isConnectable })=>{
                 children: data.target || "No target"
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 11,
+                lineNumber: 17,
                 columnNumber: 7
             }, undefined),
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
@@ -41827,7 +41933,7 @@ const ActionNode = ({ id, data, isConnectable })=>{
                 children: data.action || "No action defined"
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 12,
+                lineNumber: 18,
                 columnNumber: 7
             }, undefined),
             !connection.inProgress && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
@@ -41836,7 +41942,7 @@ const ActionNode = ({ id, data, isConnectable })=>{
                 type: "source"
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 16,
+                lineNumber: 22,
                 columnNumber: 17
             }, undefined),
             (!connection.inProgress || isTarget) && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
@@ -41846,13 +41952,13 @@ const ActionNode = ({ id, data, isConnectable })=>{
                 isConnectableStart: false
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 24,
+                lineNumber: 30,
                 columnNumber: 17
             }, undefined)
         ]
     }, void 0, true, {
         fileName: "nodes/Action.js",
-        lineNumber: 9,
+        lineNumber: 15,
         columnNumber: 5
     }, undefined);
 };
@@ -41901,7 +42007,7 @@ $RefreshReg$(_c1, "%default%");
   globalThis.$RefreshReg$ = prevRefreshReg;
   globalThis.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"jkwn0":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","../../pkg/meerkat_remote_console_V2":"l6TqD"}],"jkwn0":[function(require,module,exports,__globalThis) {
 var $parcel$ReactRefreshHelpers$17fa = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
 $parcel$ReactRefreshHelpers$17fa.init();
 var prevRefreshReg = globalThis.$RefreshReg$;
@@ -42287,11 +42393,13 @@ const useStore = (0, _zustand.create)((set, get)=>({
                 type: "arrow",
                 color: "rgb(85, 86, 87)"
             };
+            let action = "";
             if (!sourceNode || !targetNode) return; // Ensure nodes exist
             // Determine edge type based on source and target types
             let edgeType = "default"; // Default edge type
             if (sourceNode.type === "Action" && (targetNode.type === "Variable" || targetNode.type === "Table")) {
                 edgeType = "action";
+                action = sourceNode.data.action;
                 // Update the Action node's target field to the label of the target node
                 get().updateNode(sourceNode.id, {
                     target: targetNode.data.label
@@ -42301,6 +42409,10 @@ const useStore = (0, _zustand.create)((set, get)=>({
             const newEdge = {
                 ...connection,
                 id: `edge-${connection.source}-${connection.target}`,
+                data: {
+                    action: action
+                },
+                target: targetNode.id,
                 type: edgeType,
                 markerEnd: markerEnd
             };
@@ -42329,14 +42441,12 @@ const useStore = (0, _zustand.create)((set, get)=>({
                     node
                 ];
                 const existingEdges = state.edges;
-                console.log("Existing Edges:", existingEdges);
                 let newEdges = [];
-                // 🔗 Add edges if the node is a Definition or HTML and references any existing node (not just variables)
+                //  Add edges if the node is a Definition or HTML and references any existing node (not just variables)
                 if ((node.type === "Definition" || node.type === "HTML") && node.data.definition) {
                     const referencedLabels = [
                         ...new Set(node.data.definition.match(/\b[A-Za-z_]\w*\b/g))
                     ];
-                    console.log("Referenced Labels:", referencedLabels);
                     referencedLabels.forEach((label)=>{
                         const sourceNode = updatedNodes.find((n)=>n.data.label === label);
                         if (sourceNode) {
@@ -42349,7 +42459,7 @@ const useStore = (0, _zustand.create)((set, get)=>({
                         }
                     });
                 }
-                // 🔗 Handle Action nodes: edge from action to target if label matches
+                //  Handle Action nodes: edge from action to target if label matches
                 if (node.type === "Action" && node.data.target) {
                     const targetNode = updatedNodes.find((n)=>n.data.label === node.data.target);
                     if (targetNode) {
@@ -42358,11 +42468,13 @@ const useStore = (0, _zustand.create)((set, get)=>({
                             id: `edge-${node.id}-${targetNode.id}`,
                             source: node.id,
                             target: targetNode.id,
-                            type: "action"
+                            type: "action",
+                            data: {
+                                action: node.data.action
+                            }
                         });
                     }
                 }
-                console.log("New Edge:", newEdges);
                 return {
                     nodes: updatedNodes.map((n)=>n.id === node.id ? node : n),
                     edges: [
@@ -42459,13 +42571,29 @@ const useStore = (0, _zustand.create)((set, get)=>({
                             if (!edgeExists) newEdges.push({
                                 id: `edge-${actionNode.id}-${targetNode.id}`,
                                 source: actionNode.id,
+                                data: {
+                                    action: actionNode.data.action
+                                },
                                 target: targetNode.id,
                                 type: "action"
                             });
+                            else {
+                                // Remove the old edge
+                                existingEdges = existingEdges.filter((edge)=>!(edge.source === actionNode.id && edge.target === targetNode.id));
+                                // Push the new edge with updated action
+                                newEdges.push({
+                                    id: `edge-${actionNode.id}-${targetNode.id}`,
+                                    source: actionNode.id,
+                                    target: targetNode.id,
+                                    type: "action",
+                                    data: {
+                                        action: actionNode.data.action
+                                    }
+                                });
+                            }
                         }
                     }
                 });
-                console.log("New Edge3:", newEdges);
                 return {
                     nodes: updatedNodes,
                     edges: [
@@ -42495,7 +42623,7 @@ const useStore = (0, _zustand.create)((set, get)=>({
     }));
 exports.default = useStore;
 
-},{"zustand":"83cPn","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","../console":"kFAFN"}],"83cPn":[function(require,module,exports,__globalThis) {
+},{"zustand":"83cPn","@xyflow/react":"3Yr6S","../console":"kFAFN","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"83cPn":[function(require,module,exports,__globalThis) {
 'use strict';
 var vanilla = require("a19f4edd89926025");
 var react = require("a0cacd268d6bf882");
@@ -42728,6 +42856,8 @@ var _jsxDevRuntime = require("react/jsx-dev-runtime");
 var _react = require("react");
 var _reactDefault = parcelHelpers.interopDefault(_react);
 var _react1 = require("@xyflow/react");
+var _meerkatRemoteConsoleV2 = require("../../pkg/meerkat_remote_console_V2");
+var _meerkatRemoteConsoleV2Default = parcelHelpers.interopDefault(_meerkatRemoteConsoleV2);
 var _s = $RefreshSig$();
 const buttonEdgeLabelStyle = {
     position: "absolute",
@@ -42757,7 +42887,7 @@ const checkmarkStyle = {
 const buttonEdgeButtonHoverStyle = {
     backgroundColor: "var(--xy-theme-hover)"
 };
-function ActionEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style = {}, markerEnd = {
+function ActionEdge({ source, data, target, id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style = {}, markerEnd = {
     type: "arrow",
     color: "#f00"
 } }) {
@@ -42774,9 +42904,9 @@ function ActionEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
     });
     // Action logic
     const onEdgeClick = (0, _react.useCallback)(()=>{
-        setEdges((edges)=>edges.filter((edge)=>edge.id !== id));
-        var error, prevNodes, node;
-        return;
+        //setEdges((edges) => edges.filter((edge) => edge.id !== id));
+        let message = "do {" + target + "=" + data.action + "}";
+        (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
     }, [
         id,
         nodes,
@@ -42795,7 +42925,7 @@ function ActionEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
                 }
             }, void 0, false, {
                 fileName: "edges/ActionEdge.js",
-                lineNumber: 112,
+                lineNumber: 80,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.EdgeLabelRenderer), {
@@ -42814,22 +42944,22 @@ function ActionEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
                             children: ">"
                         }, void 0, false, {
                             fileName: "edges/ActionEdge.js",
-                            lineNumber: 141,
+                            lineNumber: 109,
                             columnNumber: 13
                         }, this)
                     }, void 0, false, {
                         fileName: "edges/ActionEdge.js",
-                        lineNumber: 129,
+                        lineNumber: 97,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "edges/ActionEdge.js",
-                    lineNumber: 123,
+                    lineNumber: 91,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "edges/ActionEdge.js",
-                lineNumber: 122,
+                lineNumber: 90,
                 columnNumber: 7
             }, this)
         ]
@@ -42850,49 +42980,10 @@ $RefreshReg$(_c, "ActionEdge");
   globalThis.$RefreshReg$ = prevRefreshReg;
   globalThis.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"1tVsp":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","../../pkg/meerkat_remote_console_V2":"l6TqD"}],"1tVsp":[function(require,module,exports,__globalThis) {
 // types.d.ts
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
-
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"328Fw":[function(require,module,exports,__globalThis) {
-/* @ts-self-types="./index.d.ts" */ var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-parcelHelpers.export(exports, "urlAlphabet", ()=>(0, _indexJs.urlAlphabet));
-parcelHelpers.export(exports, "random", ()=>random);
-parcelHelpers.export(exports, "customRandom", ()=>customRandom);
-parcelHelpers.export(exports, "customAlphabet", ()=>customAlphabet);
-parcelHelpers.export(exports, "nanoid", ()=>nanoid);
-var _indexJs = require("./url-alphabet/index.js");
-let random = (bytes)=>crypto.getRandomValues(new Uint8Array(bytes));
-let customRandom = (alphabet, defaultSize, getRandom)=>{
-    let mask = (2 << Math.log2(alphabet.length - 1)) - 1;
-    let step = -~(1.6 * mask * defaultSize / alphabet.length);
-    return (size = defaultSize)=>{
-        let id = '';
-        while(true){
-            let bytes = getRandom(step);
-            let j = step | 0;
-            while(j--){
-                id += alphabet[bytes[j] & mask] || '';
-                if (id.length >= size) return id;
-            }
-        }
-    };
-};
-let customAlphabet = (alphabet, size = 21)=>customRandom(alphabet, size | 0, random);
-let nanoid = (size = 21)=>{
-    let id = '';
-    let bytes = crypto.getRandomValues(new Uint8Array(size |= 0));
-    while(size--)id += (0, _indexJs.urlAlphabet)[bytes[size] & 63];
-    return id;
-};
-
-},{"./url-alphabet/index.js":"29KoN","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"29KoN":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-parcelHelpers.export(exports, "urlAlphabet", ()=>urlAlphabet);
-const urlAlphabet = 'useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict';
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["kxwl6","jOXmm"], "jOXmm", "parcelRequire94c2", {}, "./", "/", "http://localhost:1234")
 

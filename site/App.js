@@ -37,8 +37,16 @@ const nodeTypes = {
 const edgeTypes = {
   action: ActionEdge,
 };
-
-const getId = () => `dndnode_${nanoid(3)}`;
+let id = 0;
+const getId = () => {
+  let str = '';
+  let num = id++;
+  do {
+      str = String.fromCharCode(97 + (num % 26)) + str; // 'a' = 97
+      num = Math.floor(num / 26) - 1;
+  } while (num >= 0);
+  return `dndnode_${str}`;
+};
 
 const DnDFlow = () => {
   const reactFlowWrapper = useRef(null);
@@ -64,60 +72,115 @@ const DnDFlow = () => {
 
     return () => clearInterval(interval);
   }, []);
-
   window.update_environment = function(envString) {
     try {
       const env = JSON.parse(envString); // e.g. {"x0":"Int(3)-Var-3","g0":"Int(6)-Def-(x + x)"}
       console.log("🔁 Parsed environment:", env);
   
+      // Step 1: Create dependency mappings for each node
+      const dependencies = {}; // maps nodeId to a list of dependent node ids
+      const nodesToUpdate = [];
+  
       for (const [rawLabel, rawValueAndType] of Object.entries(env)) {
         const baseLabel = rawLabel.replace(/\d+$/, ''); // "x0" -> "x"
-  
+    
         // Split into parts: ["Int(6)", "Def", "(x + x)"]
         const parts = rawValueAndType.split("-");
         const valuePart = parts[0];
         const type = parts[1];
         const rawDefinition = parts[2] || null;
-  
+    
         // Extract number from Int(x) or Bool(y) etc.
         const parsedValueMatch = valuePart.match(/^[A-Za-z]+\((.*)\)$/);
         const parsedValue = parsedValueMatch ? parsedValueMatch[1] : valuePart;
-  
+    
         // Clean definition if it exists (remove surrounding parentheses)
         const cleanDefinition = rawDefinition?.replace(/^\((.*)\)$/, '$1');
+    
+        // Track node dependencies
+        const nodeDependencies = cleanDefinition ? cleanDefinition.match(/\b[A-Za-z_]\w*\b/g) || [] : [];
+        dependencies[baseLabel] = nodeDependencies;
+    
+        // Save the nodes and their data
+        nodesToUpdate.push({
+          label: baseLabel,
+          value: parsedValue,
+          type,
+          definition: type === "Def" ? cleanDefinition : undefined
+        });
+      }
+    
+      // Step 2: Sort nodes by dependency order (topological sort)
+      const sortedNodes = topologicalSort(nodesToUpdate, dependencies);
   
-        const node = nodes.find((node) => node.id === baseLabel);
+      // Step 3: Update nodes in sorted order
+      sortedNodes.forEach(({ label, value, type, definition }) => {
+        const node = nodes.find((node) => node.id === label);
+  
+        const updateData = { value };
+        if (type === "Def" && definition) {
+          updateData.definition = definition;
+        }
   
         if (node) {
-          // Update node value and maybe definition
-          const updateData = { value: parsedValue };
-          if (type === "Def" && cleanDefinition !== undefined) {
-            updateData.definition = cleanDefinition;
-          }
-          updateNode(baseLabel, updateData);
+          // Update existing node
+          console.log(`Updating node ${label} with value: ${value}`);
+          updateNode(label, updateData);
         } else {
           // Node doesn't exist, create it
-          console.warn(`Node with label ${baseLabel} not found. Creating new node of type ${type}.`);
+          console.warn(`Node with label ${label} not found. Creating new node of type ${type}.`);
   
           const newNode = {
-            id: baseLabel,
+            id: label,
             type: type === "Def" ? "Definition" : "Variable",
             position: { x: 0, y: 0 }, // default position
             data: {
-              label: baseLabel,
-              value: parsedValue,
-              definition: type === "Def" && cleanDefinition !== undefined ? cleanDefinition : undefined,
+              label,
+              value,
+              definition: type === "Def" && definition !== undefined ? definition : undefined,
             },
           };
   
           addNode(newNode);
         }
-      }
-  
+      });
     } catch (e) {
       console.error("Failed to parse environment:", e);
     }
   };
+  
+  // Helper function: Topological Sort (dependency resolution)
+  function topologicalSort(nodes, dependencies) {
+    const sorted = [];
+    const visited = new Set();
+    const tempMark = new Set(); // to detect cycles
+  
+    function visit(node) {
+      if (tempMark.has(node.label)) {
+        throw new Error(`Circular dependency detected: ${node.label}`);
+      }
+      if (!visited.has(node.label)) {
+        tempMark.add(node.label);
+        const nodeDeps = dependencies[node.label] || [];
+        nodeDeps.forEach(dep => {
+          const depNode = nodes.find(n => n.label === dep);
+          if (depNode) {
+            visit(depNode);
+          }
+        });
+        visited.add(node.label);
+        tempMark.delete(node.label);
+        sorted.push(node);
+      }
+    }
+  
+    nodes.forEach(node => {
+      visit(node);
+    });
+  
+    return sorted;
+  }
+  
 
   const onNodesDelete = useCallback(
     (deleted) => {
@@ -306,11 +369,14 @@ const DnDFlow = () => {
       let newNodeType = '';
       let newNodeData = {};
       let edgeType = 'default';
-      
+      let action = "Unknown";
       if (fromNodeType === 'Action') {
         newNodeType = 'Variable';
         newNodeData = { label: id, value: "" };
         edgeType = 'action';
+        console.log("ALO")
+        action=connectionState.fromNode.data.action;
+        console.log("Action",action)
         updateNode(fromNodeId, { target: id });
       } else if (fromNodeType === 'Variable') {
         newNodeType = 'Definition';
@@ -333,6 +399,9 @@ const DnDFlow = () => {
         id: `${fromNodeId}->${id}`,
         source: fromNodeId,
         target: id,
+        data: {
+          action: action, // Assign action to the edge data
+        },
         type: edgeType,
         reconnectable: 'target',
       };
@@ -349,7 +418,9 @@ const DnDFlow = () => {
     }
       // Update nodes and edges
       addNode(newNode);
-      //addEdge(newEdge);
+      console.log("Adding edge", newEdge)
+      if(fromNodeType === 'Action')
+      addEdge(newEdge);
       // Optionally trigger the pending node form with the new node
       // set the pendingNode to the newNode to show form
       //setPendingNode(newNode);
@@ -747,11 +818,11 @@ const styles = {
 };
 const App = () => {
   useEffect(() => {
+   
     const run = async () => {
       console.log("Initializing...");
       await init();
       await main();
-      
     };
     run();
   }, []);
