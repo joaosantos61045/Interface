@@ -65,7 +65,7 @@ const DnDFlow = () => {
   const [selectedNode, setSelectedNode] = useState(null);
   useEffect(() => {
     const interval = setInterval(() => {
-      //console.log("nodes", nodes);
+      console.log("nodes", nodes);
       //console.log("edges", edges);
       
     }, 4000);
@@ -74,47 +74,56 @@ const DnDFlow = () => {
   }, []);
   window.update_environment = function(envString) {
     try {
-      const env = JSON.parse(envString); // e.g. {"x0":"Int(3)-Var-3","g0":"Int(6)-Def-(x + x)"}
-      console.log("🔁 Parsed environment:", env);
+      const env = JSON.parse(envString);
+      console.log(" Parsed environment:", env);
   
-      // Step 1: Create dependency mappings for each node
-      const dependencies = {}; // maps nodeId to a list of dependent node ids
+      const dependencies = {};
       const nodesToUpdate = [];
   
       for (const [rawLabel, rawValueAndType] of Object.entries(env)) {
-        const baseLabel = rawLabel.replace(/\d+$/, ''); // "x0" -> "x"
-    
-        // Split into parts: ["Int(6)", "Def", "(x + x)"]
-        const parts = rawValueAndType.split("-");
-        const valuePart = parts[0];
-        const type = parts[1];
-        const rawDefinition = parts[2] || null;
-    
-        // Extract number from Int(x) or Bool(y) etc.
+        const baseLabel = rawLabel.replace(/\d+$/, '');
+  
+        // Split value string into its core parts, everything after 3rd dash is considered position
+        const [valuePart, type, rawDefinition, ...positionParts] = rawValueAndType.split("-");
+        const rawPosition = positionParts.join("-");
+  
+        // Extract value like 15 from Int(15), Bool(1), etc.
         const parsedValueMatch = valuePart.match(/^[A-Za-z]+\((.*)\)$/);
         const parsedValue = parsedValueMatch ? parsedValueMatch[1] : valuePart;
-    
-        // Clean definition if it exists (remove surrounding parentheses)
+  
+        // Clean definition (strip surrounding parentheses)
         const cleanDefinition = rawDefinition?.replace(/^\((.*)\)$/, '$1');
-    
-        // Track node dependencies
-        const nodeDependencies = cleanDefinition ? cleanDefinition.match(/\b[A-Za-z_]\w*\b/g) || [] : [];
+  
+        // Position parsing: from something like "17.2/-350.07"
+        let position = { x: 0, y: 0 };
+        if (rawPosition.includes("/")) {
+          const [xStr, yStr] = rawPosition.split("/");
+          const x = parseFloat(xStr);
+          const y = parseFloat(yStr);
+          if (!isNaN(x) && !isNaN(y)) {
+            position = { x, y };
+          }
+        }
+  
+        // Parse dependencies from the definition
+        const nodeDependencies = cleanDefinition
+          ? cleanDefinition.match(/\b[A-Za-z_]\w*\b/g) || []
+          : [];
+  
         dependencies[baseLabel] = nodeDependencies;
-    
-        // Save the nodes and their data
+  
         nodesToUpdate.push({
           label: baseLabel,
           value: parsedValue,
           type,
-          definition: type === "Def" ? cleanDefinition : undefined
+          definition: type === "Def" ? cleanDefinition : undefined,
+          position,
         });
       }
-    
-      // Step 2: Sort nodes by dependency order (topological sort)
+  
       const sortedNodes = topologicalSort(nodesToUpdate, dependencies);
   
-      // Step 3: Update nodes in sorted order
-      sortedNodes.forEach(({ label, value, type, definition }) => {
+      sortedNodes.forEach(({ label, value, type, definition, position }) => {
         const node = nodes.find((node) => node.id === label);
   
         const updateData = { value };
@@ -123,29 +132,27 @@ const DnDFlow = () => {
         }
   
         if (node) {
-          // Update existing node
-          console.log(`Updating node ${label} with value: ${value}`);
+          console.log(` Updating node ${label} with value: ${value}`);
           updateNode(label, updateData);
+          // Optional: update position if needed
+          // node.position = position;
         } else {
-          // Node doesn't exist, create it
-          console.warn(`Node with label ${label} not found. Creating new node of type ${type}.`);
-  
+          console.warn(` Creating new node ${label} of type ${type}.`);
           const newNode = {
             id: label,
             type: type === "Def" ? "Definition" : "Variable",
-            position: { x: 0, y: 0 }, // default position
+            position,
             data: {
               label,
               value,
-              definition: type === "Def" && definition !== undefined ? definition : undefined,
+              definition: type === "Def" ? definition : undefined,
             },
           };
-  
           addNode(newNode);
         }
       });
     } catch (e) {
-      console.error("Failed to parse environment:", e);
+      console.error(" Failed to parse environment:", e);
     }
   };
   
@@ -245,11 +252,11 @@ const DnDFlow = () => {
     console.log(editFormData)
     let message = '';
     if (selectedNode.type === 'Variable') {
-      message = `var ${editFormData.label} = ${editFormData.value}`;
+      message = `var ${editFormData.label} = ${editFormData.value};${selectedNode.position.x}/${selectedNode.position.y}`;
       console.log("Sending message to server:", message);
       send_message_to_server(message);
     } else if (selectedNode.type === 'Definition') {
-      message = `def ${editFormData.label} = ${editFormData.definition}`;
+      message = `def ${editFormData.label} = ${editFormData.definition};${selectedNode.position.x}/${selectedNode.position.y}`;
       console.log("Sending message to server:", message);
       send_message_to_server(message);
     }
@@ -327,15 +334,16 @@ const DnDFlow = () => {
       position: pendingNode.position,
       data: { ...formData },
     };
-  
+    console.log("New Node:",newNode.position)
+    
     
     let message = '';
     if (pendingNode.type === 'Variable') {
-      message = `var ${formData.label} = ${formData.value}`;
+      message = `var ${formData.label} = ${formData.value};${pendingNode.position.x}/${pendingNode.position.y}`;
       console.log("Sending message to server:", message);
       send_message_to_server(message);
     } else if (pendingNode.type === 'Definition') {
-      message = `def ${formData.label} = ${formData.definition}`;
+      message = `def ${formData.label} = ${formData.definition};${pendingNode.position.x}/${pendingNode.position.y}`;
       console.log("Sending message to server:", message);
       send_message_to_server(message);
     }

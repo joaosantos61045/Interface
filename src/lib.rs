@@ -36,7 +36,6 @@ static USER_ID: Lazy<i32> = Lazy::new(|| rand::thread_rng().gen::<i32>());
 static mut WS_CONNECTED: bool = false;
 static mut WS: Option<WebSocket> = None;
 
-static LAST_ENV: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 
 // -------------------- Utility --------------------
 
@@ -61,7 +60,7 @@ fn handle_server_message(msg: Server2ClientMsg) {
     if let Some(err) = msg.err {
         alert_error(&err);
     } else {
-        *LAST_ENV.lock().unwrap() = msg.env.clone();
+        
         console::log_1(&format!("✅ Env: {}", msg.env).into());
         append_to_console(&format!("<span style='color: lightgreen;'> {}</span>", msg.env));
 
@@ -155,10 +154,7 @@ fn setup_send_message(ws: &WebSocket) {
 
 
 
-#[wasm_bindgen]
-pub fn get_env() -> String {
-    LAST_ENV.lock().unwrap().clone()
-}
+
 #[wasm_bindgen]
 pub fn send_message_to_server(message: &str) {
     unsafe {

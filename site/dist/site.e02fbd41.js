@@ -16171,75 +16171,81 @@ const DnDFlow = ()=>{
     const [selectedNode, setSelectedNode] = (0, _react.useState)(null);
     (0, _react.useEffect)(()=>{
         const interval = setInterval(()=>{
-        //console.log("nodes", nodes);
+            console.log("nodes", nodes);
         //console.log("edges", edges);
         }, 4000);
         return ()=>clearInterval(interval);
     }, []);
     window.update_environment = function(envString) {
         try {
-            const env = JSON.parse(envString); // e.g. {"x0":"Int(3)-Var-3","g0":"Int(6)-Def-(x + x)"}
-            console.log("\uD83D\uDD01 Parsed environment:", env);
-            // Step 1: Create dependency mappings for each node
-            const dependencies = {}; // maps nodeId to a list of dependent node ids
+            const env = JSON.parse(envString);
+            console.log(" Parsed environment:", env);
+            const dependencies = {};
             const nodesToUpdate = [];
             for (const [rawLabel, rawValueAndType] of Object.entries(env)){
-                const baseLabel = rawLabel.replace(/\d+$/, ''); // "x0" -> "x"
-                // Split into parts: ["Int(6)", "Def", "(x + x)"]
-                const parts = rawValueAndType.split("-");
-                const valuePart = parts[0];
-                const type = parts[1];
-                const rawDefinition = parts[2] || null;
-                // Extract number from Int(x) or Bool(y) etc.
+                const baseLabel = rawLabel.replace(/\d+$/, '');
+                // Split value string into its core parts, everything after 3rd dash is considered position
+                const [valuePart, type, rawDefinition, ...positionParts] = rawValueAndType.split("-");
+                const rawPosition = positionParts.join("-");
+                // Extract value like 15 from Int(15), Bool(1), etc.
                 const parsedValueMatch = valuePart.match(/^[A-Za-z]+\((.*)\)$/);
                 const parsedValue = parsedValueMatch ? parsedValueMatch[1] : valuePart;
-                // Clean definition if it exists (remove surrounding parentheses)
+                // Clean definition (strip surrounding parentheses)
                 const cleanDefinition = rawDefinition?.replace(/^\((.*)\)$/, '$1');
-                // Track node dependencies
+                // Position parsing: from something like "17.2/-350.07"
+                let position = {
+                    x: 0,
+                    y: 0
+                };
+                if (rawPosition.includes("/")) {
+                    const [xStr, yStr] = rawPosition.split("/");
+                    const x = parseFloat(xStr);
+                    const y = parseFloat(yStr);
+                    if (!isNaN(x) && !isNaN(y)) position = {
+                        x,
+                        y
+                    };
+                }
+                // Parse dependencies from the definition
                 const nodeDependencies = cleanDefinition ? cleanDefinition.match(/\b[A-Za-z_]\w*\b/g) || [] : [];
                 dependencies[baseLabel] = nodeDependencies;
-                // Save the nodes and their data
                 nodesToUpdate.push({
                     label: baseLabel,
                     value: parsedValue,
                     type,
-                    definition: type === "Def" ? cleanDefinition : undefined
+                    definition: type === "Def" ? cleanDefinition : undefined,
+                    position
                 });
             }
-            // Step 2: Sort nodes by dependency order (topological sort)
             const sortedNodes = topologicalSort(nodesToUpdate, dependencies);
-            // Step 3: Update nodes in sorted order
-            sortedNodes.forEach(({ label, value, type, definition })=>{
+            sortedNodes.forEach(({ label, value, type, definition, position })=>{
                 const node = nodes.find((node)=>node.id === label);
                 const updateData = {
                     value
                 };
                 if (type === "Def" && definition) updateData.definition = definition;
                 if (node) {
-                    // Update existing node
-                    console.log(`Updating node ${label} with value: ${value}`);
+                    console.log(` Updating node ${label} with value: ${value}`);
                     updateNode(label, updateData);
+                // Optional: update position if needed
+                // node.position = position;
                 } else {
-                    // Node doesn't exist, create it
-                    console.warn(`Node with label ${label} not found. Creating new node of type ${type}.`);
+                    console.warn(` Creating new node ${label} of type ${type}.`);
                     const newNode = {
                         id: label,
                         type: type === "Def" ? "Definition" : "Variable",
-                        position: {
-                            x: 0,
-                            y: 0
-                        },
+                        position,
                         data: {
                             label,
                             value,
-                            definition: type === "Def" && definition !== undefined ? definition : undefined
+                            definition: type === "Def" ? definition : undefined
                         }
                     };
                     addNode(newNode);
                 }
             });
         } catch (e) {
-            console.error("Failed to parse environment:", e);
+            console.error(" Failed to parse environment:", e);
         }
     };
     // Helper function: Topological Sort (dependency resolution)
@@ -16312,11 +16318,11 @@ const DnDFlow = ()=>{
         console.log(editFormData);
         let message = '';
         if (selectedNode.type === 'Variable') {
-            message = `var ${editFormData.label} = ${editFormData.value}`;
+            message = `var ${editFormData.label} = ${editFormData.value};${selectedNode.position.x}/${selectedNode.position.y}`;
             console.log("Sending message to server:", message);
             (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
         } else if (selectedNode.type === 'Definition') {
-            message = `def ${editFormData.label} = ${editFormData.definition}`;
+            message = `def ${editFormData.label} = ${editFormData.definition};${selectedNode.position.x}/${selectedNode.position.y}`;
             console.log("Sending message to server:", message);
             (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
         }
@@ -16409,13 +16415,14 @@ const DnDFlow = ()=>{
                 ...formData
             }
         };
+        console.log("New Node:", newNode.position);
         let message = '';
         if (pendingNode.type === 'Variable') {
-            message = `var ${formData.label} = ${formData.value}`;
+            message = `var ${formData.label} = ${formData.value};${pendingNode.position.x}/${pendingNode.position.y}`;
             console.log("Sending message to server:", message);
             (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
         } else if (pendingNode.type === 'Definition') {
-            message = `def ${formData.label} = ${formData.definition}`;
+            message = `def ${formData.label} = ${formData.definition};${pendingNode.position.x}/${pendingNode.position.y}`;
             console.log("Sending message to server:", message);
             (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
         }
@@ -16585,7 +16592,7 @@ const DnDFlow = ()=>{
                     children: "Meerkat UI"
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 473,
+                    lineNumber: 481,
                     columnNumber: 9
                 }, undefined),
                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16616,38 +16623,38 @@ const DnDFlow = ()=>{
                         children: [
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _sidebarDefault.default), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 493,
+                                lineNumber: 501,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _consoleJsDefault.default), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 494,
+                                lineNumber: 502,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.Controls), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 495,
+                                lineNumber: 503,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.Background), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 496,
+                                lineNumber: 504,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.MiniMap), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 497,
+                                lineNumber: 505,
                                 columnNumber: 13
                             }, undefined)
                         ]
                     }, void 0, true, {
                         fileName: "App.js",
-                        lineNumber: 476,
+                        lineNumber: 484,
                         columnNumber: 11
                     }, undefined)
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 475,
+                    lineNumber: 483,
                     columnNumber: 9
                 }, undefined),
                 pendingNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16661,7 +16668,7 @@ const DnDFlow = ()=>{
                             ]
                         }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 503,
+                            lineNumber: 511,
                             columnNumber: 13
                         }, undefined),
                         pendingNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16675,7 +16682,7 @@ const DnDFlow = ()=>{
                                     ]
                                 }, void 0, true, {
                                     fileName: "App.js",
-                                    lineNumber: 507,
+                                    lineNumber: 515,
                                     columnNumber: 17
                                 }, undefined),
                                 pendingNode.type === "Table" ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _jsxDevRuntime.Fragment), {
@@ -16697,20 +16704,20 @@ const DnDFlow = ()=>{
                                                     required: true
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 514,
+                                                    lineNumber: 522,
                                                     columnNumber: 23
                                                 }, undefined)
                                             ]
                                         }, void 0, true, {
                                             fileName: "App.js",
-                                            lineNumber: 512,
+                                            lineNumber: 520,
                                             columnNumber: 21
                                         }, undefined),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
                                             children: "Columns:"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 521,
+                                            lineNumber: 529,
                                             columnNumber: 21
                                         }, undefined),
                                         formData.columns.map((col, index)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16727,7 +16734,7 @@ const DnDFlow = ()=>{
                                                         style: styles.input
                                                     }, void 0, false, {
                                                         fileName: "App.js",
-                                                        lineNumber: 526,
+                                                        lineNumber: 534,
                                                         columnNumber: 25
                                                     }, undefined),
                                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("select", {
@@ -16740,7 +16747,7 @@ const DnDFlow = ()=>{
                                                                 children: "Text"
                                                             }, void 0, false, {
                                                                 fileName: "App.js",
-                                                                lineNumber: 539,
+                                                                lineNumber: 547,
                                                                 columnNumber: 27
                                                             }, undefined),
                                                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16748,7 +16755,7 @@ const DnDFlow = ()=>{
                                                                 children: "Number"
                                                             }, void 0, false, {
                                                                 fileName: "App.js",
-                                                                lineNumber: 540,
+                                                                lineNumber: 548,
                                                                 columnNumber: 27
                                                             }, undefined),
                                                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16756,13 +16763,13 @@ const DnDFlow = ()=>{
                                                                 children: "Boolean"
                                                             }, void 0, false, {
                                                                 fileName: "App.js",
-                                                                lineNumber: 541,
+                                                                lineNumber: 549,
                                                                 columnNumber: 27
                                                             }, undefined)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "App.js",
-                                                        lineNumber: 534,
+                                                        lineNumber: 542,
                                                         columnNumber: 25
                                                     }, undefined),
                                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16771,13 +16778,13 @@ const DnDFlow = ()=>{
                                                         children: "\u2716"
                                                     }, void 0, false, {
                                                         fileName: "App.js",
-                                                        lineNumber: 545,
+                                                        lineNumber: 553,
                                                         columnNumber: 25
                                                     }, undefined)
                                                 ]
                                             }, index, true, {
                                                 fileName: "App.js",
-                                                lineNumber: 524,
+                                                lineNumber: 532,
                                                 columnNumber: 23
                                             }, undefined)),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16786,7 +16793,7 @@ const DnDFlow = ()=>{
                                             children: "+ Add Column"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 552,
+                                            lineNumber: 560,
                                             columnNumber: 21
                                         }, undefined)
                                     ]
@@ -16808,13 +16815,13 @@ const DnDFlow = ()=>{
                                                 style: styles.input
                                             }, void 0, false, {
                                                 fileName: "App.js",
-                                                lineNumber: 561,
+                                                lineNumber: 569,
                                                 columnNumber: 23
                                             }, undefined)
                                         ]
                                     }, key, true, {
                                         fileName: "App.js",
-                                        lineNumber: 559,
+                                        lineNumber: 567,
                                         columnNumber: 21
                                     }, undefined)),
                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16829,7 +16836,7 @@ const DnDFlow = ()=>{
                                             children: "Cancel"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 572,
+                                            lineNumber: 580,
                                             columnNumber: 19
                                         }, undefined),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16838,19 +16845,19 @@ const DnDFlow = ()=>{
                                             children: "Confirm"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 575,
+                                            lineNumber: 583,
                                             columnNumber: 19
                                         }, undefined)
                                     ]
                                 }, void 0, true, {
                                     fileName: "App.js",
-                                    lineNumber: 571,
+                                    lineNumber: 579,
                                     columnNumber: 17
                                 }, undefined)
                             ]
                         }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 506,
+                            lineNumber: 514,
                             columnNumber: 15
                         }, undefined),
                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16865,7 +16872,7 @@ const DnDFlow = ()=>{
                                     children: "Cancel"
                                 }, void 0, false, {
                                     fileName: "App.js",
-                                    lineNumber: 584,
+                                    lineNumber: 592,
                                     columnNumber: 15
                                 }, undefined),
                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16874,19 +16881,19 @@ const DnDFlow = ()=>{
                                     children: "Confirm"
                                 }, void 0, false, {
                                     fileName: "App.js",
-                                    lineNumber: 587,
+                                    lineNumber: 595,
                                     columnNumber: 15
                                 }, undefined)
                             ]
                         }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 583,
+                            lineNumber: 591,
                             columnNumber: 13
                         }, undefined)
                     ]
                 }, void 0, true, {
                     fileName: "App.js",
-                    lineNumber: 502,
+                    lineNumber: 510,
                     columnNumber: 11
                 }, undefined),
                 selectedNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16902,7 +16909,7 @@ const DnDFlow = ()=>{
                                 ]
                             }, void 0, true, {
                                 fileName: "App.js",
-                                lineNumber: 598,
+                                lineNumber: 606,
                                 columnNumber: 7
                             }, undefined),
                             selectedNode.type === "Table" ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _jsxDevRuntime.Fragment), {
@@ -16920,20 +16927,20 @@ const DnDFlow = ()=>{
                                                 style: styles.input
                                             }, void 0, false, {
                                                 fileName: "App.js",
-                                                lineNumber: 605,
+                                                lineNumber: 613,
                                                 columnNumber: 13
                                             }, undefined)
                                         ]
                                     }, void 0, true, {
                                         fileName: "App.js",
-                                        lineNumber: 603,
+                                        lineNumber: 611,
                                         columnNumber: 11
                                     }, undefined),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
                                         children: "Columns:"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 614,
+                                        lineNumber: 622,
                                         columnNumber: 11
                                     }, undefined),
                                     editFormData.columns.map((col, index)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16950,7 +16957,7 @@ const DnDFlow = ()=>{
                                                     style: styles.input
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 621,
+                                                    lineNumber: 629,
                                                     columnNumber: 15
                                                 }, undefined),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("select", {
@@ -16963,7 +16970,7 @@ const DnDFlow = ()=>{
                                                             children: "Text"
                                                         }, void 0, false, {
                                                             fileName: "App.js",
-                                                            lineNumber: 638,
+                                                            lineNumber: 646,
                                                             columnNumber: 17
                                                         }, undefined),
                                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16971,7 +16978,7 @@ const DnDFlow = ()=>{
                                                             children: "Number"
                                                         }, void 0, false, {
                                                             fileName: "App.js",
-                                                            lineNumber: 639,
+                                                            lineNumber: 647,
                                                             columnNumber: 17
                                                         }, undefined),
                                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16979,13 +16986,13 @@ const DnDFlow = ()=>{
                                                             children: "Boolean"
                                                         }, void 0, false, {
                                                             fileName: "App.js",
-                                                            lineNumber: 640,
+                                                            lineNumber: 648,
                                                             columnNumber: 17
                                                         }, undefined)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "App.js",
-                                                    lineNumber: 631,
+                                                    lineNumber: 639,
                                                     columnNumber: 15
                                                 }, undefined),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16994,13 +17001,13 @@ const DnDFlow = ()=>{
                                                     children: "\u2716"
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 644,
+                                                    lineNumber: 652,
                                                     columnNumber: 15
                                                 }, undefined)
                                             ]
                                         }, index, true, {
                                             fileName: "App.js",
-                                            lineNumber: 616,
+                                            lineNumber: 624,
                                             columnNumber: 13
                                         }, undefined)),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -17009,7 +17016,7 @@ const DnDFlow = ()=>{
                                         children: "+ Add Column"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 654,
+                                        lineNumber: 662,
                                         columnNumber: 11
                                     }, undefined)
                                 ]
@@ -17024,7 +17031,7 @@ const DnDFlow = ()=>{
                                                 children: "Related Nodes:"
                                             }, void 0, false, {
                                                 fileName: "App.js",
-                                                lineNumber: 662,
+                                                lineNumber: 670,
                                                 columnNumber: 13
                                             }, undefined),
                                             edges.filter((edge)=>edge.target === selectedNode.id).map((edge)=>{
@@ -17040,14 +17047,14 @@ const DnDFlow = ()=>{
                                                     children: sourceNode.data.label
                                                 }, sourceNode.id, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 668,
+                                                    lineNumber: 676,
                                                     columnNumber: 19
                                                 }, undefined) : null;
                                             })
                                         ]
                                     }, void 0, true, {
                                         fileName: "App.js",
-                                        lineNumber: 661,
+                                        lineNumber: 669,
                                         columnNumber: 11
                                     }, undefined),
                                     [
@@ -17081,13 +17088,13 @@ const DnDFlow = ()=>{
                                                     }
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 694,
+                                                    lineNumber: 702,
                                                     columnNumber: 19
                                                 }, undefined)
                                             ]
                                         }, key, true, {
                                             fileName: "App.js",
-                                            lineNumber: 692,
+                                            lineNumber: 700,
                                             columnNumber: 17
                                         }, undefined))
                                 ]
@@ -17101,7 +17108,7 @@ const DnDFlow = ()=>{
                                         children: "Save"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 720,
+                                        lineNumber: 728,
                                         columnNumber: 9
                                     }, undefined),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -17110,7 +17117,7 @@ const DnDFlow = ()=>{
                                         children: "Cancel"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 723,
+                                        lineNumber: 731,
                                         columnNumber: 9
                                     }, undefined),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -17119,35 +17126,35 @@ const DnDFlow = ()=>{
                                         children: "Delete"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 726,
+                                        lineNumber: 734,
                                         columnNumber: 9
                                     }, undefined)
                                 ]
                             }, void 0, true, {
                                 fileName: "App.js",
-                                lineNumber: 719,
+                                lineNumber: 727,
                                 columnNumber: 7
                             }, undefined)
                         ]
                     }, void 0, true, {
                         fileName: "App.js",
-                        lineNumber: 597,
+                        lineNumber: 605,
                         columnNumber: 5
                     }, undefined)
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 596,
+                    lineNumber: 604,
                     columnNumber: 3
                 }, undefined)
             ]
         }, void 0, true, {
             fileName: "App.js",
-            lineNumber: 472,
+            lineNumber: 480,
             columnNumber: 7
         }, undefined)
     }, void 0, false, {
         fileName: "App.js",
-        lineNumber: 470,
+        lineNumber: 478,
         columnNumber: 5
     }, undefined);
 };
@@ -17254,17 +17261,17 @@ const App = ()=>{
         children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _dnDContext.DnDProvider), {
             children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)(DnDFlow, {}, void 0, false, {
                 fileName: "App.js",
-                lineNumber: 833,
+                lineNumber: 841,
                 columnNumber: 9
             }, undefined)
         }, void 0, false, {
             fileName: "App.js",
-            lineNumber: 832,
+            lineNumber: 840,
             columnNumber: 7
         }, undefined)
     }, void 0, false, {
         fileName: "App.js",
-        lineNumber: 831,
+        lineNumber: 839,
         columnNumber: 5
     }, undefined);
 };
@@ -42007,7 +42014,7 @@ $RefreshReg$(_c1, "%default%");
   globalThis.$RefreshReg$ = prevRefreshReg;
   globalThis.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","../../pkg/meerkat_remote_console_V2":"l6TqD"}],"jkwn0":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","../../pkg/meerkat_remote_console_V2":"l6TqD","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"jkwn0":[function(require,module,exports,__globalThis) {
 var $parcel$ReactRefreshHelpers$17fa = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
 $parcel$ReactRefreshHelpers$17fa.init();
 var prevRefreshReg = globalThis.$RefreshReg$;
@@ -42980,7 +42987,7 @@ $RefreshReg$(_c, "ActionEdge");
   globalThis.$RefreshReg$ = prevRefreshReg;
   globalThis.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","../../pkg/meerkat_remote_console_V2":"l6TqD"}],"1tVsp":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","../../pkg/meerkat_remote_console_V2":"l6TqD","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"1tVsp":[function(require,module,exports,__globalThis) {
 // types.d.ts
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
