@@ -1,6 +1,5 @@
 import { useDnD } from './DnDContext';
 import React, { useState } from "react";
-import { useFloating, offset, shift } from "@floating-ui/react";
 
 const Sidebar = () => {
   const [_, setType] = useDnD();
@@ -11,24 +10,19 @@ const Sidebar = () => {
     event.dataTransfer.effectAllowed = 'move';
   };
 
-  const { refs, floatingStyles } = useFloating({
-    placement: "left-start",
-    middleware: [offset(10), shift()],
-  });
-
   // Toggle sidebar visibility
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   return (
     <div
-      ref={refs.setFloating}
       style={{
-        ...floatingStyles,
         background: "#fff",
         boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
         padding: "10px",
         width: isSidebarOpen ? "220px" : "50px", // Adjust width based on collapse state
         position: "absolute",
+        top: "0px", // Adjust this value to place Sidebar below the SearchBar
+        left: 0, 
         zIndex: 1000,
         borderRadius: "8px",
         transition: "width 0.3s ease-in-out", // Smooth transition for collapse/expand
@@ -58,19 +52,6 @@ const Sidebar = () => {
           <aside>
             <div className="description">Drag these nodes to the canvas.</div>
 
-            {/* Node types with drag events */
-            /*<div className="dndnode input" onDragStart={(event) => onDragStart(event, 'input')} draggable>
-              Input Node
-            </div>
-            <div className="dndnode" onDragStart={(event) => onDragStart(event, 'default')} draggable>
-              Default Node
-            </div>
-            <div className="dndnode output" onDragStart={(event) => onDragStart(event, 'output')} draggable>
-              Output Node
-            </div>*/
-            }
-            
-            
             {/* Custom-shaped nodes */}
             <div className="dndnode variable shape-circle" onDragStart={(event) => onDragStart(event, 'Variable')} draggable>
               Variable

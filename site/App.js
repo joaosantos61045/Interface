@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useCallback, useState } from "react";
 import { useFloating } from '@floating-ui/react';
 import Console from "./console.js";
-import { nanoid } from 'nanoid';
+import SearchBar from './SearchBar';
+import FilterBar from './FilterBar';
 import init, { main,get_env, send_message_to_server } from "../pkg/meerkat_remote_console_V2";
 import {
   ReactFlow,
@@ -51,7 +52,8 @@ const getId = () => {
 const DnDFlow = () => {
   const reactFlowWrapper = useRef(null);
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, setNodes, setEdges } = useStore();
-  const { screenToFlowPosition } = useReactFlow();
+  const [nodeColorFilter, setNodeColorFilter] = useState(() => (node) => node.data?.color || '#333');
+  const { screenToFlowPosition,setCenter  } = useReactFlow();
   const [type] = useDnD();
   const { refs, floatingStyles } = useFloating();
   const addNode = useStore((state) => state.addNode);
@@ -76,7 +78,7 @@ const DnDFlow = () => {
     try {
       const env = JSON.parse(envString);
       console.log(" Parsed environment:", env);
-  
+      
       const dependencies = {};
       const nodesToUpdate = [];
   
@@ -151,6 +153,7 @@ const DnDFlow = () => {
           addNode(newNode);
         }
       });
+      console.log(" Parsed nodes:", nodes);
     } catch (e) {
       console.error(" Failed to parse environment:", e);
     }
@@ -473,7 +476,32 @@ const DnDFlow = () => {
     );
     setEditFormData({ ...editFormData, columns: updatedColumns });
   };
-
+  const nodeColor = (node) => {
+    switch (node.type) {
+      case 'Variable':
+        return 'rgb(225, 0, 255)';
+      case 'Definition':
+        return 'rgb(19, 223, 29)';
+      case 'Action':
+        return 'rgb(255, 0, 0)';
+      case 'Table':
+        return 'rgb(0, 0, 255)';
+      case 'HTML':
+        return 'rgb(255, 165, 0)';
+       
+      default:
+        return '#ff0072';
+    }
+  };
+  const handleMinimapNodeClick = (event, node) => {
+    if (node?.position) {
+      const { x, y } = node.position;
+      setCenter(x, y, {
+        zoom: 2,
+        duration: 800,
+      });
+    }
+  };
   return (
     <div style={{ width: "100vw", height: "100vh", display: "flex" }} ref={refs.setReference}>
 
@@ -498,11 +526,15 @@ const DnDFlow = () => {
             fitView
             style={{ backgroundColor: "#F7F9FB" }}
           >
+            
+            <FilterBar nodes={nodes} setNodes={setNodes} />
+            <SearchBar nodes={nodes} />
             <Sidebar />
+           
             <Console />
             <Controls />
             <Background />
-            <MiniMap />
+            <MiniMap nodeColor={nodeColor} nodeStrokeWidth={3} zoomable pannable onNodeClick={handleMinimapNodeClick} />
           </ReactFlow>
 
         </div>
