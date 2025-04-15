@@ -1,14 +1,16 @@
 import React, { useState, memo } from "react";
 import { Handle, Position } from "@xyflow/react";
-import useStore from '../store/store.js';
+import useStore from "../store/store.js";
 
 const TableNode = ({ id, data, isConnectable }) => {
+  const activeFilters = useStore((state) => state.activeFilters);
+  const isDimmed = !activeFilters.has("Table"); // ✅ Dim if "Table" is not in the active filters
+
   const [rowsForm, setRowsForm] = useState([]);
-  const [newRowCount, setNewRowCount] = useState(1); // Default to 1 row
-  const [isEditing, setIsEditing] = useState(false); // Toggle for editing
+  const [newRowCount, setNewRowCount] = useState(1);
+  const [isEditing, setIsEditing] = useState(false);
   const updateNode = useStore((state) => state.updateNode);
 
-  // Handle input change for adding new rows
   const handleRowInputChange = (e, rowIdx, colIdx) => {
     const value = e.target.value;
     const updatedRows = [...rowsForm];
@@ -16,24 +18,20 @@ const TableNode = ({ id, data, isConnectable }) => {
     setRowsForm(updatedRows);
   };
 
-  // Handle adding multiple rows
   const handleAddMultipleRows = () => {
     const newRows = Array.from({ length: newRowCount }, () => data.columns.map(() => ""));
     setRowsForm(newRows);
   };
 
-  // Submit rows to the table
   const handleSubmitRows = () => {
     updateNode(id, { rows: [...(data.rows || []), ...rowsForm] });
     setRowsForm([]);
   };
 
-  // Enable editing mode
   const handleEditRows = () => {
     setIsEditing(!isEditing);
   };
 
-  // Handle row edits
   const handleEditRowInputChange = (e, rowIdx, colIdx) => {
     const value = e.target.value;
     const updatedRows = [...data.rows];
@@ -41,26 +39,32 @@ const TableNode = ({ id, data, isConnectable }) => {
     updateNode(id, { rows: updatedRows });
   };
 
-  // Handle deleting a row
   const handleDeleteRow = (rowIdx) => {
     const updatedRows = data.rows.filter((_, index) => index !== rowIdx);
     updateNode(id, { rows: updatedRows });
   };
 
   return (
-    <div style={styles.node}>
+    <div
+      style={{
+        ...styles.node,
+        opacity: isDimmed ? 0.4 : 1,
+        filter: isDimmed ? "grayscale(100%)" : "none",
+        pointerEvents: isDimmed ? "none" : "auto",
+      }}
+    >
       <strong>{data.label || "Database Table"}</strong>
 
       <table style={styles.table}>
         <thead>
           <tr>
-            {data.columns && data.columns.map((col, idx) => (
+            {data.columns?.map((col, idx) => (
               <th key={idx} style={styles.th}>{col.name}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {data.rows && data.rows.map((row, rowIdx) => (
+          {data.rows?.map((row, rowIdx) => (
             <tr key={rowIdx}>
               {row.map((cell, cellIdx) => (
                 <td key={cellIdx} style={styles.td}>
@@ -86,7 +90,6 @@ const TableNode = ({ id, data, isConnectable }) => {
         </tbody>
       </table>
 
-      {/* Add Rows Section */}
       <label style={{ display: "block", margin: "10px 0" }}>
         Number of rows to add:
         <input
@@ -102,7 +105,6 @@ const TableNode = ({ id, data, isConnectable }) => {
         {isEditing ? "Finish Editing" : "Edit Rows"}
       </button>
 
-      {/* Row Form Inputs */}
       {rowsForm.length > 0 && (
         <div>
           <h4>Fill Row Values:</h4>
@@ -139,6 +141,7 @@ const styles = {
     width: "auto",
     textAlign: "center",
     boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
+    transition: "all 0.2s ease-in-out",
   },
   table: {
     width: "100%",

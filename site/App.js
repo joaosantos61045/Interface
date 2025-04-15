@@ -67,7 +67,7 @@ const DnDFlow = () => {
   const [selectedNode, setSelectedNode] = useState(null);
   useEffect(() => {
     const interval = setInterval(() => {
-      console.log("nodes", nodes);
+      //console.log("nodes", nodes);
       //console.log("edges", edges);
       
     }, 4000);
@@ -419,11 +419,11 @@ const DnDFlow = () => {
 
     let message = '';
     if (newNodeType === 'Variable') {
-      message = `var ${newNodeData.label} = ${newNodeData.value}`;
+      message = `var ${newNodeData.label} = ${newNodeData.value};${newNode.position.x}/${newNode.position.y}`;
       console.log("Sending message to server:", message);
       send_message_to_server(message);
     } else if (newNodeType === 'Definition') {
-      message = `def ${newNodeData.label} = ${newNodeData.definition}`;
+      message = `def ${newNodeData.label} = ${newNodeData.definition};${newNode.position.x}/${newNode.position.y}`;
       console.log("Sending message to server:", message);
       send_message_to_server(message);
     }
@@ -495,20 +495,24 @@ const DnDFlow = () => {
   };
   const handleMinimapNodeClick = (event, node) => {
     if (node?.position) {
+      const offsetX = 60; // shift right
+      const offsetY = 45;  // shift down
       const { x, y } = node.position;
-      setCenter(x, y, {
+  
+      setCenter(x + offsetX, y + offsetY, {
         zoom: 2,
         duration: 800,
       });
     }
   };
+  
   return (
     <div style={{ width: "100vw", height: "100vh", display: "flex" }} ref={refs.setReference}>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", borderRight: "2px solid #ddd", padding: "10px" }}>
         <h2 style={{ textAlign: "center" }}>Meerkat UI</h2>
 
-        <div ref={reactFlowWrapper} style={{ flex: 1, border: "1px solid #ccc", borderRadius: "8px" }}>
+        <div  style={{ flex: 1, border: "1px solid #ccc", borderRadius: "8px" }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}

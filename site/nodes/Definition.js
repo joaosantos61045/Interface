@@ -1,13 +1,23 @@
 import React, { memo } from "react";
 import { Handle, Position, useConnection } from "@xyflow/react";
+import useStore from '../store/store.js';
 
 const DefinitionNode = ({ id, data, isConnectable }) => {
+  const activeFilters = useStore((state) => state.activeFilters);
+  const isDimmed = !activeFilters.has("Definition");
+
   const connection = useConnection();
-  
   const isTarget = connection.inProgress && connection.fromNode.id !== id;
 
   return (
-    <div style={styles.wrapper}>
+    <div
+      style={{
+        ...styles.wrapper,
+        opacity: isDimmed ? 0.4 : 1,
+        filter: isDimmed ? "grayscale(100%)" : "none",
+        pointerEvents: isDimmed ? "none" : "auto",
+      }}
+    >
       <div style={styles.node}>
         <div style={styles.content}>
           <strong style={styles.text}>{data.label || "Unnamed"}</strong>
@@ -22,6 +32,7 @@ const DefinitionNode = ({ id, data, isConnectable }) => {
           className="customHandle"
           position={Position.Right}
           type="source"
+          isConnectable={isConnectable}
         />
       )}
       {(!connection.inProgress || isTarget) && (
@@ -30,6 +41,7 @@ const DefinitionNode = ({ id, data, isConnectable }) => {
           position={Position.Left}
           type="target"
           isConnectableStart={false}
+          isConnectable={isConnectable}
         />
       )}
     </div>
@@ -39,6 +51,7 @@ const DefinitionNode = ({ id, data, isConnectable }) => {
 const styles = {
   wrapper: {
     position: "relative", // Needed for absolute positioning of handles
+    transition: "all 0.2s ease-in-out",
   },
   node: {
     width: "120px",
@@ -51,14 +64,14 @@ const styles = {
     justifyContent: "center",
     boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
     position: "relative",
-    padding: "10px", // Added padding to make sure text doesn't touch edges
+    padding: "10px",
   },
   content: {
-    transform: "rotate(-45deg)", // Rotates text back to normal
+    transform: "rotate(-45deg)",
     textAlign: "center",
     fontSize: "12px",
     wordBreak: "break-word",
-    maxWidth: "100%", // Ensures content doesn't overflow
+    maxWidth: "100%",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
@@ -66,10 +79,10 @@ const styles = {
   text: {
     overflow: "hidden",
     textOverflow: "ellipsis",
-    whiteSpace: "nowrap", // Prevents the text from wrapping
-    width: "100%", // Makes sure it takes up the full width of its container
+    whiteSpace: "nowrap",
+    width: "100%",
     display: "block",
-    textAlign: "center", // Center-align the text within the container
+    textAlign: "center",
   },
 };
 

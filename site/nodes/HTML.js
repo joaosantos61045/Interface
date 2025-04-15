@@ -1,7 +1,11 @@
 import React, { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
+import useStore from "../store/store.js"; // ✅ Import Zustand store
 
 const HtmlNode = ({ data, isConnectable }) => {
+  const activeFilters = useStore((state) => state.activeFilters);
+  const isDimmed = !activeFilters.has("HTML"); // ✅ Check if "HTML" is filtered out
+
   const openHtmlContent = () => {
     const newWindow = window.open();
     newWindow.document.write(`
@@ -21,8 +25,14 @@ const HtmlNode = ({ data, isConnectable }) => {
   };
 
   return (
-    <div style={styles.node}>
-      {/* Screen area where content is displayed */}
+    <div
+      style={{
+        ...styles.node,
+        opacity: isDimmed ? 0.4 : 1,
+        filter: isDimmed ? "grayscale(100%)" : "none",
+        pointerEvents: isDimmed ? "none" : "auto",
+      }}
+    >
       <div style={styles.screen}>
         <strong style={styles.label}>{data.label || "Unnamed HTML definition"}</strong>
         <button onClick={openHtmlContent} style={styles.button}>
@@ -30,7 +40,6 @@ const HtmlNode = ({ data, isConnectable }) => {
         </button>
       </div>
 
-      {/* Connection Handles */}
       <Handle type="target" position={Position.Left} isConnectable={isConnectable} />
       <Handle type="source" position={Position.Right} isConnectable={isConnectable} />
     </div>
@@ -51,10 +60,11 @@ const styles = {
     justifyContent: "center",
     textAlign: "center",
     boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+    transition: "all 0.2s ease-in-out",
   },
   screen: {
     backgroundImage: "url('https://miro.medium.com/v2/resize:fit:1400/1*bXww9rpeTUyZ1J31sgPR9A.jpeg')",
-  backgroundSize: "cover",
+    backgroundSize: "cover",
     width: "85%",
     height: "100%",
     backgroundColor: "white",

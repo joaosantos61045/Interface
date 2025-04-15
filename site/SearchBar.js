@@ -21,8 +21,10 @@ const SearchBar = ({ nodes }) => {
   };
 
   const handleSelect = (node) => {
+    const offsetX = 60; // shift right
+    const offsetY = 45;  // shift down
     const { x, y } = node.position;
-    setCenter(x, y, {
+    setCenter(x + offsetX, y + offsetY, {
       zoom: 2,
       duration: 800,
     });

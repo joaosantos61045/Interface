@@ -60,11 +60,30 @@ fn handle_server_message(msg: Server2ClientMsg) {
     if let Some(err) = msg.err {
         alert_error(&err);
     } else {
-        
-        console::log_1(&format!("✅ Env: {}", msg.env).into());
-        append_to_console(&format!("<span style='color: lightgreen;'> {}</span>", msg.env));
+        // 👇 Parse and simplify the env just for display
+        let simplified_display = msg.env
+            .trim_matches(|c| c == '{' || c == '}')
+            .split(',')
+            .filter_map(|entry| {
+                let parts: Vec<&str> = entry.split(':').collect();
+                if parts.len() == 2 {
+                    let key = parts[0].trim_matches('"');
+                    let value = parts[1].trim_matches('"');
+                    let simple_value = value.split('-').next().unwrap_or("?");
+                    Some(format!("{}: {}", key, simple_value))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
 
-        // Call JS function `update_environment` with the env string
+        append_to_console(&format!(
+            "<span style='color: lightgreen;'>{{{}}}</span>",
+            simplified_display
+        ));
+
+        // 🧠 Send full env to JS for actual use
         if let Ok(global) = js_sys::global().dyn_into::<web_sys::Window>() {
             if let Some(func) = js_sys::Reflect::get(&global, &JsValue::from_str("update_environment"))
                 .ok()
@@ -75,6 +94,7 @@ fn handle_server_message(msg: Server2ClientMsg) {
         }
     }
 }
+
 
 // -------------------- WebSocket Setup --------------------
 
@@ -134,6 +154,7 @@ fn setup_send_message(ws: &WebSocket) {
         if input.trim().is_empty() {
             return;
         }
+
         let timestamp = Date::now() as u128;
         let send_msg = Client2ServerMsg {
             input: input.clone(),
@@ -143,7 +164,21 @@ fn setup_send_message(ws: &WebSocket) {
 
         let send_msg_json = serde_json::to_string(&send_msg).unwrap();
         let _ = ws_clone.send_with_str(&send_msg_json);
-        append_to_console(&format!("Sent: {}", input));
+        //TODO Unnecessary
+        // Strip trailing positional data for console display
+        let input_display = if let Some(index) = input.rfind(';') {
+            // Check if something like ";123/456" comes after the semicolon
+            let suffix = &input[index + 1..];
+            if suffix.contains('/') && suffix.chars().all(|c| c.is_numeric() || c == '.' || c == '/') {
+                input[..index].to_string()
+            } else {
+                input.clone()
+            }
+        } else {
+            input.clone()
+        };
+
+        append_to_console(&format!("Sent: {}", input_display));
         user_input_element.set_value("");
     }) as Box<dyn Fn()>);
 
@@ -151,6 +186,7 @@ fn setup_send_message(ws: &WebSocket) {
     closure.forget();
     console::log_1(&"Send message setup done.".into());
 }
+
 
 
 
@@ -169,12 +205,21 @@ pub fn send_message_to_server(message: &str) {
 
             let send_msg_json = serde_json::to_string(&send_msg).unwrap();
             let _ = ws.send_with_str(&send_msg_json);
-            append_to_console(&format!("Sent: {}", message));
+
+            //  Clean the message for display
+            let cleaned_message = message
+                .split(';')
+                .next()
+                .map(|s| format!("{}", s.trim()))
+                .unwrap_or_else(|| message.to_string());
+
+            append_to_console(&format!("Sent: {}", cleaned_message));
         } else {
             alert("WebSocket is not connected. Message not sent.");
         }
     }
 }
+
 
 #[wasm_bindgen]
 extern "C" {

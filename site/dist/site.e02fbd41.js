@@ -16109,7 +16109,10 @@ var _reactDefault = parcelHelpers.interopDefault(_react);
 var _react1 = require("@floating-ui/react");
 var _consoleJs = require("./console.js");
 var _consoleJsDefault = parcelHelpers.interopDefault(_consoleJs);
-var _nanoid = require("nanoid");
+var _searchBar = require("./SearchBar");
+var _searchBarDefault = parcelHelpers.interopDefault(_searchBar);
+var _filterBar = require("./FilterBar");
+var _filterBarDefault = parcelHelpers.interopDefault(_filterBar);
 var _meerkatRemoteConsoleV2 = require("../pkg/meerkat_remote_console_V2");
 var _meerkatRemoteConsoleV2Default = parcelHelpers.interopDefault(_meerkatRemoteConsoleV2);
 var _react2 = require("@xyflow/react");
@@ -16157,7 +16160,8 @@ const DnDFlow = ()=>{
     _s();
     const reactFlowWrapper = (0, _react.useRef)(null);
     const { nodes, edges, onNodesChange, onEdgesChange, onConnect, setNodes, setEdges } = (0, _storeJsDefault.default)();
-    const { screenToFlowPosition } = (0, _react2.useReactFlow)();
+    const [nodeColorFilter, setNodeColorFilter] = (0, _react.useState)(()=>(node)=>node.data?.color || '#333');
+    const { screenToFlowPosition, setCenter } = (0, _react2.useReactFlow)();
     const [type] = (0, _dnDContext.useDnD)();
     const { refs, floatingStyles } = (0, _react1.useFloating)();
     const addNode = (0, _storeJsDefault.default)((state)=>state.addNode);
@@ -16171,7 +16175,7 @@ const DnDFlow = ()=>{
     const [selectedNode, setSelectedNode] = (0, _react.useState)(null);
     (0, _react.useEffect)(()=>{
         const interval = setInterval(()=>{
-            console.log("nodes", nodes);
+        //console.log("nodes", nodes);
         //console.log("edges", edges);
         }, 4000);
         return ()=>clearInterval(interval);
@@ -16244,6 +16248,7 @@ const DnDFlow = ()=>{
                     addNode(newNode);
                 }
             });
+            console.log(" Parsed nodes:", nodes);
         } catch (e) {
             console.error(" Failed to parse environment:", e);
         }
@@ -16487,11 +16492,11 @@ const DnDFlow = ()=>{
         };
         let message = '';
         if (newNodeType === 'Variable') {
-            message = `var ${newNodeData.label} = ${newNodeData.value}`;
+            message = `var ${newNodeData.label} = ${newNodeData.value};${newNode.position.x}/${newNode.position.y}`;
             console.log("Sending message to server:", message);
             (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
         } else if (newNodeType === 'Definition') {
-            message = `def ${newNodeData.label} = ${newNodeData.definition}`;
+            message = `def ${newNodeData.label} = ${newNodeData.definition};${newNode.position.x}/${newNode.position.y}`;
             console.log("Sending message to server:", message);
             (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
         }
@@ -16569,6 +16574,33 @@ const DnDFlow = ()=>{
             columns: updatedColumns
         });
     };
+    const nodeColor = (node)=>{
+        switch(node.type){
+            case 'Variable':
+                return 'rgb(225, 0, 255)';
+            case 'Definition':
+                return 'rgb(19, 223, 29)';
+            case 'Action':
+                return 'rgb(255, 0, 0)';
+            case 'Table':
+                return 'rgb(0, 0, 255)';
+            case 'HTML':
+                return 'rgb(255, 165, 0)';
+            default:
+                return '#ff0072';
+        }
+    };
+    const handleMinimapNodeClick = (event, node)=>{
+        if (node?.position) {
+            const offsetX = 60; // shift right
+            const offsetY = 45; // shift down
+            const { x, y } = node.position;
+            setCenter(x + offsetX, y + offsetY, {
+                zoom: 2,
+                duration: 800
+            });
+        }
+    };
     return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
         style: {
             width: "100vw",
@@ -16592,11 +16624,10 @@ const DnDFlow = ()=>{
                     children: "Meerkat UI"
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 481,
+                    lineNumber: 513,
                     columnNumber: 9
                 }, undefined),
                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                    ref: reactFlowWrapper,
                     style: {
                         flex: 1,
                         border: "1px solid #ccc",
@@ -16621,40 +16652,61 @@ const DnDFlow = ()=>{
                             backgroundColor: "#F7F9FB"
                         },
                         children: [
+                            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _filterBarDefault.default), {
+                                nodes: nodes,
+                                setNodes: setNodes
+                            }, void 0, false, {
+                                fileName: "App.js",
+                                lineNumber: 534,
+                                columnNumber: 13
+                            }, undefined),
+                            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _searchBarDefault.default), {
+                                nodes: nodes
+                            }, void 0, false, {
+                                fileName: "App.js",
+                                lineNumber: 535,
+                                columnNumber: 13
+                            }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _sidebarDefault.default), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 501,
+                                lineNumber: 536,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _consoleJsDefault.default), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 502,
+                                lineNumber: 538,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.Controls), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 503,
+                                lineNumber: 539,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.Background), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 504,
+                                lineNumber: 540,
                                 columnNumber: 13
                             }, undefined),
-                            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.MiniMap), {}, void 0, false, {
+                            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.MiniMap), {
+                                nodeColor: nodeColor,
+                                nodeStrokeWidth: 3,
+                                zoomable: true,
+                                pannable: true,
+                                onNodeClick: handleMinimapNodeClick
+                            }, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 505,
+                                lineNumber: 541,
                                 columnNumber: 13
                             }, undefined)
                         ]
                     }, void 0, true, {
                         fileName: "App.js",
-                        lineNumber: 484,
+                        lineNumber: 516,
                         columnNumber: 11
                     }, undefined)
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 483,
+                    lineNumber: 515,
                     columnNumber: 9
                 }, undefined),
                 pendingNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16668,7 +16720,7 @@ const DnDFlow = ()=>{
                             ]
                         }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 511,
+                            lineNumber: 547,
                             columnNumber: 13
                         }, undefined),
                         pendingNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16682,7 +16734,7 @@ const DnDFlow = ()=>{
                                     ]
                                 }, void 0, true, {
                                     fileName: "App.js",
-                                    lineNumber: 515,
+                                    lineNumber: 551,
                                     columnNumber: 17
                                 }, undefined),
                                 pendingNode.type === "Table" ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _jsxDevRuntime.Fragment), {
@@ -16704,20 +16756,20 @@ const DnDFlow = ()=>{
                                                     required: true
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 522,
+                                                    lineNumber: 558,
                                                     columnNumber: 23
                                                 }, undefined)
                                             ]
                                         }, void 0, true, {
                                             fileName: "App.js",
-                                            lineNumber: 520,
+                                            lineNumber: 556,
                                             columnNumber: 21
                                         }, undefined),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
                                             children: "Columns:"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 529,
+                                            lineNumber: 565,
                                             columnNumber: 21
                                         }, undefined),
                                         formData.columns.map((col, index)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16734,7 +16786,7 @@ const DnDFlow = ()=>{
                                                         style: styles.input
                                                     }, void 0, false, {
                                                         fileName: "App.js",
-                                                        lineNumber: 534,
+                                                        lineNumber: 570,
                                                         columnNumber: 25
                                                     }, undefined),
                                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("select", {
@@ -16747,7 +16799,7 @@ const DnDFlow = ()=>{
                                                                 children: "Text"
                                                             }, void 0, false, {
                                                                 fileName: "App.js",
-                                                                lineNumber: 547,
+                                                                lineNumber: 583,
                                                                 columnNumber: 27
                                                             }, undefined),
                                                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16755,7 +16807,7 @@ const DnDFlow = ()=>{
                                                                 children: "Number"
                                                             }, void 0, false, {
                                                                 fileName: "App.js",
-                                                                lineNumber: 548,
+                                                                lineNumber: 584,
                                                                 columnNumber: 27
                                                             }, undefined),
                                                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16763,13 +16815,13 @@ const DnDFlow = ()=>{
                                                                 children: "Boolean"
                                                             }, void 0, false, {
                                                                 fileName: "App.js",
-                                                                lineNumber: 549,
+                                                                lineNumber: 585,
                                                                 columnNumber: 27
                                                             }, undefined)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "App.js",
-                                                        lineNumber: 542,
+                                                        lineNumber: 578,
                                                         columnNumber: 25
                                                     }, undefined),
                                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16778,13 +16830,13 @@ const DnDFlow = ()=>{
                                                         children: "\u2716"
                                                     }, void 0, false, {
                                                         fileName: "App.js",
-                                                        lineNumber: 553,
+                                                        lineNumber: 589,
                                                         columnNumber: 25
                                                     }, undefined)
                                                 ]
                                             }, index, true, {
                                                 fileName: "App.js",
-                                                lineNumber: 532,
+                                                lineNumber: 568,
                                                 columnNumber: 23
                                             }, undefined)),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16793,7 +16845,7 @@ const DnDFlow = ()=>{
                                             children: "+ Add Column"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 560,
+                                            lineNumber: 596,
                                             columnNumber: 21
                                         }, undefined)
                                     ]
@@ -16815,13 +16867,13 @@ const DnDFlow = ()=>{
                                                 style: styles.input
                                             }, void 0, false, {
                                                 fileName: "App.js",
-                                                lineNumber: 569,
+                                                lineNumber: 605,
                                                 columnNumber: 23
                                             }, undefined)
                                         ]
                                     }, key, true, {
                                         fileName: "App.js",
-                                        lineNumber: 567,
+                                        lineNumber: 603,
                                         columnNumber: 21
                                     }, undefined)),
                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16836,7 +16888,7 @@ const DnDFlow = ()=>{
                                             children: "Cancel"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 580,
+                                            lineNumber: 616,
                                             columnNumber: 19
                                         }, undefined),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16845,19 +16897,19 @@ const DnDFlow = ()=>{
                                             children: "Confirm"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 583,
+                                            lineNumber: 619,
                                             columnNumber: 19
                                         }, undefined)
                                     ]
                                 }, void 0, true, {
                                     fileName: "App.js",
-                                    lineNumber: 579,
+                                    lineNumber: 615,
                                     columnNumber: 17
                                 }, undefined)
                             ]
                         }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 514,
+                            lineNumber: 550,
                             columnNumber: 15
                         }, undefined),
                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16872,7 +16924,7 @@ const DnDFlow = ()=>{
                                     children: "Cancel"
                                 }, void 0, false, {
                                     fileName: "App.js",
-                                    lineNumber: 592,
+                                    lineNumber: 628,
                                     columnNumber: 15
                                 }, undefined),
                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16881,19 +16933,19 @@ const DnDFlow = ()=>{
                                     children: "Confirm"
                                 }, void 0, false, {
                                     fileName: "App.js",
-                                    lineNumber: 595,
+                                    lineNumber: 631,
                                     columnNumber: 15
                                 }, undefined)
                             ]
                         }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 591,
+                            lineNumber: 627,
                             columnNumber: 13
                         }, undefined)
                     ]
                 }, void 0, true, {
                     fileName: "App.js",
-                    lineNumber: 510,
+                    lineNumber: 546,
                     columnNumber: 11
                 }, undefined),
                 selectedNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16909,7 +16961,7 @@ const DnDFlow = ()=>{
                                 ]
                             }, void 0, true, {
                                 fileName: "App.js",
-                                lineNumber: 606,
+                                lineNumber: 642,
                                 columnNumber: 7
                             }, undefined),
                             selectedNode.type === "Table" ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _jsxDevRuntime.Fragment), {
@@ -16927,20 +16979,20 @@ const DnDFlow = ()=>{
                                                 style: styles.input
                                             }, void 0, false, {
                                                 fileName: "App.js",
-                                                lineNumber: 613,
+                                                lineNumber: 649,
                                                 columnNumber: 13
                                             }, undefined)
                                         ]
                                     }, void 0, true, {
                                         fileName: "App.js",
-                                        lineNumber: 611,
+                                        lineNumber: 647,
                                         columnNumber: 11
                                     }, undefined),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
                                         children: "Columns:"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 622,
+                                        lineNumber: 658,
                                         columnNumber: 11
                                     }, undefined),
                                     editFormData.columns.map((col, index)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16957,7 +17009,7 @@ const DnDFlow = ()=>{
                                                     style: styles.input
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 629,
+                                                    lineNumber: 665,
                                                     columnNumber: 15
                                                 }, undefined),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("select", {
@@ -16970,7 +17022,7 @@ const DnDFlow = ()=>{
                                                             children: "Text"
                                                         }, void 0, false, {
                                                             fileName: "App.js",
-                                                            lineNumber: 646,
+                                                            lineNumber: 682,
                                                             columnNumber: 17
                                                         }, undefined),
                                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16978,7 +17030,7 @@ const DnDFlow = ()=>{
                                                             children: "Number"
                                                         }, void 0, false, {
                                                             fileName: "App.js",
-                                                            lineNumber: 647,
+                                                            lineNumber: 683,
                                                             columnNumber: 17
                                                         }, undefined),
                                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16986,13 +17038,13 @@ const DnDFlow = ()=>{
                                                             children: "Boolean"
                                                         }, void 0, false, {
                                                             fileName: "App.js",
-                                                            lineNumber: 648,
+                                                            lineNumber: 684,
                                                             columnNumber: 17
                                                         }, undefined)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "App.js",
-                                                    lineNumber: 639,
+                                                    lineNumber: 675,
                                                     columnNumber: 15
                                                 }, undefined),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -17001,13 +17053,13 @@ const DnDFlow = ()=>{
                                                     children: "\u2716"
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 652,
+                                                    lineNumber: 688,
                                                     columnNumber: 15
                                                 }, undefined)
                                             ]
                                         }, index, true, {
                                             fileName: "App.js",
-                                            lineNumber: 624,
+                                            lineNumber: 660,
                                             columnNumber: 13
                                         }, undefined)),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -17016,7 +17068,7 @@ const DnDFlow = ()=>{
                                         children: "+ Add Column"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 662,
+                                        lineNumber: 698,
                                         columnNumber: 11
                                     }, undefined)
                                 ]
@@ -17031,7 +17083,7 @@ const DnDFlow = ()=>{
                                                 children: "Related Nodes:"
                                             }, void 0, false, {
                                                 fileName: "App.js",
-                                                lineNumber: 670,
+                                                lineNumber: 706,
                                                 columnNumber: 13
                                             }, undefined),
                                             edges.filter((edge)=>edge.target === selectedNode.id).map((edge)=>{
@@ -17047,14 +17099,14 @@ const DnDFlow = ()=>{
                                                     children: sourceNode.data.label
                                                 }, sourceNode.id, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 676,
+                                                    lineNumber: 712,
                                                     columnNumber: 19
                                                 }, undefined) : null;
                                             })
                                         ]
                                     }, void 0, true, {
                                         fileName: "App.js",
-                                        lineNumber: 669,
+                                        lineNumber: 705,
                                         columnNumber: 11
                                     }, undefined),
                                     [
@@ -17088,13 +17140,13 @@ const DnDFlow = ()=>{
                                                     }
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 702,
+                                                    lineNumber: 738,
                                                     columnNumber: 19
                                                 }, undefined)
                                             ]
                                         }, key, true, {
                                             fileName: "App.js",
-                                            lineNumber: 700,
+                                            lineNumber: 736,
                                             columnNumber: 17
                                         }, undefined))
                                 ]
@@ -17108,7 +17160,7 @@ const DnDFlow = ()=>{
                                         children: "Save"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 728,
+                                        lineNumber: 764,
                                         columnNumber: 9
                                     }, undefined),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -17117,7 +17169,7 @@ const DnDFlow = ()=>{
                                         children: "Cancel"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 731,
+                                        lineNumber: 767,
                                         columnNumber: 9
                                     }, undefined),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -17126,39 +17178,39 @@ const DnDFlow = ()=>{
                                         children: "Delete"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 734,
+                                        lineNumber: 770,
                                         columnNumber: 9
                                     }, undefined)
                                 ]
                             }, void 0, true, {
                                 fileName: "App.js",
-                                lineNumber: 727,
+                                lineNumber: 763,
                                 columnNumber: 7
                             }, undefined)
                         ]
                     }, void 0, true, {
                         fileName: "App.js",
-                        lineNumber: 605,
+                        lineNumber: 641,
                         columnNumber: 5
                     }, undefined)
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 604,
+                    lineNumber: 640,
                     columnNumber: 3
                 }, undefined)
             ]
         }, void 0, true, {
             fileName: "App.js",
-            lineNumber: 480,
+            lineNumber: 512,
             columnNumber: 7
         }, undefined)
     }, void 0, false, {
         fileName: "App.js",
-        lineNumber: 478,
+        lineNumber: 510,
         columnNumber: 5
     }, undefined);
 };
-_s(DnDFlow, "ec2OzTjrsdKavidhkOJWxDq4ziQ=", false, function() {
+_s(DnDFlow, "Jkb3iCHwaIXwuTGmewWdvL+nmQc=", false, function() {
     return [
         (0, _storeJsDefault.default),
         (0, _react2.useReactFlow),
@@ -17261,17 +17313,17 @@ const App = ()=>{
         children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _dnDContext.DnDProvider), {
             children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)(DnDFlow, {}, void 0, false, {
                 fileName: "App.js",
-                lineNumber: 841,
+                lineNumber: 877,
                 columnNumber: 9
             }, undefined)
         }, void 0, false, {
             fileName: "App.js",
-            lineNumber: 840,
+            lineNumber: 876,
             columnNumber: 7
         }, undefined)
     }, void 0, false, {
         fileName: "App.js",
-        lineNumber: 839,
+        lineNumber: 875,
         columnNumber: 5
     }, undefined);
 };
@@ -17287,7 +17339,7 @@ $RefreshReg$(_c1, "App");
   globalThis.$RefreshReg$ = prevRefreshReg;
   globalThis.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@floating-ui/react":"5AfIo","./console.js":"kFAFN","nanoid":"328Fw","../pkg/meerkat_remote_console_V2":"l6TqD","@xyflow/react":"3Yr6S","@xyflow/react/dist/style.css":"hYaEO","./Sidebar":"jKMVG","./DnDContext":"kCi0m","./nodes/Variable":"blbnG","./nodes/Definition":"9u9Ii","./nodes/Action":"hpjEK","./nodes/Table":"jkwn0","./nodes/HTML":"J6fNR","./edges/ActionEdge":"dVi4c","./store/store.js":"2ZYKM","./types.d.ts":"1tVsp","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"5AfIo":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@floating-ui/react":"5AfIo","./console.js":"kFAFN","./SearchBar":"5AIAu","./FilterBar":"jESzc","../pkg/meerkat_remote_console_V2":"l6TqD","@xyflow/react":"3Yr6S","@xyflow/react/dist/style.css":"hYaEO","./Sidebar":"jKMVG","./DnDContext":"kCi0m","./nodes/Variable":"blbnG","./nodes/Definition":"9u9Ii","./nodes/Action":"hpjEK","./nodes/Table":"jkwn0","./nodes/HTML":"J6fNR","./edges/ActionEdge":"dVi4c","./store/store.js":"2ZYKM","./types.d.ts":"1tVsp","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"5AfIo":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "arrow", ()=>(0, _reactDom1.arrow));
@@ -24913,9 +24965,8 @@ const Console = ()=>{
     return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
         ref: refs.setReference,
         style: {
-            position: "relative",
-            bottom: "1000px",
-            right: "350px",
+            position: "absolute",
+            right: "331px",
             zIndex: 1000
         },
         children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -27261,619 +27312,125 @@ function $da9882e673ac146b$var$ErrorOverlay() {
     return null;
 }
 
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"328Fw":[function(require,module,exports,__globalThis) {
-/* @ts-self-types="./index.d.ts" */ var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"5AIAu":[function(require,module,exports,__globalThis) {
+var $parcel$ReactRefreshHelpers$4cd4 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
+$parcel$ReactRefreshHelpers$4cd4.init();
+var prevRefreshReg = globalThis.$RefreshReg$;
+var prevRefreshSig = globalThis.$RefreshSig$;
+$parcel$ReactRefreshHelpers$4cd4.prelude(module);
+
+try {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
-parcelHelpers.export(exports, "urlAlphabet", ()=>(0, _indexJs.urlAlphabet));
-parcelHelpers.export(exports, "random", ()=>random);
-parcelHelpers.export(exports, "customRandom", ()=>customRandom);
-parcelHelpers.export(exports, "customAlphabet", ()=>customAlphabet);
-parcelHelpers.export(exports, "nanoid", ()=>nanoid);
-var _indexJs = require("./url-alphabet/index.js");
-let random = (bytes)=>crypto.getRandomValues(new Uint8Array(bytes));
-let customRandom = (alphabet, defaultSize, getRandom)=>{
-    let mask = (2 << Math.log2(alphabet.length - 1)) - 1;
-    let step = -~(1.6 * mask * defaultSize / alphabet.length);
-    return (size = defaultSize)=>{
-        let id = '';
-        while(true){
-            let bytes = getRandom(step);
-            let j = step | 0;
-            while(j--){
-                id += alphabet[bytes[j] & mask] || '';
-                if (id.length >= size) return id;
-            }
+var _jsxDevRuntime = require("react/jsx-dev-runtime");
+var _react = require("react");
+var _reactDefault = parcelHelpers.interopDefault(_react);
+var _react1 = require("@xyflow/react");
+var _s = $RefreshSig$();
+const SearchBar = ({ nodes })=>{
+    _s();
+    const [query, setQuery] = (0, _react.useState)('');
+    const [results, setResults] = (0, _react.useState)([]);
+    const { setCenter } = (0, _react1.useReactFlow)();
+    const handleSearch = (e)=>{
+        const val = e.target.value;
+        setQuery(val);
+        if (val.length === 0) {
+            setResults([]);
+            return;
         }
+        const filtered = nodes.filter((node)=>node.data?.label?.toLowerCase().includes(val.toLowerCase()));
+        setResults(filtered);
     };
-};
-let customAlphabet = (alphabet, size = 21)=>customRandom(alphabet, size | 0, random);
-let nanoid = (size = 21)=>{
-    let id = '';
-    let bytes = crypto.getRandomValues(new Uint8Array(size |= 0));
-    while(size--)id += (0, _indexJs.urlAlphabet)[bytes[size] & 63];
-    return id;
-};
-
-},{"./url-alphabet/index.js":"29KoN","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"29KoN":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-parcelHelpers.export(exports, "urlAlphabet", ()=>urlAlphabet);
-const urlAlphabet = 'useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict';
-
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"l6TqD":[function(require,module,exports,__globalThis) {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-/**
- * @returns {string}
- */ parcelHelpers.export(exports, "get_env", ()=>get_env);
-/**
- * @param {string} message
- */ parcelHelpers.export(exports, "send_message_to_server", ()=>send_message_to_server);
-/**
- * @returns {Promise<void>}
- */ parcelHelpers.export(exports, "main", ()=>main);
-parcelHelpers.export(exports, "initSync", ()=>initSync);
-var global = arguments[3];
-let wasm;
-const cachedTextDecoder = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', {
-    ignoreBOM: true,
-    fatal: true
-}) : {
-    decode: ()=>{
-        throw Error('TextDecoder not available');
-    }
-};
-if (typeof TextDecoder !== 'undefined') cachedTextDecoder.decode();
-let cachedUint8ArrayMemory0 = null;
-function getUint8ArrayMemory0() {
-    if (cachedUint8ArrayMemory0 === null || cachedUint8ArrayMemory0.byteLength === 0) cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
-    return cachedUint8ArrayMemory0;
-}
-function getStringFromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
-}
-function addToExternrefTable0(obj) {
-    const idx = wasm.__externref_table_alloc();
-    wasm.__wbindgen_export_2.set(idx, obj);
-    return idx;
-}
-function handleError(f, args) {
-    try {
-        return f.apply(this, args);
-    } catch (e) {
-        const idx = addToExternrefTable0(e);
-        wasm.__wbindgen_exn_store(idx);
-    }
-}
-function isLikeNone(x) {
-    return x === undefined || x === null;
-}
-let WASM_VECTOR_LEN = 0;
-const cachedTextEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder('utf-8') : {
-    encode: ()=>{
-        throw Error('TextEncoder not available');
-    }
-};
-const encodeString = typeof cachedTextEncoder.encodeInto === 'function' ? function(arg, view) {
-    return cachedTextEncoder.encodeInto(arg, view);
-} : function(arg, view) {
-    const buf = cachedTextEncoder.encode(arg);
-    view.set(buf);
-    return {
-        read: arg.length,
-        written: buf.length
+    const handleSelect = (node)=>{
+        const offsetX = 60; // shift right
+        const offsetY = 45; // shift down
+        const { x, y } = node.position;
+        setCenter(x + offsetX, y + offsetY, {
+            zoom: 2,
+            duration: 800
+        });
+        setQuery('');
+        setResults([]);
     };
+    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+        style: {
+            position: 'absolute',
+            top: 0,
+            left: 250,
+            zIndex: 1000
+        },
+        children: [
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
+                type: "text",
+                placeholder: "\uD83D\uDD0D Search nodes...",
+                value: query,
+                onChange: handleSearch,
+                style: {
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid #ccc',
+                    width: '200px'
+                }
+            }, void 0, false, {
+                fileName: "SearchBar.js",
+                lineNumber: 37,
+                columnNumber: 7
+            }, undefined),
+            results.length > 0 && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("ul", {
+                style: {
+                    listStyle: 'none',
+                    margin: 0,
+                    padding: '5px',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    backgroundColor: '#fff',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    position: 'absolute',
+                    width: '200px'
+                },
+                children: results.map((node)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("li", {
+                        onClick: ()=>handleSelect(node),
+                        style: {
+                            padding: '5px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid #eee'
+                        },
+                        children: node.data?.label || node.id
+                    }, node.id, false, {
+                        fileName: "SearchBar.js",
+                        lineNumber: 65,
+                        columnNumber: 13
+                    }, undefined))
+            }, void 0, false, {
+                fileName: "SearchBar.js",
+                lineNumber: 50,
+                columnNumber: 9
+            }, undefined)
+        ]
+    }, void 0, true, {
+        fileName: "SearchBar.js",
+        lineNumber: 36,
+        columnNumber: 5
+    }, undefined);
 };
-function passStringToWasm0(arg, malloc, realloc) {
-    if (realloc === undefined) {
-        const buf = cachedTextEncoder.encode(arg);
-        const ptr = malloc(buf.length, 1) >>> 0;
-        getUint8ArrayMemory0().subarray(ptr, ptr + buf.length).set(buf);
-        WASM_VECTOR_LEN = buf.length;
-        return ptr;
-    }
-    let len = arg.length;
-    let ptr = malloc(len, 1) >>> 0;
-    const mem = getUint8ArrayMemory0();
-    let offset = 0;
-    for(; offset < len; offset++){
-        const code = arg.charCodeAt(offset);
-        if (code > 0x7F) break;
-        mem[ptr + offset] = code;
-    }
-    if (offset !== len) {
-        if (offset !== 0) arg = arg.slice(offset);
-        ptr = realloc(ptr, len, len = offset + arg.length * 3, 1) >>> 0;
-        const view = getUint8ArrayMemory0().subarray(ptr + offset, ptr + len);
-        const ret = encodeString(arg, view);
-        offset += ret.written;
-        ptr = realloc(ptr, len, offset, 1) >>> 0;
-    }
-    WASM_VECTOR_LEN = offset;
-    return ptr;
-}
-let cachedDataViewMemory0 = null;
-function getDataViewMemory0() {
-    if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer) cachedDataViewMemory0 = new DataView(wasm.memory.buffer);
-    return cachedDataViewMemory0;
-}
-const CLOSURE_DTORS = typeof FinalizationRegistry === 'undefined' ? {
-    register: ()=>{},
-    unregister: ()=>{}
-} : new FinalizationRegistry((state)=>{
-    wasm.__wbindgen_export_5.get(state.dtor)(state.a, state.b);
+_s(SearchBar, "+wpTYTUY9NOK29qnPXUltyAeNoQ=", false, function() {
+    return [
+        (0, _react1.useReactFlow)
+    ];
 });
-function makeMutClosure(arg0, arg1, dtor, f) {
-    const state = {
-        a: arg0,
-        b: arg1,
-        cnt: 1,
-        dtor
-    };
-    const real = (...args)=>{
-        // First up with a closure we increment the internal reference
-        // count. This ensures that the Rust closure environment won't
-        // be deallocated while we're invoking it.
-        state.cnt++;
-        const a = state.a;
-        state.a = 0;
-        try {
-            return f(a, state.b, ...args);
-        } finally{
-            if (--state.cnt === 0) {
-                wasm.__wbindgen_export_5.get(state.dtor)(a, state.b);
-                CLOSURE_DTORS.unregister(state);
-            } else state.a = a;
-        }
-    };
-    real.original = state;
-    CLOSURE_DTORS.register(real, state, state);
-    return real;
-}
-function makeClosure(arg0, arg1, dtor, f) {
-    const state = {
-        a: arg0,
-        b: arg1,
-        cnt: 1,
-        dtor
-    };
-    const real = (...args)=>{
-        // First up with a closure we increment the internal reference
-        // count. This ensures that the Rust closure environment won't
-        // be deallocated while we're invoking it.
-        state.cnt++;
-        try {
-            return f(state.a, state.b, ...args);
-        } finally{
-            if (--state.cnt === 0) {
-                wasm.__wbindgen_export_5.get(state.dtor)(state.a, state.b);
-                state.a = 0;
-                CLOSURE_DTORS.unregister(state);
-            }
-        }
-    };
-    real.original = state;
-    CLOSURE_DTORS.register(real, state, state);
-    return real;
-}
-function debugString(val) {
-    // primitive types
-    const type = typeof val;
-    if (type == 'number' || type == 'boolean' || val == null) return `${val}`;
-    if (type == 'string') return `"${val}"`;
-    if (type == 'symbol') {
-        const description = val.description;
-        if (description == null) return 'Symbol';
-        else return `Symbol(${description})`;
-    }
-    if (type == 'function') {
-        const name = val.name;
-        if (typeof name == 'string' && name.length > 0) return `Function(${name})`;
-        else return 'Function';
-    }
-    // objects
-    if (Array.isArray(val)) {
-        const length = val.length;
-        let debug = '[';
-        if (length > 0) debug += debugString(val[0]);
-        for(let i = 1; i < length; i++)debug += ', ' + debugString(val[i]);
-        debug += ']';
-        return debug;
-    }
-    // Test for built-in
-    const builtInMatches = /\[object ([^\]]+)\]/.exec(toString.call(val));
-    let className;
-    if (builtInMatches && builtInMatches.length > 1) className = builtInMatches[1];
-    else // Failed to match the standard '[object ClassName]'
-    return toString.call(val);
-    if (className == 'Object') // we're a user defined class or Object
-    // JSON.stringify avoids problems with cycles, and is generally much
-    // easier than looping through ownProperties of `val`.
-    try {
-        return 'Object(' + JSON.stringify(val) + ')';
-    } catch (_) {
-        return 'Object';
-    }
-    // errors
-    if (val instanceof Error) return `${val.name}: ${val.message}\n${val.stack}`;
-    // TODO we could test for more things here, like `Set`s and `Map`s.
-    return className;
-}
-function get_env() {
-    let deferred1_0;
-    let deferred1_1;
-    try {
-        const ret = wasm.get_env();
-        deferred1_0 = ret[0];
-        deferred1_1 = ret[1];
-        return getStringFromWasm0(ret[0], ret[1]);
-    } finally{
-        wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-    }
-}
-function send_message_to_server(message) {
-    const ptr0 = passStringToWasm0(message, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    wasm.send_message_to_server(ptr0, len0);
-}
-function main() {
-    wasm.main();
-}
-function __wbg_adapter_28(arg0, arg1) {
-    wasm._dyn_core__ops__function__Fn_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__hb14e5e031a46e3fd(arg0, arg1);
-}
-function __wbg_adapter_31(arg0, arg1) {
-    wasm._dyn_core__ops__function__FnMut_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h66792c7400242598(arg0, arg1);
-}
-function __wbg_adapter_34(arg0, arg1, arg2) {
-    wasm.closure41_externref_shim(arg0, arg1, arg2);
-}
-function __wbg_adapter_37(arg0, arg1, arg2) {
-    wasm.closure50_externref_shim(arg0, arg1, arg2);
-}
-async function __wbg_load(module1, imports) {
-    if (typeof Response === 'function' && module1 instanceof Response) {
-        if (typeof WebAssembly.instantiateStreaming === 'function') try {
-            return await WebAssembly.instantiateStreaming(module1, imports);
-        } catch (e) {
-            if (module1.headers.get('Content-Type') != 'application/wasm') console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);
-            else throw e;
-        }
-        const bytes = await module1.arrayBuffer();
-        return await WebAssembly.instantiate(bytes, imports);
-    } else {
-        const instance = await WebAssembly.instantiate(module1, imports);
-        if (instance instanceof WebAssembly.Instance) return {
-            instance,
-            module: module1
-        };
-        else return instance;
-    }
-}
-function __wbg_get_imports() {
-    const imports = {};
-    imports.wbg = {};
-    imports.wbg.__wbg_addEventListener_90e553fdce254421 = function() {
-        return handleError(function(arg0, arg1, arg2, arg3) {
-            arg0.addEventListener(getStringFromWasm0(arg1, arg2), arg3);
-        }, arguments);
-    };
-    imports.wbg.__wbg_alert_afc9ddda2d88b6a0 = function(arg0, arg1) {
-        alert(getStringFromWasm0(arg0, arg1));
-    };
-    imports.wbg.__wbg_appendChild_8204974b7328bf98 = function() {
-        return handleError(function(arg0, arg1) {
-            const ret = arg0.appendChild(arg1);
-            return ret;
-        }, arguments);
-    };
-    imports.wbg.__wbg_buffer_609cc3eee51ed158 = function(arg0) {
-        const ret = arg0.buffer;
-        return ret;
-    };
-    imports.wbg.__wbg_call_672a4d21634d4a24 = function() {
-        return handleError(function(arg0, arg1) {
-            const ret = arg0.call(arg1);
-            return ret;
-        }, arguments);
-    };
-    imports.wbg.__wbg_call_7cccdd69e0791ae2 = function() {
-        return handleError(function(arg0, arg1, arg2) {
-            const ret = arg0.call(arg1, arg2);
-            return ret;
-        }, arguments);
-    };
-    imports.wbg.__wbg_createElement_8c9931a732ee2fea = function() {
-        return handleError(function(arg0, arg1, arg2) {
-            const ret = arg0.createElement(getStringFromWasm0(arg1, arg2));
-            return ret;
-        }, arguments);
-    };
-    imports.wbg.__wbg_crypto_ed58b8e10a292839 = function(arg0) {
-        const ret = arg0.crypto;
-        return ret;
-    };
-    imports.wbg.__wbg_data_432d9c3df2630942 = function(arg0) {
-        const ret = arg0.data;
-        return ret;
-    };
-    imports.wbg.__wbg_document_d249400bd7bd996d = function(arg0) {
-        const ret = arg0.document;
-        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-    };
-    imports.wbg.__wbg_getElementById_f827f0d6648718a8 = function(arg0, arg1, arg2) {
-        const ret = arg0.getElementById(getStringFromWasm0(arg1, arg2));
-        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-    };
-    imports.wbg.__wbg_getRandomValues_bcb4912f16000dc4 = function() {
-        return handleError(function(arg0, arg1) {
-            arg0.getRandomValues(arg1);
-        }, arguments);
-    };
-    imports.wbg.__wbg_get_67b2ba62fc30de12 = function() {
-        return handleError(function(arg0, arg1) {
-            const ret = Reflect.get(arg0, arg1);
-            return ret;
-        }, arguments);
-    };
-    imports.wbg.__wbg_instanceof_HtmlInputElement_12d71bf2d15dd19e = function(arg0) {
-        let result;
-        try {
-            result = arg0 instanceof HTMLInputElement;
-        } catch (_) {
-            result = false;
-        }
-        const ret = result;
-        return ret;
-    };
-    imports.wbg.__wbg_instanceof_Window_def73ea0955fc569 = function(arg0) {
-        let result;
-        try {
-            result = arg0 instanceof Window;
-        } catch (_) {
-            result = false;
-        }
-        const ret = result;
-        return ret;
-    };
-    imports.wbg.__wbg_log_c222819a41e063d3 = function(arg0) {
-        console.log(arg0);
-    };
-    imports.wbg.__wbg_msCrypto_0a36e2ec3a343d26 = function(arg0) {
-        const ret = arg0.msCrypto;
-        return ret;
-    };
-    imports.wbg.__wbg_new_92c54fc74574ef55 = function() {
-        return handleError(function(arg0, arg1) {
-            const ret = new WebSocket(getStringFromWasm0(arg0, arg1));
-            return ret;
-        }, arguments);
-    };
-    imports.wbg.__wbg_new_a12002a7f91c75be = function(arg0) {
-        const ret = new Uint8Array(arg0);
-        return ret;
-    };
-    imports.wbg.__wbg_newnoargs_105ed471475aaf50 = function(arg0, arg1) {
-        const ret = new Function(getStringFromWasm0(arg0, arg1));
-        return ret;
-    };
-    imports.wbg.__wbg_newwithbyteoffsetandlength_d97e637ebe145a9a = function(arg0, arg1, arg2) {
-        const ret = new Uint8Array(arg0, arg1 >>> 0, arg2 >>> 0);
-        return ret;
-    };
-    imports.wbg.__wbg_newwithlength_a381634e90c276d4 = function(arg0) {
-        const ret = new Uint8Array(arg0 >>> 0);
-        return ret;
-    };
-    imports.wbg.__wbg_node_02999533c4ea02e3 = function(arg0) {
-        const ret = arg0.node;
-        return ret;
-    };
-    imports.wbg.__wbg_now_807e54c39636c349 = function() {
-        const ret = Date.now();
-        return ret;
-    };
-    imports.wbg.__wbg_process_5c1d670bc53614b8 = function(arg0) {
-        const ret = arg0.process;
-        return ret;
-    };
-    imports.wbg.__wbg_queueMicrotask_97d92b4fcc8a61c5 = function(arg0) {
-        queueMicrotask(arg0);
-    };
-    imports.wbg.__wbg_queueMicrotask_d3219def82552485 = function(arg0) {
-        const ret = arg0.queueMicrotask;
-        return ret;
-    };
-    imports.wbg.__wbg_randomFillSync_ab2cfe79ebbf2740 = function() {
-        return handleError(function(arg0, arg1) {
-            arg0.randomFillSync(arg1);
-        }, arguments);
-    };
-    imports.wbg.__wbg_require_79b1e9274cde3c87 = function() {
-        return handleError(function() {
-            const ret = module.require;
-            return ret;
-        }, arguments);
-    };
-    imports.wbg.__wbg_resolve_4851785c9c5f573d = function(arg0) {
-        const ret = Promise.resolve(arg0);
-        return ret;
-    };
-    imports.wbg.__wbg_send_0293179ba074ffb4 = function() {
-        return handleError(function(arg0, arg1, arg2) {
-            arg0.send(getStringFromWasm0(arg1, arg2));
-        }, arguments);
-    };
-    imports.wbg.__wbg_set_65595bdd868b3009 = function(arg0, arg1, arg2) {
-        arg0.set(arg1, arg2 >>> 0);
-    };
-    imports.wbg.__wbg_setinnerHTML_31bde41f835786f7 = function(arg0, arg1, arg2) {
-        arg0.innerHTML = getStringFromWasm0(arg1, arg2);
-    };
-    imports.wbg.__wbg_setonmessage_6eccab530a8fb4c7 = function(arg0, arg1) {
-        arg0.onmessage = arg1;
-    };
-    imports.wbg.__wbg_setonopen_2da654e1f39745d5 = function(arg0, arg1) {
-        arg0.onopen = arg1;
-    };
-    imports.wbg.__wbg_setvalue_6ad9ef6c692ea746 = function(arg0, arg1, arg2) {
-        arg0.value = getStringFromWasm0(arg1, arg2);
-    };
-    imports.wbg.__wbg_static_accessor_GLOBAL_88a902d13a557d07 = function() {
-        const ret = typeof global === 'undefined' ? null : global;
-        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-    };
-    imports.wbg.__wbg_static_accessor_GLOBAL_THIS_56578be7e9f832b0 = function() {
-        const ret = typeof globalThis === 'undefined' ? null : globalThis;
-        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-    };
-    imports.wbg.__wbg_static_accessor_SELF_37c5d418e4bf5819 = function() {
-        const ret = typeof self === 'undefined' ? null : self;
-        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-    };
-    imports.wbg.__wbg_static_accessor_WINDOW_5de37043a91a9c40 = function() {
-        const ret = typeof window === 'undefined' ? null : window;
-        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-    };
-    imports.wbg.__wbg_subarray_aa9065fa9dc5df96 = function(arg0, arg1, arg2) {
-        const ret = arg0.subarray(arg1 >>> 0, arg2 >>> 0);
-        return ret;
-    };
-    imports.wbg.__wbg_then_44b73946d2fb3e7d = function(arg0, arg1) {
-        const ret = arg0.then(arg1);
-        return ret;
-    };
-    imports.wbg.__wbg_value_91cbf0dd3ab84c1e = function(arg0, arg1) {
-        const ret = arg1.value;
-        const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len1 = WASM_VECTOR_LEN;
-        getDataViewMemory0().setInt32(arg0 + 4, len1, true);
-        getDataViewMemory0().setInt32(arg0 + 0, ptr1, true);
-    };
-    imports.wbg.__wbg_versions_c71aa1626a93e0a1 = function(arg0) {
-        const ret = arg0.versions;
-        return ret;
-    };
-    imports.wbg.__wbindgen_cb_drop = function(arg0) {
-        const obj = arg0.original;
-        if (obj.cnt-- == 1) {
-            obj.a = 0;
-            return true;
-        }
-        const ret = false;
-        return ret;
-    };
-    imports.wbg.__wbindgen_closure_wrapper170 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 51, __wbg_adapter_37);
-        return ret;
-    };
-    imports.wbg.__wbindgen_closure_wrapper94 = function(arg0, arg1, arg2) {
-        const ret = makeClosure(arg0, arg1, 36, __wbg_adapter_28);
-        return ret;
-    };
-    imports.wbg.__wbindgen_closure_wrapper96 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 36, __wbg_adapter_31);
-        return ret;
-    };
-    imports.wbg.__wbindgen_closure_wrapper98 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 36, __wbg_adapter_34);
-        return ret;
-    };
-    imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {
-        const ret = debugString(arg1);
-        const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len1 = WASM_VECTOR_LEN;
-        getDataViewMemory0().setInt32(arg0 + 4, len1, true);
-        getDataViewMemory0().setInt32(arg0 + 0, ptr1, true);
-    };
-    imports.wbg.__wbindgen_init_externref_table = function() {
-        const table = wasm.__wbindgen_export_2;
-        const offset = table.grow(4);
-        table.set(0, undefined);
-        table.set(offset + 0, undefined);
-        table.set(offset + 1, null);
-        table.set(offset + 2, true);
-        table.set(offset + 3, false);
-    };
-    imports.wbg.__wbindgen_is_function = function(arg0) {
-        const ret = typeof arg0 === 'function';
-        return ret;
-    };
-    imports.wbg.__wbindgen_is_object = function(arg0) {
-        const val = arg0;
-        const ret = typeof val === 'object' && val !== null;
-        return ret;
-    };
-    imports.wbg.__wbindgen_is_string = function(arg0) {
-        const ret = typeof arg0 === 'string';
-        return ret;
-    };
-    imports.wbg.__wbindgen_is_undefined = function(arg0) {
-        const ret = arg0 === undefined;
-        return ret;
-    };
-    imports.wbg.__wbindgen_memory = function() {
-        const ret = wasm.memory;
-        return ret;
-    };
-    imports.wbg.__wbindgen_string_get = function(arg0, arg1) {
-        const obj = arg1;
-        const ret = typeof obj === 'string' ? obj : undefined;
-        var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len1 = WASM_VECTOR_LEN;
-        getDataViewMemory0().setInt32(arg0 + 4, len1, true);
-        getDataViewMemory0().setInt32(arg0 + 0, ptr1, true);
-    };
-    imports.wbg.__wbindgen_string_new = function(arg0, arg1) {
-        const ret = getStringFromWasm0(arg0, arg1);
-        return ret;
-    };
-    imports.wbg.__wbindgen_throw = function(arg0, arg1) {
-        throw new Error(getStringFromWasm0(arg0, arg1));
-    };
-    return imports;
-}
-function __wbg_init_memory(imports, memory) {}
-function __wbg_finalize_init(instance, module1) {
-    wasm = instance.exports;
-    __wbg_init.__wbindgen_wasm_module = module1;
-    cachedDataViewMemory0 = null;
-    cachedUint8ArrayMemory0 = null;
-    wasm.__wbindgen_start();
-    return wasm;
-}
-function initSync(module1) {
-    if (wasm !== undefined) return wasm;
-    if (typeof module1 !== 'undefined') {
-        if (Object.getPrototypeOf(module1) === Object.prototype) ({ module: module1 } = module1);
-        else console.warn('using deprecated parameters for `initSync()`; pass a single object instead');
-    }
-    const imports = __wbg_get_imports();
-    __wbg_init_memory(imports);
-    if (!(module1 instanceof WebAssembly.Module)) module1 = new WebAssembly.Module(module1);
-    const instance = new WebAssembly.Instance(module1, imports);
-    return __wbg_finalize_init(instance, module1);
-}
-async function __wbg_init(module_or_path) {
-    if (wasm !== undefined) return wasm;
-    if (typeof module_or_path !== 'undefined') {
-        if (Object.getPrototypeOf(module_or_path) === Object.prototype) ({ module_or_path } = module_or_path);
-        else console.warn('using deprecated parameters for the initialization function; pass a single object instead');
-    }
-    if (typeof module_or_path === 'undefined') module_or_path = new URL(require("7430107973542df7"));
-    const imports = __wbg_get_imports();
-    if (typeof module_or_path === 'string' || typeof Request === 'function' && module_or_path instanceof Request || typeof URL === 'function' && module_or_path instanceof URL) module_or_path = fetch(module_or_path);
-    __wbg_init_memory(imports);
-    const { instance, module: module1 } = await __wbg_load(await module_or_path, imports);
-    return __wbg_finalize_init(instance, module1);
-}
-exports.default = __wbg_init;
+_c = SearchBar;
+exports.default = SearchBar;
+var _c;
+$RefreshReg$(_c, "SearchBar");
 
-},{"7430107973542df7":"6NUbY","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"6NUbY":[function(require,module,exports,__globalThis) {
-module.exports = module.bundle.resolve("meerkat_remote_console_V2_bg.d2c62985.wasm") + "?" + Date.now();
-
-},{}],"3Yr6S":[function(require,module,exports,__globalThis) {
+  $parcel$ReactRefreshHelpers$4cd4.postlude(module);
+} finally {
+  globalThis.$RefreshReg$ = prevRefreshReg;
+  globalThis.$RefreshSig$ = prevRefreshSig;
+}
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"3Yr6S":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "ConnectionLineType", ()=>(0, _system.ConnectionLineType));
@@ -41367,1003 +40924,97 @@ module.exports = shallow;
 module.exports.shallow = shallow$1;
 exports.default = module.exports;
 
-},{}],"hYaEO":[function() {},{}],"jKMVG":[function(require,module,exports,__globalThis) {
-var $parcel$ReactRefreshHelpers$4c75 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
-$parcel$ReactRefreshHelpers$4c75.init();
+},{}],"jESzc":[function(require,module,exports,__globalThis) {
+var $parcel$ReactRefreshHelpers$1fb7 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
+$parcel$ReactRefreshHelpers$1fb7.init();
 var prevRefreshReg = globalThis.$RefreshReg$;
 var prevRefreshSig = globalThis.$RefreshSig$;
-$parcel$ReactRefreshHelpers$4c75.prelude(module);
+$parcel$ReactRefreshHelpers$1fb7.prelude(module);
 
 try {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 var _jsxDevRuntime = require("react/jsx-dev-runtime");
-var _dnDContext = require("./DnDContext");
 var _react = require("react");
 var _reactDefault = parcelHelpers.interopDefault(_react);
-var _react1 = require("@floating-ui/react");
+var _storeJs = require("./store/store.js");
+var _storeJsDefault = parcelHelpers.interopDefault(_storeJs);
 var _s = $RefreshSig$();
-const Sidebar = ()=>{
+const nodeTypes = [
+    'Variable',
+    'Definition',
+    'Action',
+    'Table',
+    'HTML'
+];
+const FilterBar = ()=>{
     _s();
-    const [_, setType] = (0, _dnDContext.useDnD)();
-    const [isSidebarOpen, setIsSidebarOpen] = (0, _react.useState)(true); // State to track sidebar collapse/expand
-    const onDragStart = (event, nodeType)=>{
-        setType(nodeType);
-        event.dataTransfer.effectAllowed = 'move';
-    };
-    const { refs, floatingStyles } = (0, _react1.useFloating)({
-        placement: "left-start",
-        middleware: [
-            (0, _react1.offset)(10),
-            (0, _react1.shift)()
-        ]
-    });
-    // Toggle sidebar visibility
-    const toggleSidebar = ()=>setIsSidebarOpen((prev)=>!prev);
+    const activeFilters = (0, _storeJsDefault.default)((state)=>state.activeFilters);
+    const toggleFilter = (0, _storeJsDefault.default)((state)=>state.toggleFilter);
     return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-        ref: refs.setFloating,
         style: {
-            ...floatingStyles,
-            background: "#fff",
-            boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
-            padding: "10px",
-            width: isSidebarOpen ? "220px" : "50px",
-            position: "absolute",
-            zIndex: 1000,
-            borderRadius: "8px",
-            transition: "width 0.3s ease-in-out"
+            position: 'absolute',
+            top: '10px',
+            left: '1150px',
+            zIndex: 1100,
+            background: '#fff',
+            padding: '10px',
+            borderRadius: '8px',
+            boxShadow: '0px 4px 10px rgba(0,0,0,0.1)',
+            display: 'flex',
+            gap: '10px',
+            flexWrap: 'wrap'
         },
-        children: [
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
-                onClick: toggleSidebar,
+        children: nodeTypes.map((type)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("label", {
                 style: {
-                    backgroundColor: "#007BFF",
-                    color: "white",
-                    border: "1px solid ",
-                    padding: "8px",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    marginBottom: "5px",
-                    borderRadius: "4px",
-                    width: "100%"
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontSize: '14px',
+                    cursor: 'pointer'
                 },
-                children: isSidebarOpen ? "Collapse" : "Open"
-            }, void 0, false, {
-                fileName: "Sidebar.js",
-                lineNumber: 38,
-                columnNumber: 7
-            }, undefined),
-            isSidebarOpen && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("aside", {
-                    children: [
-                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                            className: "description",
-                            children: "Drag these nodes to the canvas."
-                        }, void 0, false, {
-                            fileName: "Sidebar.js",
-                            lineNumber: 59,
-                            columnNumber: 13
-                        }, undefined),
-                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                            className: "dndnode variable shape-circle",
-                            onDragStart: (event)=>onDragStart(event, 'Variable'),
-                            draggable: true,
-                            children: "Variable"
-                        }, void 0, false, {
-                            fileName: "Sidebar.js",
-                            lineNumber: 75,
-                            columnNumber: 13
-                        }, undefined),
-                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                            className: "dndnode definition shape-diamond",
-                            onDragStart: (event)=>onDragStart(event, 'Definition'),
-                            draggable: true,
-                            children: "Definition"
-                        }, void 0, false, {
-                            fileName: "Sidebar.js",
-                            lineNumber: 78,
-                            columnNumber: 13
-                        }, undefined),
-                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                            className: "dndnode action shape-hexagon",
-                            onDragStart: (event)=>onDragStart(event, 'Action'),
-                            draggable: true,
-                            children: "Action"
-                        }, void 0, false, {
-                            fileName: "Sidebar.js",
-                            lineNumber: 81,
-                            columnNumber: 13
-                        }, undefined),
-                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                            className: "dndnode table shape-rectangle",
-                            onDragStart: (event)=>onDragStart(event, 'Table'),
-                            draggable: true,
-                            children: "Table"
-                        }, void 0, false, {
-                            fileName: "Sidebar.js",
-                            lineNumber: 84,
-                            columnNumber: 13
-                        }, undefined),
-                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                            className: "dndnode html shape-triangle",
-                            onDragStart: (event)=>onDragStart(event, 'HTML'),
-                            draggable: true,
-                            children: "HTML"
-                        }, void 0, false, {
-                            fileName: "Sidebar.js",
-                            lineNumber: 87,
-                            columnNumber: 13
-                        }, undefined)
-                    ]
-                }, void 0, true, {
-                    fileName: "Sidebar.js",
-                    lineNumber: 58,
-                    columnNumber: 11
-                }, undefined)
-            }, void 0, false, {
-                fileName: "Sidebar.js",
-                lineNumber: 57,
-                columnNumber: 9
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("style", {
-                children: `
-          .dndnode {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: grab;
-            user-select: none;
-            margin: 10px 0;
-            padding: 10px;
-            font-weight: bold;
-            text-align: center;
-            background: #eee;
-            transition: transform 0.2s ease-in-out;
-          }
-          .dndnode:hover {
-            transform: scale(1.05);
-          }
-
-          /* Shape Styles */
-          .shape-circle { width: 80px; height: 80px; border-radius: 50%; background: #ffcc00; }
-          .shape-hexagon { width: 90px; height: 52px; background: #4caf50; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
-          .shape-triangle { width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent; border-bottom: 70px solid #f44336; }
-          .shape-rectangle { width: 100px; height: 60px; background: #2196F3; border-radius: 5px; }
-          .shape-diamond { width: 70px; height: 70px; background: #9c27b0; transform: rotate(45deg); }
-        `
-            }, void 0, false, {
-                fileName: "Sidebar.js",
-                lineNumber: 95,
-                columnNumber: 7
-            }, undefined)
-        ]
-    }, void 0, true, {
-        fileName: "Sidebar.js",
-        lineNumber: 23,
-        columnNumber: 5
-    }, undefined);
-};
-_s(Sidebar, "JwfWLw8JJksmNcomVsvY9Pn5lAY=", false, function() {
-    return [
-        (0, _dnDContext.useDnD),
-        (0, _react1.useFloating)
-    ];
-});
-_c = Sidebar;
-exports.default = Sidebar;
-var _c;
-$RefreshReg$(_c, "Sidebar");
-
-  $parcel$ReactRefreshHelpers$4c75.postlude(module);
-} finally {
-  globalThis.$RefreshReg$ = prevRefreshReg;
-  globalThis.$RefreshSig$ = prevRefreshSig;
-}
-},{"react/jsx-dev-runtime":"dVPUn","./DnDContext":"kCi0m","react":"jMk1U","@floating-ui/react":"5AfIo","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"kCi0m":[function(require,module,exports,__globalThis) {
-var $parcel$ReactRefreshHelpers$ea22 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
-$parcel$ReactRefreshHelpers$ea22.init();
-var prevRefreshReg = globalThis.$RefreshReg$;
-var prevRefreshSig = globalThis.$RefreshSig$;
-$parcel$ReactRefreshHelpers$ea22.prelude(module);
-
-try {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-parcelHelpers.export(exports, "DnDProvider", ()=>DnDProvider);
-parcelHelpers.export(exports, "useDnD", ()=>useDnD);
-var _jsxDevRuntime = require("react/jsx-dev-runtime");
-var _react = require("react");
-var _s = $RefreshSig$(), _s1 = $RefreshSig$();
-const DnDContext = /*#__PURE__*/ (0, _react.createContext)([
-    null,
-    (_)=>{}
-]);
-const DnDProvider = ({ children })=>{
-    _s();
-    const [type, setType] = (0, _react.useState)(null);
-    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)(DnDContext.Provider, {
-        value: [
-            type,
-            setType
-        ],
-        children: children
-    }, void 0, false, {
-        fileName: "DnDContext.js",
-        lineNumber: 9,
-        columnNumber: 5
-    }, undefined);
-};
-_s(DnDProvider, "7BYRaQa0IdvrsJKR2LWrlQqvcc4=");
-_c = DnDProvider;
-exports.default = DnDContext;
-const useDnD = ()=>{
-    _s1();
-    return (0, _react.useContext)(DnDContext);
-};
-_s1(useDnD, "gDsCjeeItUuvgOWf1v4qoK9RF6k=");
-var _c;
-$RefreshReg$(_c, "DnDProvider");
-
-  $parcel$ReactRefreshHelpers$ea22.postlude(module);
-} finally {
-  globalThis.$RefreshReg$ = prevRefreshReg;
-  globalThis.$RefreshSig$ = prevRefreshSig;
-}
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"blbnG":[function(require,module,exports,__globalThis) {
-var $parcel$ReactRefreshHelpers$e089 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
-$parcel$ReactRefreshHelpers$e089.init();
-var prevRefreshReg = globalThis.$RefreshReg$;
-var prevRefreshSig = globalThis.$RefreshSig$;
-$parcel$ReactRefreshHelpers$e089.prelude(module);
-
-try {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _jsxDevRuntime = require("react/jsx-dev-runtime");
-var _react = require("react");
-var _reactDefault = parcelHelpers.interopDefault(_react);
-var _react1 = require("@xyflow/react");
-var _s = $RefreshSig$();
-const VariableNode = ({ id, data, isConnectable })=>{
-    _s();
-    const connection = (0, _react1.useConnection)();
-    const isTarget = connection.inProgress && connection.fromNode.id !== id;
-    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-        style: styles.node,
-        children: [
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
-                style: styles.text,
-                children: data.label || "Unnamed Variable"
-            }, void 0, false, {
-                fileName: "nodes/Variable.js",
-                lineNumber: 12,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
-                style: styles.text,
-                children: data.value || "No Value"
-            }, void 0, false, {
-                fileName: "nodes/Variable.js",
-                lineNumber: 13,
-                columnNumber: 7
-            }, undefined),
-            !connection.inProgress && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                className: "customHandle",
-                position: (0, _react1.Position).Right,
-                type: "source"
-            }, void 0, false, {
-                fileName: "nodes/Variable.js",
-                lineNumber: 17,
-                columnNumber: 11
-            }, undefined),
-            (!connection.inProgress || isTarget) && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                className: "customHandle",
-                position: (0, _react1.Position).Left,
-                type: "target",
-                isConnectableStart: false
-            }, void 0, false, {
-                fileName: "nodes/Variable.js",
+                children: [
+                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
+                        type: "checkbox",
+                        checked: activeFilters.has(type),
+                        onChange: ()=>toggleFilter(type),
+                        style: {
+                            marginRight: '6px'
+                        }
+                    }, void 0, false, {
+                        fileName: "FilterBar.js",
+                        lineNumber: 26,
+                        columnNumber: 11
+                    }, undefined),
+                    type
+                ]
+            }, type, true, {
+                fileName: "FilterBar.js",
                 lineNumber: 25,
-                columnNumber: 11
-            }, undefined)
-        ]
-    }, void 0, true, {
-        fileName: "nodes/Variable.js",
+                columnNumber: 9
+            }, undefined))
+    }, void 0, false, {
+        fileName: "FilterBar.js",
         lineNumber: 11,
         columnNumber: 5
     }, undefined);
 };
-_s(VariableNode, "lPaYy4JnAxzDf77n5AVJEeBzM14=", false, function() {
+_s(FilterBar, "nAVG5gDQdIn9lkBf8dQ75ndq1SQ=", false, function() {
     return [
-        (0, _react1.useConnection)
-    ];
-});
-_c = VariableNode;
-const styles = {
-    node: {
-        padding: "10px",
-        border: "2px solid rgb(225, 0, 255)",
-        borderRadius: "5px",
-        background: "#fff",
-        width: "auto",
-        maxwidth: "550px",
-        textAlign: "center",
-        boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
-        cursor: "pointer"
-    },
-    overlay: {
-        position: "fixed",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        width: "300px",
-        height: "auto",
-        background: "rgba(0, 0, 0, 0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000
-    },
-    modal: {
-        background: "#fff",
-        padding: "20px",
-        borderRadius: "8px",
-        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-        textAlign: "center",
-        width: "280px"
-    },
-    buttonContainer: {
-        display: "flex",
-        justifyContent: "space-between",
-        marginTop: "10px"
-    },
-    button: {
-        padding: "8px 16px",
-        background: "#007BFF",
-        color: "white",
-        border: "none",
-        borderRadius: "4px",
-        cursor: "pointer"
-    },
-    cancelButton: {
-        padding: "8px 16px",
-        background: "#6c757d",
-        color: "white",
-        border: "none",
-        borderRadius: "4px",
-        cursor: "pointer"
-    },
-    text: {
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-        width: "100%",
-        display: "block"
-    }
-};
-exports.default = VariableNode;
-var _c;
-$RefreshReg$(_c, "VariableNode");
-
-  $parcel$ReactRefreshHelpers$e089.postlude(module);
-} finally {
-  globalThis.$RefreshReg$ = prevRefreshReg;
-  globalThis.$RefreshSig$ = prevRefreshSig;
-}
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"9u9Ii":[function(require,module,exports,__globalThis) {
-var $parcel$ReactRefreshHelpers$1f34 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
-$parcel$ReactRefreshHelpers$1f34.init();
-var prevRefreshReg = globalThis.$RefreshReg$;
-var prevRefreshSig = globalThis.$RefreshSig$;
-$parcel$ReactRefreshHelpers$1f34.prelude(module);
-
-try {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _jsxDevRuntime = require("react/jsx-dev-runtime");
-var _react = require("react");
-var _reactDefault = parcelHelpers.interopDefault(_react);
-var _react1 = require("@xyflow/react");
-var _s = $RefreshSig$();
-const DefinitionNode = ({ id, data, isConnectable })=>{
-    _s();
-    const connection = (0, _react1.useConnection)();
-    const isTarget = connection.inProgress && connection.fromNode.id !== id;
-    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-        style: styles.wrapper,
-        children: [
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                style: styles.node,
-                children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                    style: styles.content,
-                    children: [
-                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
-                            style: styles.text,
-                            children: data.label || "Unnamed"
-                        }, void 0, false, {
-                            fileName: "nodes/Definition.js",
-                            lineNumber: 13,
-                            columnNumber: 11
-                        }, undefined),
-                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
-                            style: styles.text,
-                            children: data.definition || "No Value"
-                        }, void 0, false, {
-                            fileName: "nodes/Definition.js",
-                            lineNumber: 14,
-                            columnNumber: 11
-                        }, undefined),
-                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
-                            style: styles.text,
-                            children: data.value || "No Value"
-                        }, void 0, false, {
-                            fileName: "nodes/Definition.js",
-                            lineNumber: 15,
-                            columnNumber: 11
-                        }, undefined)
-                    ]
-                }, void 0, true, {
-                    fileName: "nodes/Definition.js",
-                    lineNumber: 12,
-                    columnNumber: 9
-                }, undefined)
-            }, void 0, false, {
-                fileName: "nodes/Definition.js",
-                lineNumber: 11,
-                columnNumber: 7
-            }, undefined),
-            !connection.inProgress && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                className: "customHandle",
-                position: (0, _react1.Position).Right,
-                type: "source"
-            }, void 0, false, {
-                fileName: "nodes/Definition.js",
-                lineNumber: 21,
-                columnNumber: 9
-            }, undefined),
-            (!connection.inProgress || isTarget) && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                className: "customHandle",
-                position: (0, _react1.Position).Left,
-                type: "target",
-                isConnectableStart: false
-            }, void 0, false, {
-                fileName: "nodes/Definition.js",
-                lineNumber: 28,
-                columnNumber: 9
-            }, undefined)
-        ]
-    }, void 0, true, {
-        fileName: "nodes/Definition.js",
-        lineNumber: 10,
-        columnNumber: 5
-    }, undefined);
-};
-_s(DefinitionNode, "lPaYy4JnAxzDf77n5AVJEeBzM14=", false, function() {
-    return [
-        (0, _react1.useConnection)
-    ];
-});
-_c = DefinitionNode;
-const styles = {
-    wrapper: {
-        position: "relative"
-    },
-    node: {
-        width: "120px",
-        height: "120px",
-        background: "#fff",
-        border: "2px solid rgb(19, 223, 29)",
-        transform: "rotate(45deg)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
-        position: "relative",
-        padding: "10px"
-    },
-    content: {
-        transform: "rotate(-45deg)",
-        textAlign: "center",
-        fontSize: "12px",
-        wordBreak: "break-word",
-        maxWidth: "100%",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center"
-    },
-    text: {
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-        width: "100%",
-        display: "block",
-        textAlign: "center"
-    }
-};
-exports.default = /*#__PURE__*/ _c1 = (0, _react.memo)(DefinitionNode);
-var _c, _c1;
-$RefreshReg$(_c, "DefinitionNode");
-$RefreshReg$(_c1, "%default%");
-
-  $parcel$ReactRefreshHelpers$1f34.postlude(module);
-} finally {
-  globalThis.$RefreshReg$ = prevRefreshReg;
-  globalThis.$RefreshSig$ = prevRefreshSig;
-}
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"hpjEK":[function(require,module,exports,__globalThis) {
-var $parcel$ReactRefreshHelpers$98cf = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
-$parcel$ReactRefreshHelpers$98cf.init();
-var prevRefreshReg = globalThis.$RefreshReg$;
-var prevRefreshSig = globalThis.$RefreshSig$;
-$parcel$ReactRefreshHelpers$98cf.prelude(module);
-
-try {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _jsxDevRuntime = require("react/jsx-dev-runtime");
-var _react = require("react");
-var _reactDefault = parcelHelpers.interopDefault(_react);
-var _react1 = require("@xyflow/react");
-var _meerkatRemoteConsoleV2 = require("../../pkg/meerkat_remote_console_V2");
-var _meerkatRemoteConsoleV2Default = parcelHelpers.interopDefault(_meerkatRemoteConsoleV2);
-var _s = $RefreshSig$();
-const ActionNode = ({ id, data, isConnectable })=>{
-    _s();
-    const connection = (0, _react1.useConnection)();
-    const isTarget = connection.inProgress && connection.fromNode.id !== id;
-    const onEdgeClick = ()=>{
-        let message = "do " + data.target + "=" + data.action;
-        console.log(message);
-        (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
-    };
-    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-        style: styles.node,
-        children: [
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
-                style: styles.text,
-                children: data.label
-            }, void 0, false, {
-                fileName: "nodes/Action.js",
-                lineNumber: 16,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
-                style: styles.text,
-                children: data.target || "No target"
-            }, void 0, false, {
-                fileName: "nodes/Action.js",
-                lineNumber: 17,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
-                style: styles.text,
-                children: data.action || "No action defined"
-            }, void 0, false, {
-                fileName: "nodes/Action.js",
-                lineNumber: 18,
-                columnNumber: 7
-            }, undefined),
-            !connection.inProgress && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                className: "customHandle",
-                position: (0, _react1.Position).Right,
-                type: "source"
-            }, void 0, false, {
-                fileName: "nodes/Action.js",
-                lineNumber: 22,
-                columnNumber: 17
-            }, undefined),
-            (!connection.inProgress || isTarget) && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                className: "customHandle",
-                position: (0, _react1.Position).Left,
-                type: "target",
-                isConnectableStart: false
-            }, void 0, false, {
-                fileName: "nodes/Action.js",
-                lineNumber: 30,
-                columnNumber: 17
-            }, undefined)
-        ]
-    }, void 0, true, {
-        fileName: "nodes/Action.js",
-        lineNumber: 15,
-        columnNumber: 5
-    }, undefined);
-};
-_s(ActionNode, "lPaYy4JnAxzDf77n5AVJEeBzM14=", false, function() {
-    return [
-        (0, _react1.useConnection)
-    ];
-});
-_c = ActionNode;
-const styles = {
-    node: {
-        padding: "10px",
-        border: "2px solid rgb(252, 0, 55)",
-        borderRadius: "5px",
-        background: "#fff",
-        width: "auto",
-        maxwidth: "550px",
-        textAlign: "center"
-    },
-    input: {
-        width: "90%",
-        marginTop: "5px",
-        padding: "5px"
-    },
-    button: {
-        marginTop: "5px",
-        padding: "5px",
-        cursor: "pointer",
-        width: "100%"
-    },
-    text: {
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-        width: "100%",
-        display: "block"
-    }
-};
-exports.default = /*#__PURE__*/ _c1 = (0, _react.memo)(ActionNode);
-var _c, _c1;
-$RefreshReg$(_c, "ActionNode");
-$RefreshReg$(_c1, "%default%");
-
-  $parcel$ReactRefreshHelpers$98cf.postlude(module);
-} finally {
-  globalThis.$RefreshReg$ = prevRefreshReg;
-  globalThis.$RefreshSig$ = prevRefreshSig;
-}
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","../../pkg/meerkat_remote_console_V2":"l6TqD","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"jkwn0":[function(require,module,exports,__globalThis) {
-var $parcel$ReactRefreshHelpers$17fa = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
-$parcel$ReactRefreshHelpers$17fa.init();
-var prevRefreshReg = globalThis.$RefreshReg$;
-var prevRefreshSig = globalThis.$RefreshSig$;
-$parcel$ReactRefreshHelpers$17fa.prelude(module);
-
-try {
-var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
-parcelHelpers.defineInteropFlag(exports);
-var _jsxDevRuntime = require("react/jsx-dev-runtime");
-var _react = require("react");
-var _reactDefault = parcelHelpers.interopDefault(_react);
-var _react1 = require("@xyflow/react");
-var _storeJs = require("../store/store.js");
-var _storeJsDefault = parcelHelpers.interopDefault(_storeJs);
-var _s = $RefreshSig$();
-const TableNode = ({ id, data, isConnectable })=>{
-    _s();
-    const [rowsForm, setRowsForm] = (0, _react.useState)([]);
-    const [newRowCount, setNewRowCount] = (0, _react.useState)(1); // Default to 1 row
-    const [isEditing, setIsEditing] = (0, _react.useState)(false); // Toggle for editing
-    const updateNode = (0, _storeJsDefault.default)((state)=>state.updateNode);
-    // Handle input change for adding new rows
-    const handleRowInputChange = (e, rowIdx, colIdx)=>{
-        const value = e.target.value;
-        const updatedRows = [
-            ...rowsForm
-        ];
-        updatedRows[rowIdx][colIdx] = value;
-        setRowsForm(updatedRows);
-    };
-    // Handle adding multiple rows
-    const handleAddMultipleRows = ()=>{
-        const newRows = Array.from({
-            length: newRowCount
-        }, ()=>data.columns.map(()=>""));
-        setRowsForm(newRows);
-    };
-    // Submit rows to the table
-    const handleSubmitRows = ()=>{
-        updateNode(id, {
-            rows: [
-                ...data.rows || [],
-                ...rowsForm
-            ]
-        });
-        setRowsForm([]);
-    };
-    // Enable editing mode
-    const handleEditRows = ()=>{
-        setIsEditing(!isEditing);
-    };
-    // Handle row edits
-    const handleEditRowInputChange = (e, rowIdx, colIdx)=>{
-        const value = e.target.value;
-        const updatedRows = [
-            ...data.rows
-        ];
-        updatedRows[rowIdx][colIdx] = value;
-        updateNode(id, {
-            rows: updatedRows
-        });
-    };
-    // Handle deleting a row
-    const handleDeleteRow = (rowIdx)=>{
-        const updatedRows = data.rows.filter((_, index)=>index !== rowIdx);
-        updateNode(id, {
-            rows: updatedRows
-        });
-    };
-    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-        style: styles.node,
-        children: [
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
-                children: data.label || "Database Table"
-            }, void 0, false, {
-                fileName: "nodes/Table.js",
-                lineNumber: 52,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("table", {
-                style: styles.table,
-                children: [
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("thead", {
-                        children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("tr", {
-                            children: data.columns && data.columns.map((col, idx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("th", {
-                                    style: styles.th,
-                                    children: col.name
-                                }, idx, false, {
-                                    fileName: "nodes/Table.js",
-                                    lineNumber: 58,
-                                    columnNumber: 15
-                                }, undefined))
-                        }, void 0, false, {
-                            fileName: "nodes/Table.js",
-                            lineNumber: 56,
-                            columnNumber: 11
-                        }, undefined)
-                    }, void 0, false, {
-                        fileName: "nodes/Table.js",
-                        lineNumber: 55,
-                        columnNumber: 9
-                    }, undefined),
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("tbody", {
-                        children: data.rows && data.rows.map((row, rowIdx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("tr", {
-                                children: [
-                                    row.map((cell, cellIdx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("td", {
-                                            style: styles.td,
-                                            children: isEditing ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
-                                                type: "text",
-                                                value: cell,
-                                                onChange: (e)=>handleEditRowInputChange(e, rowIdx, cellIdx),
-                                                style: styles.input
-                                            }, void 0, false, {
-                                                fileName: "nodes/Table.js",
-                                                lineNumber: 68,
-                                                columnNumber: 21
-                                            }, undefined) : cell
-                                        }, cellIdx, false, {
-                                            fileName: "nodes/Table.js",
-                                            lineNumber: 66,
-                                            columnNumber: 17
-                                        }, undefined)),
-                                    isEditing && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("td", {
-                                        children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
-                                            onClick: ()=>handleDeleteRow(rowIdx),
-                                            style: styles.deleteButton,
-                                            children: "X"
-                                        }, void 0, false, {
-                                            fileName: "nodes/Table.js",
-                                            lineNumber: 81,
-                                            columnNumber: 19
-                                        }, undefined)
-                                    }, void 0, false, {
-                                        fileName: "nodes/Table.js",
-                                        lineNumber: 80,
-                                        columnNumber: 17
-                                    }, undefined)
-                                ]
-                            }, rowIdx, true, {
-                                fileName: "nodes/Table.js",
-                                lineNumber: 64,
-                                columnNumber: 13
-                            }, undefined))
-                    }, void 0, false, {
-                        fileName: "nodes/Table.js",
-                        lineNumber: 62,
-                        columnNumber: 9
-                    }, undefined)
-                ]
-            }, void 0, true, {
-                fileName: "nodes/Table.js",
-                lineNumber: 54,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("label", {
-                style: {
-                    display: "block",
-                    margin: "10px 0"
-                },
-                children: [
-                    "Number of rows to add:",
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
-                        type: "number",
-                        value: newRowCount,
-                        onChange: (e)=>setNewRowCount(Number(e.target.value)),
-                        min: "1",
-                        style: styles.input
-                    }, void 0, false, {
-                        fileName: "nodes/Table.js",
-                        lineNumber: 92,
-                        columnNumber: 9
-                    }, undefined)
-                ]
-            }, void 0, true, {
-                fileName: "nodes/Table.js",
-                lineNumber: 90,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
-                onClick: handleAddMultipleRows,
-                style: styles.button,
-                children: [
-                    "Add ",
-                    newRowCount,
-                    " Row(s)"
-                ]
-            }, void 0, true, {
-                fileName: "nodes/Table.js",
-                lineNumber: 100,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
-                onClick: handleEditRows,
-                style: styles.editButton,
-                children: isEditing ? "Finish Editing" : "Edit Rows"
-            }, void 0, false, {
-                fileName: "nodes/Table.js",
-                lineNumber: 101,
-                columnNumber: 7
-            }, undefined),
-            rowsForm.length > 0 && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                children: [
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
-                        children: "Fill Row Values:"
-                    }, void 0, false, {
-                        fileName: "nodes/Table.js",
-                        lineNumber: 108,
-                        columnNumber: 11
-                    }, undefined),
-                    rowsForm.map((row, rowIdx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-                            style: {
-                                marginBottom: "10px"
-                            },
-                            children: data.columns.map((col, colIdx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
-                                    type: "text",
-                                    value: row[colIdx] || "",
-                                    placeholder: col.name,
-                                    onChange: (e)=>handleRowInputChange(e, rowIdx, colIdx),
-                                    style: styles.input
-                                }, colIdx, false, {
-                                    fileName: "nodes/Table.js",
-                                    lineNumber: 112,
-                                    columnNumber: 17
-                                }, undefined))
-                        }, rowIdx, false, {
-                            fileName: "nodes/Table.js",
-                            lineNumber: 110,
-                            columnNumber: 13
-                        }, undefined)),
-                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
-                        onClick: handleSubmitRows,
-                        style: styles.button,
-                        children: "Submit Rows"
-                    }, void 0, false, {
-                        fileName: "nodes/Table.js",
-                        lineNumber: 123,
-                        columnNumber: 11
-                    }, undefined)
-                ]
-            }, void 0, true, {
-                fileName: "nodes/Table.js",
-                lineNumber: 107,
-                columnNumber: 9
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                type: "target",
-                position: (0, _react1.Position).Left,
-                isConnectable: isConnectable
-            }, void 0, false, {
-                fileName: "nodes/Table.js",
-                lineNumber: 127,
-                columnNumber: 7
-            }, undefined),
-            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
-                type: "source",
-                position: (0, _react1.Position).Right,
-                isConnectable: isConnectable
-            }, void 0, false, {
-                fileName: "nodes/Table.js",
-                lineNumber: 128,
-                columnNumber: 7
-            }, undefined)
-        ]
-    }, void 0, true, {
-        fileName: "nodes/Table.js",
-        lineNumber: 51,
-        columnNumber: 5
-    }, undefined);
-};
-_s(TableNode, "xJovSpz+Be6us0m5xyka5AXVm60=", false, function() {
-    return [
+        (0, _storeJsDefault.default),
         (0, _storeJsDefault.default)
     ];
 });
-_c = TableNode;
-const styles = {
-    node: {
-        padding: "10px",
-        border: "2px solid #2196F3",
-        borderRadius: "5px",
-        background: "#fff",
-        width: "auto",
-        textAlign: "center",
-        boxShadow: "2px 2px 5px rgba(0,0,0,0.1)"
-    },
-    table: {
-        width: "100%",
-        borderCollapse: "collapse",
-        marginTop: "10px"
-    },
-    th: {
-        border: "1px solid #ddd",
-        padding: "8px",
-        backgroundColor: "#f2f2f2",
-        textAlign: "center",
-        fontWeight: "bold"
-    },
-    td: {
-        border: "1px solid #ddd",
-        padding: "8px",
-        textAlign: "center"
-    },
-    input: {
-        padding: "5px",
-        margin: "5px",
-        borderRadius: "4px",
-        border: "1px solid #ccc",
-        width: "90px"
-    },
-    button: {
-        backgroundColor: "#4CAF50",
-        color: "white",
-        border: "none",
-        padding: "8px 16px",
-        cursor: "pointer",
-        margin: "5px 0",
-        borderRadius: "4px"
-    },
-    deleteButton: {
-        backgroundColor: "#ff4d4d",
-        color: "white",
-        border: "none",
-        padding: "5px 10px",
-        cursor: "pointer",
-        borderRadius: "4px",
-        marginLeft: "5px"
-    },
-    editButton: {
-        backgroundColor: "#2196F3",
-        color: "white",
-        border: "none",
-        padding: "8px 16px",
-        cursor: "pointer",
-        margin: "5px 5px",
-        borderRadius: "4px"
-    }
-};
-exports.default = /*#__PURE__*/ _c1 = (0, _react.memo)(TableNode);
-var _c, _c1;
-$RefreshReg$(_c, "TableNode");
-$RefreshReg$(_c1, "%default%");
+_c = FilterBar;
+exports.default = FilterBar;
+var _c;
+$RefreshReg$(_c, "FilterBar");
 
-  $parcel$ReactRefreshHelpers$17fa.postlude(module);
+  $parcel$ReactRefreshHelpers$1fb7.postlude(module);
 } finally {
   globalThis.$RefreshReg$ = prevRefreshReg;
   globalThis.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","../store/store.js":"2ZYKM","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"2ZYKM":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","./store/store.js":"2ZYKM"}],"2ZYKM":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 var _zustand = require("zustand");
@@ -42378,6 +41029,20 @@ const useStore = (0, _zustand.create)((set, get)=>({
         // Store for nodes and edges
         nodes: initialNodes,
         edges: initialEdges,
+        activeFilters: new Set([
+            'Variable',
+            'Definition',
+            'Action',
+            'Table',
+            'HTML'
+        ]),
+        toggleFilter: (type)=>set((state)=>{
+                const newFilters = new Set(state.activeFilters);
+                newFilters.has(type) ? newFilters.delete(type) : newFilters.add(type);
+                return {
+                    activeFilters: newFilters
+                };
+            }),
         // Handles changes for nodes
         onNodesChange: (changes)=>{
             set({
@@ -42702,7 +41367,1545 @@ const create = (createState)=>createState ? createImpl(createState) : createImpl
 exports.create = create;
 exports.useStore = useStore;
 
-},{"6a69048f974f8971":"jMk1U","985957b117977eb9":"folPr"}],"J6fNR":[function(require,module,exports,__globalThis) {
+},{"6a69048f974f8971":"jMk1U","985957b117977eb9":"folPr"}],"l6TqD":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+/**
+ * @param {string} message
+ */ parcelHelpers.export(exports, "send_message_to_server", ()=>send_message_to_server);
+/**
+ * @returns {Promise<void>}
+ */ parcelHelpers.export(exports, "main", ()=>main);
+parcelHelpers.export(exports, "initSync", ()=>initSync);
+var global = arguments[3];
+let wasm;
+const cachedTextDecoder = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', {
+    ignoreBOM: true,
+    fatal: true
+}) : {
+    decode: ()=>{
+        throw Error('TextDecoder not available');
+    }
+};
+if (typeof TextDecoder !== 'undefined') cachedTextDecoder.decode();
+let cachedUint8ArrayMemory0 = null;
+function getUint8ArrayMemory0() {
+    if (cachedUint8ArrayMemory0 === null || cachedUint8ArrayMemory0.byteLength === 0) cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
+    return cachedUint8ArrayMemory0;
+}
+function getStringFromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
+}
+function addToExternrefTable0(obj) {
+    const idx = wasm.__externref_table_alloc();
+    wasm.__wbindgen_export_2.set(idx, obj);
+    return idx;
+}
+function handleError(f, args) {
+    try {
+        return f.apply(this, args);
+    } catch (e) {
+        const idx = addToExternrefTable0(e);
+        wasm.__wbindgen_exn_store(idx);
+    }
+}
+function isLikeNone(x) {
+    return x === undefined || x === null;
+}
+let WASM_VECTOR_LEN = 0;
+const cachedTextEncoder = typeof TextEncoder !== 'undefined' ? new TextEncoder('utf-8') : {
+    encode: ()=>{
+        throw Error('TextEncoder not available');
+    }
+};
+const encodeString = typeof cachedTextEncoder.encodeInto === 'function' ? function(arg, view) {
+    return cachedTextEncoder.encodeInto(arg, view);
+} : function(arg, view) {
+    const buf = cachedTextEncoder.encode(arg);
+    view.set(buf);
+    return {
+        read: arg.length,
+        written: buf.length
+    };
+};
+function passStringToWasm0(arg, malloc, realloc) {
+    if (realloc === undefined) {
+        const buf = cachedTextEncoder.encode(arg);
+        const ptr = malloc(buf.length, 1) >>> 0;
+        getUint8ArrayMemory0().subarray(ptr, ptr + buf.length).set(buf);
+        WASM_VECTOR_LEN = buf.length;
+        return ptr;
+    }
+    let len = arg.length;
+    let ptr = malloc(len, 1) >>> 0;
+    const mem = getUint8ArrayMemory0();
+    let offset = 0;
+    for(; offset < len; offset++){
+        const code = arg.charCodeAt(offset);
+        if (code > 0x7F) break;
+        mem[ptr + offset] = code;
+    }
+    if (offset !== len) {
+        if (offset !== 0) arg = arg.slice(offset);
+        ptr = realloc(ptr, len, len = offset + arg.length * 3, 1) >>> 0;
+        const view = getUint8ArrayMemory0().subarray(ptr + offset, ptr + len);
+        const ret = encodeString(arg, view);
+        offset += ret.written;
+        ptr = realloc(ptr, len, offset, 1) >>> 0;
+    }
+    WASM_VECTOR_LEN = offset;
+    return ptr;
+}
+let cachedDataViewMemory0 = null;
+function getDataViewMemory0() {
+    if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer) cachedDataViewMemory0 = new DataView(wasm.memory.buffer);
+    return cachedDataViewMemory0;
+}
+const CLOSURE_DTORS = typeof FinalizationRegistry === 'undefined' ? {
+    register: ()=>{},
+    unregister: ()=>{}
+} : new FinalizationRegistry((state)=>{
+    wasm.__wbindgen_export_5.get(state.dtor)(state.a, state.b);
+});
+function makeMutClosure(arg0, arg1, dtor, f) {
+    const state = {
+        a: arg0,
+        b: arg1,
+        cnt: 1,
+        dtor
+    };
+    const real = (...args)=>{
+        // First up with a closure we increment the internal reference
+        // count. This ensures that the Rust closure environment won't
+        // be deallocated while we're invoking it.
+        state.cnt++;
+        const a = state.a;
+        state.a = 0;
+        try {
+            return f(a, state.b, ...args);
+        } finally{
+            if (--state.cnt === 0) {
+                wasm.__wbindgen_export_5.get(state.dtor)(a, state.b);
+                CLOSURE_DTORS.unregister(state);
+            } else state.a = a;
+        }
+    };
+    real.original = state;
+    CLOSURE_DTORS.register(real, state, state);
+    return real;
+}
+function makeClosure(arg0, arg1, dtor, f) {
+    const state = {
+        a: arg0,
+        b: arg1,
+        cnt: 1,
+        dtor
+    };
+    const real = (...args)=>{
+        // First up with a closure we increment the internal reference
+        // count. This ensures that the Rust closure environment won't
+        // be deallocated while we're invoking it.
+        state.cnt++;
+        try {
+            return f(state.a, state.b, ...args);
+        } finally{
+            if (--state.cnt === 0) {
+                wasm.__wbindgen_export_5.get(state.dtor)(state.a, state.b);
+                state.a = 0;
+                CLOSURE_DTORS.unregister(state);
+            }
+        }
+    };
+    real.original = state;
+    CLOSURE_DTORS.register(real, state, state);
+    return real;
+}
+function debugString(val) {
+    // primitive types
+    const type = typeof val;
+    if (type == 'number' || type == 'boolean' || val == null) return `${val}`;
+    if (type == 'string') return `"${val}"`;
+    if (type == 'symbol') {
+        const description = val.description;
+        if (description == null) return 'Symbol';
+        else return `Symbol(${description})`;
+    }
+    if (type == 'function') {
+        const name = val.name;
+        if (typeof name == 'string' && name.length > 0) return `Function(${name})`;
+        else return 'Function';
+    }
+    // objects
+    if (Array.isArray(val)) {
+        const length = val.length;
+        let debug = '[';
+        if (length > 0) debug += debugString(val[0]);
+        for(let i = 1; i < length; i++)debug += ', ' + debugString(val[i]);
+        debug += ']';
+        return debug;
+    }
+    // Test for built-in
+    const builtInMatches = /\[object ([^\]]+)\]/.exec(toString.call(val));
+    let className;
+    if (builtInMatches && builtInMatches.length > 1) className = builtInMatches[1];
+    else // Failed to match the standard '[object ClassName]'
+    return toString.call(val);
+    if (className == 'Object') // we're a user defined class or Object
+    // JSON.stringify avoids problems with cycles, and is generally much
+    // easier than looping through ownProperties of `val`.
+    try {
+        return 'Object(' + JSON.stringify(val) + ')';
+    } catch (_) {
+        return 'Object';
+    }
+    // errors
+    if (val instanceof Error) return `${val.name}: ${val.message}\n${val.stack}`;
+    // TODO we could test for more things here, like `Set`s and `Map`s.
+    return className;
+}
+function send_message_to_server(message) {
+    const ptr0 = passStringToWasm0(message, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    wasm.send_message_to_server(ptr0, len0);
+}
+function main() {
+    wasm.main();
+}
+function __wbg_adapter_28(arg0, arg1) {
+    wasm._dyn_core__ops__function__Fn_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__hb14e5e031a46e3fd(arg0, arg1);
+}
+function __wbg_adapter_31(arg0, arg1) {
+    wasm._dyn_core__ops__function__FnMut_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h66792c7400242598(arg0, arg1);
+}
+function __wbg_adapter_34(arg0, arg1, arg2) {
+    wasm.closure27_externref_shim(arg0, arg1, arg2);
+}
+function __wbg_adapter_37(arg0, arg1, arg2) {
+    wasm.closure46_externref_shim(arg0, arg1, arg2);
+}
+async function __wbg_load(module1, imports) {
+    if (typeof Response === 'function' && module1 instanceof Response) {
+        if (typeof WebAssembly.instantiateStreaming === 'function') try {
+            return await WebAssembly.instantiateStreaming(module1, imports);
+        } catch (e) {
+            if (module1.headers.get('Content-Type') != 'application/wasm') console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);
+            else throw e;
+        }
+        const bytes = await module1.arrayBuffer();
+        return await WebAssembly.instantiate(bytes, imports);
+    } else {
+        const instance = await WebAssembly.instantiate(module1, imports);
+        if (instance instanceof WebAssembly.Instance) return {
+            instance,
+            module: module1
+        };
+        else return instance;
+    }
+}
+function __wbg_get_imports() {
+    const imports = {};
+    imports.wbg = {};
+    imports.wbg.__wbg_addEventListener_90e553fdce254421 = function() {
+        return handleError(function(arg0, arg1, arg2, arg3) {
+            arg0.addEventListener(getStringFromWasm0(arg1, arg2), arg3);
+        }, arguments);
+    };
+    imports.wbg.__wbg_alert_afc9ddda2d88b6a0 = function(arg0, arg1) {
+        alert(getStringFromWasm0(arg0, arg1));
+    };
+    imports.wbg.__wbg_appendChild_8204974b7328bf98 = function() {
+        return handleError(function(arg0, arg1) {
+            const ret = arg0.appendChild(arg1);
+            return ret;
+        }, arguments);
+    };
+    imports.wbg.__wbg_buffer_609cc3eee51ed158 = function(arg0) {
+        const ret = arg0.buffer;
+        return ret;
+    };
+    imports.wbg.__wbg_call_672a4d21634d4a24 = function() {
+        return handleError(function(arg0, arg1) {
+            const ret = arg0.call(arg1);
+            return ret;
+        }, arguments);
+    };
+    imports.wbg.__wbg_call_7cccdd69e0791ae2 = function() {
+        return handleError(function(arg0, arg1, arg2) {
+            const ret = arg0.call(arg1, arg2);
+            return ret;
+        }, arguments);
+    };
+    imports.wbg.__wbg_createElement_8c9931a732ee2fea = function() {
+        return handleError(function(arg0, arg1, arg2) {
+            const ret = arg0.createElement(getStringFromWasm0(arg1, arg2));
+            return ret;
+        }, arguments);
+    };
+    imports.wbg.__wbg_crypto_ed58b8e10a292839 = function(arg0) {
+        const ret = arg0.crypto;
+        return ret;
+    };
+    imports.wbg.__wbg_data_432d9c3df2630942 = function(arg0) {
+        const ret = arg0.data;
+        return ret;
+    };
+    imports.wbg.__wbg_document_d249400bd7bd996d = function(arg0) {
+        const ret = arg0.document;
+        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+    };
+    imports.wbg.__wbg_getElementById_f827f0d6648718a8 = function(arg0, arg1, arg2) {
+        const ret = arg0.getElementById(getStringFromWasm0(arg1, arg2));
+        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+    };
+    imports.wbg.__wbg_getRandomValues_bcb4912f16000dc4 = function() {
+        return handleError(function(arg0, arg1) {
+            arg0.getRandomValues(arg1);
+        }, arguments);
+    };
+    imports.wbg.__wbg_get_67b2ba62fc30de12 = function() {
+        return handleError(function(arg0, arg1) {
+            const ret = Reflect.get(arg0, arg1);
+            return ret;
+        }, arguments);
+    };
+    imports.wbg.__wbg_instanceof_HtmlInputElement_12d71bf2d15dd19e = function(arg0) {
+        let result;
+        try {
+            result = arg0 instanceof HTMLInputElement;
+        } catch (_) {
+            result = false;
+        }
+        const ret = result;
+        return ret;
+    };
+    imports.wbg.__wbg_instanceof_Window_def73ea0955fc569 = function(arg0) {
+        let result;
+        try {
+            result = arg0 instanceof Window;
+        } catch (_) {
+            result = false;
+        }
+        const ret = result;
+        return ret;
+    };
+    imports.wbg.__wbg_log_c222819a41e063d3 = function(arg0) {
+        console.log(arg0);
+    };
+    imports.wbg.__wbg_msCrypto_0a36e2ec3a343d26 = function(arg0) {
+        const ret = arg0.msCrypto;
+        return ret;
+    };
+    imports.wbg.__wbg_new_92c54fc74574ef55 = function() {
+        return handleError(function(arg0, arg1) {
+            const ret = new WebSocket(getStringFromWasm0(arg0, arg1));
+            return ret;
+        }, arguments);
+    };
+    imports.wbg.__wbg_new_a12002a7f91c75be = function(arg0) {
+        const ret = new Uint8Array(arg0);
+        return ret;
+    };
+    imports.wbg.__wbg_newnoargs_105ed471475aaf50 = function(arg0, arg1) {
+        const ret = new Function(getStringFromWasm0(arg0, arg1));
+        return ret;
+    };
+    imports.wbg.__wbg_newwithbyteoffsetandlength_d97e637ebe145a9a = function(arg0, arg1, arg2) {
+        const ret = new Uint8Array(arg0, arg1 >>> 0, arg2 >>> 0);
+        return ret;
+    };
+    imports.wbg.__wbg_newwithlength_a381634e90c276d4 = function(arg0) {
+        const ret = new Uint8Array(arg0 >>> 0);
+        return ret;
+    };
+    imports.wbg.__wbg_node_02999533c4ea02e3 = function(arg0) {
+        const ret = arg0.node;
+        return ret;
+    };
+    imports.wbg.__wbg_now_807e54c39636c349 = function() {
+        const ret = Date.now();
+        return ret;
+    };
+    imports.wbg.__wbg_process_5c1d670bc53614b8 = function(arg0) {
+        const ret = arg0.process;
+        return ret;
+    };
+    imports.wbg.__wbg_queueMicrotask_97d92b4fcc8a61c5 = function(arg0) {
+        queueMicrotask(arg0);
+    };
+    imports.wbg.__wbg_queueMicrotask_d3219def82552485 = function(arg0) {
+        const ret = arg0.queueMicrotask;
+        return ret;
+    };
+    imports.wbg.__wbg_randomFillSync_ab2cfe79ebbf2740 = function() {
+        return handleError(function(arg0, arg1) {
+            arg0.randomFillSync(arg1);
+        }, arguments);
+    };
+    imports.wbg.__wbg_require_79b1e9274cde3c87 = function() {
+        return handleError(function() {
+            const ret = module.require;
+            return ret;
+        }, arguments);
+    };
+    imports.wbg.__wbg_resolve_4851785c9c5f573d = function(arg0) {
+        const ret = Promise.resolve(arg0);
+        return ret;
+    };
+    imports.wbg.__wbg_send_0293179ba074ffb4 = function() {
+        return handleError(function(arg0, arg1, arg2) {
+            arg0.send(getStringFromWasm0(arg1, arg2));
+        }, arguments);
+    };
+    imports.wbg.__wbg_set_65595bdd868b3009 = function(arg0, arg1, arg2) {
+        arg0.set(arg1, arg2 >>> 0);
+    };
+    imports.wbg.__wbg_setinnerHTML_31bde41f835786f7 = function(arg0, arg1, arg2) {
+        arg0.innerHTML = getStringFromWasm0(arg1, arg2);
+    };
+    imports.wbg.__wbg_setonmessage_6eccab530a8fb4c7 = function(arg0, arg1) {
+        arg0.onmessage = arg1;
+    };
+    imports.wbg.__wbg_setonopen_2da654e1f39745d5 = function(arg0, arg1) {
+        arg0.onopen = arg1;
+    };
+    imports.wbg.__wbg_setvalue_6ad9ef6c692ea746 = function(arg0, arg1, arg2) {
+        arg0.value = getStringFromWasm0(arg1, arg2);
+    };
+    imports.wbg.__wbg_static_accessor_GLOBAL_88a902d13a557d07 = function() {
+        const ret = typeof global === 'undefined' ? null : global;
+        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+    };
+    imports.wbg.__wbg_static_accessor_GLOBAL_THIS_56578be7e9f832b0 = function() {
+        const ret = typeof globalThis === 'undefined' ? null : globalThis;
+        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+    };
+    imports.wbg.__wbg_static_accessor_SELF_37c5d418e4bf5819 = function() {
+        const ret = typeof self === 'undefined' ? null : self;
+        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+    };
+    imports.wbg.__wbg_static_accessor_WINDOW_5de37043a91a9c40 = function() {
+        const ret = typeof window === 'undefined' ? null : window;
+        return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+    };
+    imports.wbg.__wbg_subarray_aa9065fa9dc5df96 = function(arg0, arg1, arg2) {
+        const ret = arg0.subarray(arg1 >>> 0, arg2 >>> 0);
+        return ret;
+    };
+    imports.wbg.__wbg_then_44b73946d2fb3e7d = function(arg0, arg1) {
+        const ret = arg0.then(arg1);
+        return ret;
+    };
+    imports.wbg.__wbg_value_91cbf0dd3ab84c1e = function(arg0, arg1) {
+        const ret = arg1.value;
+        const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        getDataViewMemory0().setInt32(arg0 + 4, len1, true);
+        getDataViewMemory0().setInt32(arg0 + 0, ptr1, true);
+    };
+    imports.wbg.__wbg_versions_c71aa1626a93e0a1 = function(arg0) {
+        const ret = arg0.versions;
+        return ret;
+    };
+    imports.wbg.__wbindgen_cb_drop = function(arg0) {
+        const obj = arg0.original;
+        if (obj.cnt-- == 1) {
+            obj.a = 0;
+            return true;
+        }
+        const ret = false;
+        return ret;
+    };
+    imports.wbg.__wbindgen_closure_wrapper171 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 47, __wbg_adapter_37);
+        return ret;
+    };
+    imports.wbg.__wbindgen_closure_wrapper95 = function(arg0, arg1, arg2) {
+        const ret = makeClosure(arg0, arg1, 21, __wbg_adapter_28);
+        return ret;
+    };
+    imports.wbg.__wbindgen_closure_wrapper97 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 21, __wbg_adapter_31);
+        return ret;
+    };
+    imports.wbg.__wbindgen_closure_wrapper99 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 21, __wbg_adapter_34);
+        return ret;
+    };
+    imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {
+        const ret = debugString(arg1);
+        const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        getDataViewMemory0().setInt32(arg0 + 4, len1, true);
+        getDataViewMemory0().setInt32(arg0 + 0, ptr1, true);
+    };
+    imports.wbg.__wbindgen_init_externref_table = function() {
+        const table = wasm.__wbindgen_export_2;
+        const offset = table.grow(4);
+        table.set(0, undefined);
+        table.set(offset + 0, undefined);
+        table.set(offset + 1, null);
+        table.set(offset + 2, true);
+        table.set(offset + 3, false);
+    };
+    imports.wbg.__wbindgen_is_function = function(arg0) {
+        const ret = typeof arg0 === 'function';
+        return ret;
+    };
+    imports.wbg.__wbindgen_is_object = function(arg0) {
+        const val = arg0;
+        const ret = typeof val === 'object' && val !== null;
+        return ret;
+    };
+    imports.wbg.__wbindgen_is_string = function(arg0) {
+        const ret = typeof arg0 === 'string';
+        return ret;
+    };
+    imports.wbg.__wbindgen_is_undefined = function(arg0) {
+        const ret = arg0 === undefined;
+        return ret;
+    };
+    imports.wbg.__wbindgen_memory = function() {
+        const ret = wasm.memory;
+        return ret;
+    };
+    imports.wbg.__wbindgen_string_get = function(arg0, arg1) {
+        const obj = arg1;
+        const ret = typeof obj === 'string' ? obj : undefined;
+        var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len1 = WASM_VECTOR_LEN;
+        getDataViewMemory0().setInt32(arg0 + 4, len1, true);
+        getDataViewMemory0().setInt32(arg0 + 0, ptr1, true);
+    };
+    imports.wbg.__wbindgen_string_new = function(arg0, arg1) {
+        const ret = getStringFromWasm0(arg0, arg1);
+        return ret;
+    };
+    imports.wbg.__wbindgen_throw = function(arg0, arg1) {
+        throw new Error(getStringFromWasm0(arg0, arg1));
+    };
+    return imports;
+}
+function __wbg_init_memory(imports, memory) {}
+function __wbg_finalize_init(instance, module1) {
+    wasm = instance.exports;
+    __wbg_init.__wbindgen_wasm_module = module1;
+    cachedDataViewMemory0 = null;
+    cachedUint8ArrayMemory0 = null;
+    wasm.__wbindgen_start();
+    return wasm;
+}
+function initSync(module1) {
+    if (wasm !== undefined) return wasm;
+    if (typeof module1 !== 'undefined') {
+        if (Object.getPrototypeOf(module1) === Object.prototype) ({ module: module1 } = module1);
+        else console.warn('using deprecated parameters for `initSync()`; pass a single object instead');
+    }
+    const imports = __wbg_get_imports();
+    __wbg_init_memory(imports);
+    if (!(module1 instanceof WebAssembly.Module)) module1 = new WebAssembly.Module(module1);
+    const instance = new WebAssembly.Instance(module1, imports);
+    return __wbg_finalize_init(instance, module1);
+}
+async function __wbg_init(module_or_path) {
+    if (wasm !== undefined) return wasm;
+    if (typeof module_or_path !== 'undefined') {
+        if (Object.getPrototypeOf(module_or_path) === Object.prototype) ({ module_or_path } = module_or_path);
+        else console.warn('using deprecated parameters for the initialization function; pass a single object instead');
+    }
+    if (typeof module_or_path === 'undefined') module_or_path = new URL(require("7430107973542df7"));
+    const imports = __wbg_get_imports();
+    if (typeof module_or_path === 'string' || typeof Request === 'function' && module_or_path instanceof Request || typeof URL === 'function' && module_or_path instanceof URL) module_or_path = fetch(module_or_path);
+    __wbg_init_memory(imports);
+    const { instance, module: module1 } = await __wbg_load(await module_or_path, imports);
+    return __wbg_finalize_init(instance, module1);
+}
+exports.default = __wbg_init;
+
+},{"7430107973542df7":"6NUbY","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"6NUbY":[function(require,module,exports,__globalThis) {
+module.exports = module.bundle.resolve("meerkat_remote_console_V2_bg.d2c62985.wasm") + "?" + Date.now();
+
+},{}],"hYaEO":[function() {},{}],"jKMVG":[function(require,module,exports,__globalThis) {
+var $parcel$ReactRefreshHelpers$4c75 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
+$parcel$ReactRefreshHelpers$4c75.init();
+var prevRefreshReg = globalThis.$RefreshReg$;
+var prevRefreshSig = globalThis.$RefreshSig$;
+$parcel$ReactRefreshHelpers$4c75.prelude(module);
+
+try {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _jsxDevRuntime = require("react/jsx-dev-runtime");
+var _dnDContext = require("./DnDContext");
+var _react = require("react");
+var _reactDefault = parcelHelpers.interopDefault(_react);
+var _s = $RefreshSig$();
+const Sidebar = ()=>{
+    _s();
+    const [_, setType] = (0, _dnDContext.useDnD)();
+    const [isSidebarOpen, setIsSidebarOpen] = (0, _react.useState)(true); // State to track sidebar collapse/expand
+    const onDragStart = (event, nodeType)=>{
+        setType(nodeType);
+        event.dataTransfer.effectAllowed = 'move';
+    };
+    // Toggle sidebar visibility
+    const toggleSidebar = ()=>setIsSidebarOpen((prev)=>!prev);
+    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+        style: {
+            background: "#fff",
+            boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
+            padding: "10px",
+            width: isSidebarOpen ? "220px" : "50px",
+            position: "absolute",
+            top: "0px",
+            left: 0,
+            zIndex: 1000,
+            borderRadius: "8px",
+            transition: "width 0.3s ease-in-out"
+        },
+        children: [
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                onClick: toggleSidebar,
+                style: {
+                    backgroundColor: "#007BFF",
+                    color: "white",
+                    border: "1px solid ",
+                    padding: "8px",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    marginBottom: "5px",
+                    borderRadius: "4px",
+                    width: "100%"
+                },
+                children: isSidebarOpen ? "Collapse" : "Open"
+            }, void 0, false, {
+                fileName: "Sidebar.js",
+                lineNumber: 32,
+                columnNumber: 7
+            }, undefined),
+            isSidebarOpen && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("aside", {
+                    children: [
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            className: "description",
+                            children: "Drag these nodes to the canvas."
+                        }, void 0, false, {
+                            fileName: "Sidebar.js",
+                            lineNumber: 53,
+                            columnNumber: 13
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            className: "dndnode variable shape-circle",
+                            onDragStart: (event)=>onDragStart(event, 'Variable'),
+                            draggable: true,
+                            children: "Variable"
+                        }, void 0, false, {
+                            fileName: "Sidebar.js",
+                            lineNumber: 56,
+                            columnNumber: 13
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            className: "dndnode definition shape-diamond",
+                            onDragStart: (event)=>onDragStart(event, 'Definition'),
+                            draggable: true,
+                            children: "Definition"
+                        }, void 0, false, {
+                            fileName: "Sidebar.js",
+                            lineNumber: 59,
+                            columnNumber: 13
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            className: "dndnode action shape-hexagon",
+                            onDragStart: (event)=>onDragStart(event, 'Action'),
+                            draggable: true,
+                            children: "Action"
+                        }, void 0, false, {
+                            fileName: "Sidebar.js",
+                            lineNumber: 62,
+                            columnNumber: 13
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            className: "dndnode table shape-rectangle",
+                            onDragStart: (event)=>onDragStart(event, 'Table'),
+                            draggable: true,
+                            children: "Table"
+                        }, void 0, false, {
+                            fileName: "Sidebar.js",
+                            lineNumber: 65,
+                            columnNumber: 13
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            className: "dndnode html shape-triangle",
+                            onDragStart: (event)=>onDragStart(event, 'HTML'),
+                            draggable: true,
+                            children: "HTML"
+                        }, void 0, false, {
+                            fileName: "Sidebar.js",
+                            lineNumber: 68,
+                            columnNumber: 13
+                        }, undefined)
+                    ]
+                }, void 0, true, {
+                    fileName: "Sidebar.js",
+                    lineNumber: 52,
+                    columnNumber: 11
+                }, undefined)
+            }, void 0, false, {
+                fileName: "Sidebar.js",
+                lineNumber: 51,
+                columnNumber: 9
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("style", {
+                children: `
+          .dndnode {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
+            user-select: none;
+            margin: 10px 0;
+            padding: 10px;
+            font-weight: bold;
+            text-align: center;
+            background: #eee;
+            transition: transform 0.2s ease-in-out;
+          }
+          .dndnode:hover {
+            transform: scale(1.05);
+          }
+
+          /* Shape Styles */
+          .shape-circle { width: 80px; height: 80px; border-radius: 50%; background: #ffcc00; }
+          .shape-hexagon { width: 90px; height: 52px; background: #4caf50; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
+          .shape-triangle { width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent; border-bottom: 70px solid #f44336; }
+          .shape-rectangle { width: 100px; height: 60px; background: #2196F3; border-radius: 5px; }
+          .shape-diamond { width: 70px; height: 70px; background: #9c27b0; transform: rotate(45deg); }
+        `
+            }, void 0, false, {
+                fileName: "Sidebar.js",
+                lineNumber: 76,
+                columnNumber: 7
+            }, undefined)
+        ]
+    }, void 0, true, {
+        fileName: "Sidebar.js",
+        lineNumber: 17,
+        columnNumber: 5
+    }, undefined);
+};
+_s(Sidebar, "BQG6rNJmRu9XPhk/GSqY1a9IooI=", false, function() {
+    return [
+        (0, _dnDContext.useDnD)
+    ];
+});
+_c = Sidebar;
+exports.default = Sidebar;
+var _c;
+$RefreshReg$(_c, "Sidebar");
+
+  $parcel$ReactRefreshHelpers$4c75.postlude(module);
+} finally {
+  globalThis.$RefreshReg$ = prevRefreshReg;
+  globalThis.$RefreshSig$ = prevRefreshSig;
+}
+},{"react/jsx-dev-runtime":"dVPUn","./DnDContext":"kCi0m","react":"jMk1U","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"kCi0m":[function(require,module,exports,__globalThis) {
+var $parcel$ReactRefreshHelpers$ea22 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
+$parcel$ReactRefreshHelpers$ea22.init();
+var prevRefreshReg = globalThis.$RefreshReg$;
+var prevRefreshSig = globalThis.$RefreshSig$;
+$parcel$ReactRefreshHelpers$ea22.prelude(module);
+
+try {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "DnDProvider", ()=>DnDProvider);
+parcelHelpers.export(exports, "useDnD", ()=>useDnD);
+var _jsxDevRuntime = require("react/jsx-dev-runtime");
+var _react = require("react");
+var _s = $RefreshSig$(), _s1 = $RefreshSig$();
+const DnDContext = /*#__PURE__*/ (0, _react.createContext)([
+    null,
+    (_)=>{}
+]);
+const DnDProvider = ({ children })=>{
+    _s();
+    const [type, setType] = (0, _react.useState)(null);
+    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)(DnDContext.Provider, {
+        value: [
+            type,
+            setType
+        ],
+        children: children
+    }, void 0, false, {
+        fileName: "DnDContext.js",
+        lineNumber: 9,
+        columnNumber: 5
+    }, undefined);
+};
+_s(DnDProvider, "7BYRaQa0IdvrsJKR2LWrlQqvcc4=");
+_c = DnDProvider;
+exports.default = DnDContext;
+const useDnD = ()=>{
+    _s1();
+    return (0, _react.useContext)(DnDContext);
+};
+_s1(useDnD, "gDsCjeeItUuvgOWf1v4qoK9RF6k=");
+var _c;
+$RefreshReg$(_c, "DnDProvider");
+
+  $parcel$ReactRefreshHelpers$ea22.postlude(module);
+} finally {
+  globalThis.$RefreshReg$ = prevRefreshReg;
+  globalThis.$RefreshSig$ = prevRefreshSig;
+}
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"blbnG":[function(require,module,exports,__globalThis) {
+var $parcel$ReactRefreshHelpers$e089 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
+$parcel$ReactRefreshHelpers$e089.init();
+var prevRefreshReg = globalThis.$RefreshReg$;
+var prevRefreshSig = globalThis.$RefreshSig$;
+$parcel$ReactRefreshHelpers$e089.prelude(module);
+
+try {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _jsxDevRuntime = require("react/jsx-dev-runtime");
+var _react = require("react");
+var _reactDefault = parcelHelpers.interopDefault(_react);
+var _react1 = require("@xyflow/react");
+var _storeJs = require("../store/store.js");
+var _storeJsDefault = parcelHelpers.interopDefault(_storeJs);
+var _s = $RefreshSig$();
+const VariableNode = ({ id, data, isConnectable })=>{
+    _s();
+    const activeFilters = (0, _storeJsDefault.default)((state)=>state.activeFilters);
+    const isDimmed = !activeFilters.has("Variable");
+    const connection = (0, _react1.useConnection)();
+    const isTarget = connection.inProgress && connection.fromNode.id !== id;
+    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+        style: {
+            ...styles.node,
+            opacity: isDimmed ? 0.4 : 1,
+            filter: isDimmed ? "grayscale(100%)" : "none",
+            pointerEvents: isDimmed ? "none" : "auto"
+        },
+        children: [
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
+                style: styles.text,
+                children: data.label || "Unnamed Variable"
+            }, void 0, false, {
+                fileName: "nodes/Variable.js",
+                lineNumber: 21,
+                columnNumber: 7
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
+                style: styles.text,
+                children: data.value || "No Value"
+            }, void 0, false, {
+                fileName: "nodes/Variable.js",
+                lineNumber: 22,
+                columnNumber: 7
+            }, undefined),
+            !connection.inProgress && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                className: "customHandle",
+                position: (0, _react1.Position).Right,
+                type: "source",
+                isConnectable: isConnectable
+            }, void 0, false, {
+                fileName: "nodes/Variable.js",
+                lineNumber: 26,
+                columnNumber: 9
+            }, undefined),
+            (!connection.inProgress || isTarget) && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                className: "customHandle",
+                position: (0, _react1.Position).Left,
+                type: "target",
+                isConnectableStart: false,
+                isConnectable: isConnectable
+            }, void 0, false, {
+                fileName: "nodes/Variable.js",
+                lineNumber: 34,
+                columnNumber: 9
+            }, undefined)
+        ]
+    }, void 0, true, {
+        fileName: "nodes/Variable.js",
+        lineNumber: 13,
+        columnNumber: 5
+    }, undefined);
+};
+_s(VariableNode, "BbaeF9eODXjmhT8S1q/S3RPD+c4=", false, function() {
+    return [
+        (0, _storeJsDefault.default),
+        (0, _react1.useConnection)
+    ];
+});
+_c = VariableNode;
+const styles = {
+    node: {
+        padding: "10px",
+        border: "2px solid rgb(225, 0, 255)",
+        borderRadius: "5px",
+        background: "#fff",
+        width: "auto",
+        maxWidth: "550px",
+        textAlign: "center",
+        boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
+        cursor: "pointer",
+        transition: "all 0.2s ease-in-out"
+    },
+    text: {
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        width: "100%",
+        display: "block"
+    }
+};
+exports.default = VariableNode;
+var _c;
+$RefreshReg$(_c, "VariableNode");
+
+  $parcel$ReactRefreshHelpers$e089.postlude(module);
+} finally {
+  globalThis.$RefreshReg$ = prevRefreshReg;
+  globalThis.$RefreshSig$ = prevRefreshSig;
+}
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","../store/store.js":"2ZYKM"}],"9u9Ii":[function(require,module,exports,__globalThis) {
+var $parcel$ReactRefreshHelpers$1f34 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
+$parcel$ReactRefreshHelpers$1f34.init();
+var prevRefreshReg = globalThis.$RefreshReg$;
+var prevRefreshSig = globalThis.$RefreshSig$;
+$parcel$ReactRefreshHelpers$1f34.prelude(module);
+
+try {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _jsxDevRuntime = require("react/jsx-dev-runtime");
+var _react = require("react");
+var _reactDefault = parcelHelpers.interopDefault(_react);
+var _react1 = require("@xyflow/react");
+var _storeJs = require("../store/store.js");
+var _storeJsDefault = parcelHelpers.interopDefault(_storeJs);
+var _s = $RefreshSig$();
+const DefinitionNode = ({ id, data, isConnectable })=>{
+    _s();
+    const activeFilters = (0, _storeJsDefault.default)((state)=>state.activeFilters);
+    const isDimmed = !activeFilters.has("Definition");
+    const connection = (0, _react1.useConnection)();
+    const isTarget = connection.inProgress && connection.fromNode.id !== id;
+    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+        style: {
+            ...styles.wrapper,
+            opacity: isDimmed ? 0.4 : 1,
+            filter: isDimmed ? "grayscale(100%)" : "none",
+            pointerEvents: isDimmed ? "none" : "auto"
+        },
+        children: [
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                style: styles.node,
+                children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                    style: styles.content,
+                    children: [
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
+                            style: styles.text,
+                            children: data.label || "Unnamed"
+                        }, void 0, false, {
+                            fileName: "nodes/Definition.js",
+                            lineNumber: 23,
+                            columnNumber: 11
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
+                            style: styles.text,
+                            children: data.definition || "No Value"
+                        }, void 0, false, {
+                            fileName: "nodes/Definition.js",
+                            lineNumber: 24,
+                            columnNumber: 11
+                        }, undefined),
+                        /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
+                            style: styles.text,
+                            children: data.value || "No Value"
+                        }, void 0, false, {
+                            fileName: "nodes/Definition.js",
+                            lineNumber: 25,
+                            columnNumber: 11
+                        }, undefined)
+                    ]
+                }, void 0, true, {
+                    fileName: "nodes/Definition.js",
+                    lineNumber: 22,
+                    columnNumber: 9
+                }, undefined)
+            }, void 0, false, {
+                fileName: "nodes/Definition.js",
+                lineNumber: 21,
+                columnNumber: 7
+            }, undefined),
+            !connection.inProgress && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                className: "customHandle",
+                position: (0, _react1.Position).Right,
+                type: "source",
+                isConnectable: isConnectable
+            }, void 0, false, {
+                fileName: "nodes/Definition.js",
+                lineNumber: 31,
+                columnNumber: 9
+            }, undefined),
+            (!connection.inProgress || isTarget) && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                className: "customHandle",
+                position: (0, _react1.Position).Left,
+                type: "target",
+                isConnectableStart: false,
+                isConnectable: isConnectable
+            }, void 0, false, {
+                fileName: "nodes/Definition.js",
+                lineNumber: 39,
+                columnNumber: 9
+            }, undefined)
+        ]
+    }, void 0, true, {
+        fileName: "nodes/Definition.js",
+        lineNumber: 13,
+        columnNumber: 5
+    }, undefined);
+};
+_s(DefinitionNode, "BbaeF9eODXjmhT8S1q/S3RPD+c4=", false, function() {
+    return [
+        (0, _storeJsDefault.default),
+        (0, _react1.useConnection)
+    ];
+});
+_c = DefinitionNode;
+const styles = {
+    wrapper: {
+        position: "relative",
+        transition: "all 0.2s ease-in-out"
+    },
+    node: {
+        width: "120px",
+        height: "120px",
+        background: "#fff",
+        border: "2px solid rgb(19, 223, 29)",
+        transform: "rotate(45deg)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
+        position: "relative",
+        padding: "10px"
+    },
+    content: {
+        transform: "rotate(-45deg)",
+        textAlign: "center",
+        fontSize: "12px",
+        wordBreak: "break-word",
+        maxWidth: "100%",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center"
+    },
+    text: {
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        width: "100%",
+        display: "block",
+        textAlign: "center"
+    }
+};
+exports.default = /*#__PURE__*/ _c1 = (0, _react.memo)(DefinitionNode);
+var _c, _c1;
+$RefreshReg$(_c, "DefinitionNode");
+$RefreshReg$(_c1, "%default%");
+
+  $parcel$ReactRefreshHelpers$1f34.postlude(module);
+} finally {
+  globalThis.$RefreshReg$ = prevRefreshReg;
+  globalThis.$RefreshSig$ = prevRefreshSig;
+}
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","../store/store.js":"2ZYKM"}],"hpjEK":[function(require,module,exports,__globalThis) {
+var $parcel$ReactRefreshHelpers$98cf = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
+$parcel$ReactRefreshHelpers$98cf.init();
+var prevRefreshReg = globalThis.$RefreshReg$;
+var prevRefreshSig = globalThis.$RefreshSig$;
+$parcel$ReactRefreshHelpers$98cf.prelude(module);
+
+try {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _jsxDevRuntime = require("react/jsx-dev-runtime");
+var _react = require("react");
+var _reactDefault = parcelHelpers.interopDefault(_react);
+var _react1 = require("@xyflow/react");
+var _storeJs = require("../store/store.js");
+var _storeJsDefault = parcelHelpers.interopDefault(_storeJs);
+var _meerkatRemoteConsoleV2 = require("../../pkg/meerkat_remote_console_V2");
+var _meerkatRemoteConsoleV2Default = parcelHelpers.interopDefault(_meerkatRemoteConsoleV2);
+var _s = $RefreshSig$();
+const ActionNode = ({ id, data, isConnectable })=>{
+    _s();
+    const activeFilters = (0, _storeJsDefault.default)((state)=>state.activeFilters);
+    const isDimmed = !activeFilters.has("Action");
+    const connection = (0, _react1.useConnection)();
+    const isTarget = connection.inProgress && connection.fromNode.id !== id;
+    const onEdgeClick = ()=>{
+        console.log("BE", isDimmed);
+        const message = "do " + data.target + "=" + data.action;
+        console.log(message);
+        (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
+    };
+    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+        style: {
+            ...styles.node,
+            opacity: isDimmed ? 0.4 : 1,
+            filter: isDimmed ? "grayscale(100%)" : "none",
+            pointerEvents: isDimmed ? "none" : "auto"
+        },
+        onClick: onEdgeClick,
+        children: [
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
+                style: styles.text,
+                children: data.label
+            }, void 0, false, {
+                fileName: "nodes/Action.js",
+                lineNumber: 30,
+                columnNumber: 7
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
+                style: styles.text,
+                children: data.target || "No target"
+            }, void 0, false, {
+                fileName: "nodes/Action.js",
+                lineNumber: 31,
+                columnNumber: 7
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
+                style: styles.text,
+                children: data.action || "No action defined"
+            }, void 0, false, {
+                fileName: "nodes/Action.js",
+                lineNumber: 32,
+                columnNumber: 7
+            }, undefined),
+            !connection.inProgress && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                className: "customHandle",
+                position: (0, _react1.Position).Right,
+                type: "source",
+                isConnectable: isConnectable
+            }, void 0, false, {
+                fileName: "nodes/Action.js",
+                lineNumber: 35,
+                columnNumber: 9
+            }, undefined),
+            (!connection.inProgress || isTarget) && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                className: "customHandle",
+                position: (0, _react1.Position).Left,
+                type: "target",
+                isConnectableStart: false,
+                isConnectable: isConnectable
+            }, void 0, false, {
+                fileName: "nodes/Action.js",
+                lineNumber: 43,
+                columnNumber: 9
+            }, undefined)
+        ]
+    }, void 0, true, {
+        fileName: "nodes/Action.js",
+        lineNumber: 21,
+        columnNumber: 5
+    }, undefined);
+};
+_s(ActionNode, "BbaeF9eODXjmhT8S1q/S3RPD+c4=", false, function() {
+    return [
+        (0, _storeJsDefault.default),
+        (0, _react1.useConnection)
+    ];
+});
+_c = ActionNode;
+const styles = {
+    node: {
+        padding: "10px",
+        border: "2px solid rgb(252, 0, 55)",
+        borderRadius: "5px",
+        background: "#fff",
+        width: "auto",
+        maxWidth: "550px",
+        textAlign: "center",
+        boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
+        cursor: "pointer",
+        transition: "all 0.2s ease-in-out"
+    },
+    text: {
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        width: "100%",
+        display: "block"
+    }
+};
+exports.default = /*#__PURE__*/ _c1 = (0, _react.memo)(ActionNode);
+var _c, _c1;
+$RefreshReg$(_c, "ActionNode");
+$RefreshReg$(_c1, "%default%");
+
+  $parcel$ReactRefreshHelpers$98cf.postlude(module);
+} finally {
+  globalThis.$RefreshReg$ = prevRefreshReg;
+  globalThis.$RefreshSig$ = prevRefreshSig;
+}
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","../../pkg/meerkat_remote_console_V2":"l6TqD","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","../store/store.js":"2ZYKM"}],"jkwn0":[function(require,module,exports,__globalThis) {
+var $parcel$ReactRefreshHelpers$17fa = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
+$parcel$ReactRefreshHelpers$17fa.init();
+var prevRefreshReg = globalThis.$RefreshReg$;
+var prevRefreshSig = globalThis.$RefreshSig$;
+$parcel$ReactRefreshHelpers$17fa.prelude(module);
+
+try {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+var _jsxDevRuntime = require("react/jsx-dev-runtime");
+var _react = require("react");
+var _reactDefault = parcelHelpers.interopDefault(_react);
+var _react1 = require("@xyflow/react");
+var _storeJs = require("../store/store.js");
+var _storeJsDefault = parcelHelpers.interopDefault(_storeJs);
+var _s = $RefreshSig$();
+const TableNode = ({ id, data, isConnectable })=>{
+    _s();
+    const activeFilters = (0, _storeJsDefault.default)((state)=>state.activeFilters);
+    const isDimmed = !activeFilters.has("Table"); // ✅ Dim if "Table" is not in the active filters
+    const [rowsForm, setRowsForm] = (0, _react.useState)([]);
+    const [newRowCount, setNewRowCount] = (0, _react.useState)(1);
+    const [isEditing, setIsEditing] = (0, _react.useState)(false);
+    const updateNode = (0, _storeJsDefault.default)((state)=>state.updateNode);
+    const handleRowInputChange = (e, rowIdx, colIdx)=>{
+        const value = e.target.value;
+        const updatedRows = [
+            ...rowsForm
+        ];
+        updatedRows[rowIdx][colIdx] = value;
+        setRowsForm(updatedRows);
+    };
+    const handleAddMultipleRows = ()=>{
+        const newRows = Array.from({
+            length: newRowCount
+        }, ()=>data.columns.map(()=>""));
+        setRowsForm(newRows);
+    };
+    const handleSubmitRows = ()=>{
+        updateNode(id, {
+            rows: [
+                ...data.rows || [],
+                ...rowsForm
+            ]
+        });
+        setRowsForm([]);
+    };
+    const handleEditRows = ()=>{
+        setIsEditing(!isEditing);
+    };
+    const handleEditRowInputChange = (e, rowIdx, colIdx)=>{
+        const value = e.target.value;
+        const updatedRows = [
+            ...data.rows
+        ];
+        updatedRows[rowIdx][colIdx] = value;
+        updateNode(id, {
+            rows: updatedRows
+        });
+    };
+    const handleDeleteRow = (rowIdx)=>{
+        const updatedRows = data.rows.filter((_, index)=>index !== rowIdx);
+        updateNode(id, {
+            rows: updatedRows
+        });
+    };
+    return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+        style: {
+            ...styles.node,
+            opacity: isDimmed ? 0.4 : 1,
+            filter: isDimmed ? "grayscale(100%)" : "none",
+            pointerEvents: isDimmed ? "none" : "auto"
+        },
+        children: [
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
+                children: data.label || "Database Table"
+            }, void 0, false, {
+                fileName: "nodes/Table.js",
+                lineNumber: 56,
+                columnNumber: 7
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("table", {
+                style: styles.table,
+                children: [
+                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("thead", {
+                        children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("tr", {
+                            children: data.columns?.map((col, idx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("th", {
+                                    style: styles.th,
+                                    children: col.name
+                                }, idx, false, {
+                                    fileName: "nodes/Table.js",
+                                    lineNumber: 62,
+                                    columnNumber: 15
+                                }, undefined))
+                        }, void 0, false, {
+                            fileName: "nodes/Table.js",
+                            lineNumber: 60,
+                            columnNumber: 11
+                        }, undefined)
+                    }, void 0, false, {
+                        fileName: "nodes/Table.js",
+                        lineNumber: 59,
+                        columnNumber: 9
+                    }, undefined),
+                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("tbody", {
+                        children: data.rows?.map((row, rowIdx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("tr", {
+                                children: [
+                                    row.map((cell, cellIdx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("td", {
+                                            style: styles.td,
+                                            children: isEditing ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
+                                                type: "text",
+                                                value: cell,
+                                                onChange: (e)=>handleEditRowInputChange(e, rowIdx, cellIdx),
+                                                style: styles.input
+                                            }, void 0, false, {
+                                                fileName: "nodes/Table.js",
+                                                lineNumber: 72,
+                                                columnNumber: 21
+                                            }, undefined) : cell
+                                        }, cellIdx, false, {
+                                            fileName: "nodes/Table.js",
+                                            lineNumber: 70,
+                                            columnNumber: 17
+                                        }, undefined)),
+                                    isEditing && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("td", {
+                                        children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                                            onClick: ()=>handleDeleteRow(rowIdx),
+                                            style: styles.deleteButton,
+                                            children: "X"
+                                        }, void 0, false, {
+                                            fileName: "nodes/Table.js",
+                                            lineNumber: 85,
+                                            columnNumber: 19
+                                        }, undefined)
+                                    }, void 0, false, {
+                                        fileName: "nodes/Table.js",
+                                        lineNumber: 84,
+                                        columnNumber: 17
+                                    }, undefined)
+                                ]
+                            }, rowIdx, true, {
+                                fileName: "nodes/Table.js",
+                                lineNumber: 68,
+                                columnNumber: 13
+                            }, undefined))
+                    }, void 0, false, {
+                        fileName: "nodes/Table.js",
+                        lineNumber: 66,
+                        columnNumber: 9
+                    }, undefined)
+                ]
+            }, void 0, true, {
+                fileName: "nodes/Table.js",
+                lineNumber: 58,
+                columnNumber: 7
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("label", {
+                style: {
+                    display: "block",
+                    margin: "10px 0"
+                },
+                children: [
+                    "Number of rows to add:",
+                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
+                        type: "number",
+                        value: newRowCount,
+                        onChange: (e)=>setNewRowCount(Number(e.target.value)),
+                        min: "1",
+                        style: styles.input
+                    }, void 0, false, {
+                        fileName: "nodes/Table.js",
+                        lineNumber: 95,
+                        columnNumber: 9
+                    }, undefined)
+                ]
+            }, void 0, true, {
+                fileName: "nodes/Table.js",
+                lineNumber: 93,
+                columnNumber: 7
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                onClick: handleAddMultipleRows,
+                style: styles.button,
+                children: [
+                    "Add ",
+                    newRowCount,
+                    " Row(s)"
+                ]
+            }, void 0, true, {
+                fileName: "nodes/Table.js",
+                lineNumber: 103,
+                columnNumber: 7
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                onClick: handleEditRows,
+                style: styles.editButton,
+                children: isEditing ? "Finish Editing" : "Edit Rows"
+            }, void 0, false, {
+                fileName: "nodes/Table.js",
+                lineNumber: 104,
+                columnNumber: 7
+            }, undefined),
+            rowsForm.length > 0 && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                children: [
+                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
+                        children: "Fill Row Values:"
+                    }, void 0, false, {
+                        fileName: "nodes/Table.js",
+                        lineNumber: 110,
+                        columnNumber: 11
+                    }, undefined),
+                    rowsForm.map((row, rowIdx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
+                            style: {
+                                marginBottom: "10px"
+                            },
+                            children: data.columns.map((col, colIdx)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
+                                    type: "text",
+                                    value: row[colIdx] || "",
+                                    placeholder: col.name,
+                                    onChange: (e)=>handleRowInputChange(e, rowIdx, colIdx),
+                                    style: styles.input
+                                }, colIdx, false, {
+                                    fileName: "nodes/Table.js",
+                                    lineNumber: 114,
+                                    columnNumber: 17
+                                }, undefined))
+                        }, rowIdx, false, {
+                            fileName: "nodes/Table.js",
+                            lineNumber: 112,
+                            columnNumber: 13
+                        }, undefined)),
+                    /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
+                        onClick: handleSubmitRows,
+                        style: styles.button,
+                        children: "Submit Rows"
+                    }, void 0, false, {
+                        fileName: "nodes/Table.js",
+                        lineNumber: 125,
+                        columnNumber: 11
+                    }, undefined)
+                ]
+            }, void 0, true, {
+                fileName: "nodes/Table.js",
+                lineNumber: 109,
+                columnNumber: 9
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                type: "target",
+                position: (0, _react1.Position).Left,
+                isConnectable: isConnectable
+            }, void 0, false, {
+                fileName: "nodes/Table.js",
+                lineNumber: 129,
+                columnNumber: 7
+            }, undefined),
+            /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
+                type: "source",
+                position: (0, _react1.Position).Right,
+                isConnectable: isConnectable
+            }, void 0, false, {
+                fileName: "nodes/Table.js",
+                lineNumber: 130,
+                columnNumber: 7
+            }, undefined)
+        ]
+    }, void 0, true, {
+        fileName: "nodes/Table.js",
+        lineNumber: 48,
+        columnNumber: 5
+    }, undefined);
+};
+_s(TableNode, "wcqIJmNAV+E5E3f2EdzcG88xtAE=", false, function() {
+    return [
+        (0, _storeJsDefault.default),
+        (0, _storeJsDefault.default)
+    ];
+});
+_c = TableNode;
+const styles = {
+    node: {
+        padding: "10px",
+        border: "2px solid #2196F3",
+        borderRadius: "5px",
+        background: "#fff",
+        width: "auto",
+        textAlign: "center",
+        boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
+        transition: "all 0.2s ease-in-out"
+    },
+    table: {
+        width: "100%",
+        borderCollapse: "collapse",
+        marginTop: "10px"
+    },
+    th: {
+        border: "1px solid #ddd",
+        padding: "8px",
+        backgroundColor: "#f2f2f2",
+        textAlign: "center",
+        fontWeight: "bold"
+    },
+    td: {
+        border: "1px solid #ddd",
+        padding: "8px",
+        textAlign: "center"
+    },
+    input: {
+        padding: "5px",
+        margin: "5px",
+        borderRadius: "4px",
+        border: "1px solid #ccc",
+        width: "90px"
+    },
+    button: {
+        backgroundColor: "#4CAF50",
+        color: "white",
+        border: "none",
+        padding: "8px 16px",
+        cursor: "pointer",
+        margin: "5px 0",
+        borderRadius: "4px"
+    },
+    deleteButton: {
+        backgroundColor: "#ff4d4d",
+        color: "white",
+        border: "none",
+        padding: "5px 10px",
+        cursor: "pointer",
+        borderRadius: "4px",
+        marginLeft: "5px"
+    },
+    editButton: {
+        backgroundColor: "#2196F3",
+        color: "white",
+        border: "none",
+        padding: "8px 16px",
+        cursor: "pointer",
+        margin: "5px 5px",
+        borderRadius: "4px"
+    }
+};
+exports.default = /*#__PURE__*/ _c1 = (0, _react.memo)(TableNode);
+var _c, _c1;
+$RefreshReg$(_c, "TableNode");
+$RefreshReg$(_c1, "%default%");
+
+  $parcel$ReactRefreshHelpers$17fa.postlude(module);
+} finally {
+  globalThis.$RefreshReg$ = prevRefreshReg;
+  globalThis.$RefreshSig$ = prevRefreshSig;
+}
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","../store/store.js":"2ZYKM","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"J6fNR":[function(require,module,exports,__globalThis) {
 var $parcel$ReactRefreshHelpers$f6c1 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
 $parcel$ReactRefreshHelpers$f6c1.init();
 var prevRefreshReg = globalThis.$RefreshReg$;
@@ -42716,7 +42919,13 @@ var _jsxDevRuntime = require("react/jsx-dev-runtime");
 var _react = require("react");
 var _reactDefault = parcelHelpers.interopDefault(_react);
 var _react1 = require("@xyflow/react");
+var _storeJs = require("../store/store.js"); // ✅ Import Zustand store
+var _storeJsDefault = parcelHelpers.interopDefault(_storeJs);
+var _s = $RefreshSig$();
 const HtmlNode = ({ data, isConnectable })=>{
+    _s();
+    const activeFilters = (0, _storeJsDefault.default)((state)=>state.activeFilters);
+    const isDimmed = !activeFilters.has("HTML"); // ✅ Check if "HTML" is filtered out
     const openHtmlContent = ()=>{
         const newWindow = window.open();
         newWindow.document.write(`
@@ -42735,7 +42944,12 @@ const HtmlNode = ({ data, isConnectable })=>{
         newWindow.document.close();
     };
     return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
-        style: styles.node,
+        style: {
+            ...styles.node,
+            opacity: isDimmed ? 0.4 : 1,
+            filter: isDimmed ? "grayscale(100%)" : "none",
+            pointerEvents: isDimmed ? "none" : "auto"
+        },
         children: [
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
                 style: styles.screen,
@@ -42745,7 +42959,7 @@ const HtmlNode = ({ data, isConnectable })=>{
                         children: data.label || "Unnamed HTML definition"
                     }, void 0, false, {
                         fileName: "nodes/HTML.js",
-                        lineNumber: 27,
+                        lineNumber: 37,
                         columnNumber: 9
                     }, undefined),
                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -42754,13 +42968,13 @@ const HtmlNode = ({ data, isConnectable })=>{
                         children: "Open HTML"
                     }, void 0, false, {
                         fileName: "nodes/HTML.js",
-                        lineNumber: 28,
+                        lineNumber: 38,
                         columnNumber: 9
                     }, undefined)
                 ]
             }, void 0, true, {
                 fileName: "nodes/HTML.js",
-                lineNumber: 26,
+                lineNumber: 36,
                 columnNumber: 7
             }, undefined),
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
@@ -42769,7 +42983,7 @@ const HtmlNode = ({ data, isConnectable })=>{
                 isConnectable: isConnectable
             }, void 0, false, {
                 fileName: "nodes/HTML.js",
-                lineNumber: 34,
+                lineNumber: 43,
                 columnNumber: 7
             }, undefined),
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
@@ -42778,16 +42992,21 @@ const HtmlNode = ({ data, isConnectable })=>{
                 isConnectable: isConnectable
             }, void 0, false, {
                 fileName: "nodes/HTML.js",
-                lineNumber: 35,
+                lineNumber: 44,
                 columnNumber: 7
             }, undefined)
         ]
     }, void 0, true, {
         fileName: "nodes/HTML.js",
-        lineNumber: 24,
+        lineNumber: 28,
         columnNumber: 5
     }, undefined);
 };
+_s(HtmlNode, "wh0SlalcNe0ttnD7uoOPGI4lUeI=", false, function() {
+    return [
+        (0, _storeJsDefault.default)
+    ];
+});
 _c = HtmlNode;
 const styles = {
     node: {
@@ -42802,7 +43021,8 @@ const styles = {
         alignItems: "center",
         justifyContent: "center",
         textAlign: "center",
-        boxShadow: "0 4px 8px rgba(0,0,0,0.3)"
+        boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
+        transition: "all 0.2s ease-in-out"
     },
     screen: {
         backgroundImage: "url('https://miro.medium.com/v2/resize:fit:1400/1*bXww9rpeTUyZ1J31sgPR9A.jpeg')",
@@ -42848,7 +43068,7 @@ $RefreshReg$(_c1, "%default%");
   globalThis.$RefreshReg$ = prevRefreshReg;
   globalThis.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"dVi4c":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","../store/store.js":"2ZYKM"}],"dVi4c":[function(require,module,exports,__globalThis) {
 var $parcel$ReactRefreshHelpers$69de = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
 $parcel$ReactRefreshHelpers$69de.init();
 var prevRefreshReg = globalThis.$RefreshReg$;

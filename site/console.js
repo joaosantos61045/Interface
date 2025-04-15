@@ -32,7 +32,7 @@ const Console = () => {
     }, []);
 
     return (
-        <div ref={refs.setReference} style={{ position: "relative", bottom: "1000px", right: "350px", zIndex: 1000 }}>
+        <div ref={refs.setReference} style={{ position: "absolute",  right: "331px", zIndex: 1000 }}>
             <div ref={refs.setFloating} style={{ ...floatingStyles, background: "#333", color: "white", padding: "10px", borderRadius: "5px", width: "300px" }}>
                 <div id="console"></div>
                 <input

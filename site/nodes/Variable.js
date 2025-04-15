@@ -1,32 +1,44 @@
-import React, { useState } from "react";
+import React from "react";
 import { Handle, Position, useConnection } from "@xyflow/react";
+import useStore from '../store/store.js';
 
 const VariableNode = ({ id, data, isConnectable }) => {
-  
+  const activeFilters = useStore((state) => state.activeFilters);
+  const isDimmed = !activeFilters.has("Variable");
+
   const connection = useConnection();
- 
   const isTarget = connection.inProgress && connection.fromNode.id !== id;
 
   return (
-    <div style={styles.node} >
+    <div
+      style={{
+        ...styles.node,
+        opacity: isDimmed ? 0.4 : 1,
+        filter: isDimmed ? "grayscale(100%)" : "none",
+        pointerEvents: isDimmed ? "none" : "auto",
+      }}
+    >
       <strong style={styles.text}>{data.label || "Unnamed Variable"}</strong>
       <p style={styles.text}>{data.value || "No Value"}</p>
 
       {/* Connection Handles */}
       {!connection.inProgress && (
-          <Handle
-            className="customHandle"
-            position={Position.Right}
-            type="source"
-          />
-        )}
-        {/* We want to disable the target handle, if the connection was started from this node */}
-        {(!connection.inProgress || isTarget) && (
-          <Handle className="customHandle" position={Position.Left} type="target" isConnectableStart={false} />
-        )}
-
-    
-     
+        <Handle
+          className="customHandle"
+          position={Position.Right}
+          type="source"
+          isConnectable={isConnectable}
+        />
+      )}
+      {(!connection.inProgress || isTarget) && (
+        <Handle
+          className="customHandle"
+          position={Position.Left}
+          type="target"
+          isConnectableStart={false}
+          isConnectable={isConnectable}
+        />
+      )}
     </div>
   );
 };
@@ -38,52 +50,11 @@ const styles = {
     borderRadius: "5px",
     background: "#fff",
     width: "auto",
-    maxwidth: "550px",
+    maxWidth: "550px",
     textAlign: "center",
     boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
     cursor: "pointer",
-  },
-  overlay: {
-    position: "fixed",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%, -50%)",
-    width: "300px",
-    height: "auto",
-    background: "rgba(0, 0, 0, 0.5)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1000,
-  },
-  modal: {
-    background: "#fff",
-    padding: "20px",
-    borderRadius: "8px",
-    boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-    textAlign: "center",
-    width: "280px",
-  },
-  buttonContainer: {
-    display: "flex",
-    justifyContent: "space-between",
-    marginTop: "10px",
-  },
-  button: {
-    padding: "8px 16px",
-    background: "#007BFF",
-    color: "white",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-  },
-  cancelButton: {
-    padding: "8px 16px",
-    background: "#6c757d",
-    color: "white",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
+    transition: "all 0.2s ease-in-out",
   },
   text: {
     overflow: "hidden",

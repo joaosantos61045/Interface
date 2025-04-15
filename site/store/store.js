@@ -42,7 +42,13 @@ const useStore = create((set, get) => ({
   // Store for nodes and edges
   nodes: initialNodes,
   edges: initialEdges,
-  
+  activeFilters: new Set(['Variable', 'Definition', 'Action', 'Table', 'HTML']),
+  toggleFilter: (type) =>
+    set((state) => {
+      const newFilters = new Set(state.activeFilters);
+      newFilters.has(type) ? newFilters.delete(type) : newFilters.add(type);
+      return { activeFilters: newFilters };
+    }),
   // Handles changes for nodes
   onNodesChange: (changes) => {
     set({
