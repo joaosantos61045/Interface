@@ -77,49 +77,46 @@ const DnDFlow = () => {
   window.update_environment = function(envString) {
     try {
       const env = JSON.parse(envString);
-      console.log(" Parsed environment:", env);
-      
+      console.log("Parsed environment:", env);
+  
       const dependencies = {};
       const nodesToUpdate = [];
   
-      for (const [rawLabel, rawValueAndType] of Object.entries(env)) {
-        const baseLabel = rawLabel.replace(/\d+$/, '');
+      for (const [label, data] of Object.entries(env)) {
+        const {
+          name,
+          val,
+          type,
+          exp,
+          keyword,
+          originalInput,
+          operation
+        } = data;
   
-        // Split value string into its core parts, everything after 3rd dash is considered position
-        const [valuePart, type, rawDefinition, ...positionParts] = rawValueAndType.split("-");
-        const rawPosition = positionParts.join("-");
+        const baseLabel = name;
   
-        // Extract value like 15 from Int(15), Bool(1), etc.
-        const parsedValueMatch = valuePart.match(/^[A-Za-z]+\((.*)\)$/);
-        const parsedValue = parsedValueMatch ? parsedValueMatch[1] : valuePart;
-  
-        // Clean definition (strip surrounding parentheses)
-        const cleanDefinition = rawDefinition?.replace(/^\((.*)\)$/, '$1');
-  
-        // Position parsing: from something like "17.2/-350.07"
-        let position = { x: 0, y: 0 };
-        if (rawPosition.includes("/")) {
-          const [xStr, yStr] = rawPosition.split("/");
-          const x = parseFloat(xStr);
-          const y = parseFloat(yStr);
-          if (!isNaN(x) && !isNaN(y)) {
-            position = { x, y };
-          }
+        //  Handle delete operation early and skip the rest
+        if (operation === "delete") {
+          console.log(`Deleting node: ${baseLabel}`);
+          removeNode(baseLabel); // Make sure you have this function implemented
+          continue;
         }
   
-        // Parse dependencies from the definition
-        const nodeDependencies = cleanDefinition
-          ? cleanDefinition.match(/\b[A-Za-z_]\w*\b/g) || []
+        const isDefinition = keyword === "def";
+  
+        // Extract dependencies from exp (right-hand side)
+        const nodeDependencies = exp
+          ? exp.match(/\b[A-Za-z_]\w*\b/g)?.filter(dep => dep !== name) || []
           : [];
   
         dependencies[baseLabel] = nodeDependencies;
   
         nodesToUpdate.push({
           label: baseLabel,
-          value: parsedValue,
+          value: val,
           type,
-          definition: type === "Def" ? cleanDefinition : undefined,
-          position,
+          definition: isDefinition ? exp : undefined,
+          position: { x: 0, y: 0 } // Placeholder position
         });
       }
   
@@ -129,35 +126,106 @@ const DnDFlow = () => {
         const node = nodes.find((node) => node.id === label);
   
         const updateData = { value };
-        if (type === "Def" && definition) {
+        if (definition) {
           updateData.definition = definition;
         }
   
         if (node) {
-          console.log(` Updating node ${label} with value: ${value}`);
+          console.log(`Updating node ${label} with value: ${value}`);
           updateNode(label, updateData);
-          // Optional: update position if needed
-          // node.position = position;
         } else {
-          console.warn(` Creating new node ${label} of type ${type}.`);
-          const newNode = {
-            id: label,
-            type: type === "Def" ? "Definition" : "Variable",
-            position,
-            data: {
-              label,
-              value,
-              definition: type === "Def" ? definition : undefined,
-            },
-          };
+          console.warn(`Creating new node ${label} with type ${type}.`);
+
+          // Dynamically determine node type
+          let nodeType = "Variable";
+          if (type === "html") {
+            nodeType = "HTML";
+            console.log("HTML node detected:");
+          } else if (definition) {
+            nodeType = "Definition";
+          } else if (type?.startsWith("array[{") || value?.startsWith("table")) {
+            nodeType = "Table";
+          } else if (type === "action") {
+            nodeType = "Action";
+          } 
+
+          // Build new node
+          let newNode;
+
+          if (nodeType === "Table") {
+            const columnPattern = /array\[\{(.+?)\}\]/;
+            const match = type.match(columnPattern);
+            const columns = [];
+
+            if (match) {
+              const columnDefs = match[1].split(",");
+              for (const col of columnDefs) {
+                const [colName, colType] = col.trim().split(":").map(s => s.trim());
+                if (colName && colType) {
+                  columns.push({ name: colName, type: colType });
+                }
+              }
+            }
+
+            newNode = {
+              id: label,
+              type: "Table",
+              position,
+              data: {
+                label,
+                columns,
+                rows: [],
+              },
+            };
+
+          } else if (nodeType === "Action") {
+            // Extract target and action from exp or val: action { x := x + 1 }
+            let target = "";
+            let actionExpr = "";
+
+            const actionPattern = /action\s*\{\s*(\w+)\s*:=\s*(.+?)\s*\}/;
+            const match = (exp || val || "").match(actionPattern);
+
+            if (match) {
+              target = match[1];
+              actionExpr = match[2];
+            }
+
+            newNode = {
+              id: label,
+              type: "Action",
+              position,
+              data: {
+                label,
+                target,
+                action: actionExpr,
+              },
+            };
+
+          } else {
+            newNode = {
+              id: label,
+              type: nodeType,
+              position,
+              data: {
+                label,
+                value,
+                definition,
+              },
+            };
+          }
+          console.log("New node:", newNode);
           addNode(newNode);
         }
       });
-      console.log(" Parsed nodes:", nodes);
+  
+      console.log("Parsed nodes:", nodes);
     } catch (e) {
-      console.error(" Failed to parse environment:", e);
+      console.error("Failed to parse environment:", e);
     }
   };
+  
+  
   
   // Helper function: Topological Sort (dependency resolution)
   function topologicalSort(nodes, dependencies) {
@@ -255,11 +323,34 @@ const DnDFlow = () => {
     console.log(editFormData)
     let message = '';
     if (selectedNode.type === 'Variable') {
-      message = `var ${editFormData.label} = ${editFormData.value};${selectedNode.position.x}/${selectedNode.position.y}`;
+      //message = `var ${editFormData.label} = ${editFormData.value};${selectedNode.position.x}/${selectedNode.position.y}`;
+      message = `var ${editFormData.label} = ${editFormData.value}`;
       console.log("Sending message to server:", message);
       send_message_to_server(message);
-    } else if (selectedNode.type === 'Definition') {
-      message = `def ${editFormData.label} = ${editFormData.definition};${selectedNode.position.x}/${selectedNode.position.y}`;
+    } else if (selectedNode.type === 'Definition' || selectedNode.type === 'HTML') {
+      //message = `def ${editFormData.label} = ${editFormData.definition};${selectedNode.position.x}/${selectedNode.position.y}`;
+      message = `def ${editFormData.label} = ${editFormData.definition}`;
+      console.log("Sending message to server:", message);
+      send_message_to_server(message);
+    } else if (selectedNode.type === 'Table') {
+      console.log("Table data",editFormData)
+      const {columns } = editFormData;
+
+      if ( !columns || columns.length === 0) {
+        alert("Table name or columns missing.");
+        return;
+      }
+    
+      const formattedColumns = columns
+        .map(col => `${col.name}:${col.type}`)
+        .join(", ");
+    
+      const message = `table ${editFormData.label} { ${formattedColumns} }`;
+    
+      console.log("Sending message to server:", message);
+      send_message_to_server(message);
+    } else if (selectedNode.type === 'Action') {
+      message = `def ${editFormData.label} = action { ${editFormData.target} := ${editFormData.action} }`;
       console.log("Sending message to server:", message);
       send_message_to_server(message);
     }
@@ -283,8 +374,10 @@ const DnDFlow = () => {
     setEditFormData({});
   };
   const handleDelete = () => {
+    let message = 'delete '+selectedNode.id+'';
+    send_message_to_server(message);  
     if (!selectedNode) return;
-    removeNode(selectedNode.id);
+    //removeNode(selectedNode.id);
     setSelectedNode(null); // Close modal
     setEditFormData({}); // Reset form
   };
@@ -312,7 +405,7 @@ const DnDFlow = () => {
         Variable: { label: "v", value: 1 },
         Definition: { label: "d",definition:"" , },
         Action: { label: "x",target:"", action: "" },
-        Table: { label: "s", columns: [{ name: "", type: "text" }], rows: [] },
+        Table: { label: "s", columns: [{ name: "", type: "string" }], rows: [] },
         HTML: { label: "c", definition: "<p>Enter HTML here</p>" },
       };
 
@@ -342,13 +435,35 @@ const DnDFlow = () => {
     
     let message = '';
     if (pendingNode.type === 'Variable') {
-      message = `var ${formData.label} = ${formData.value};${pendingNode.position.x}/${pendingNode.position.y}`;
+      //message = `var ${formData.label} = ${formData.value};${pendingNode.position.x}/${pendingNode.position.y}`;
+      message = `var ${formData.label} = ${formData.value}`;
       console.log("Sending message to server:", message);
       send_message_to_server(message);
-    } else if (pendingNode.type === 'Definition') {
-      message = `def ${formData.label} = ${formData.definition};${pendingNode.position.x}/${pendingNode.position.y}`;
+    } else if (pendingNode.type === 'Definition' || pendingNode.type === 'HTML') {
+      //message = `def ${formData.label} = ${formData.definition};${pendingNode.position.x}/${pendingNode.position.y}`;
+      message = `def ${formData.label} = ${formData.definition}`;
       console.log("Sending message to server:", message);
       send_message_to_server(message);
+    } else if (pendingNode.type === 'Table') {
+      const {columns } = newNode.data;
+
+      if ( !columns || columns.length === 0) {
+        alert("Table name or columns missing.");
+        return;
+      }
+    
+      const formattedColumns = columns
+        .map(col => `${col.name}:${col.type}`)
+        .join(", ");
+    
+      const message = `table ${formData.label} { ${formattedColumns} }`;
+    
+      console.log("Sending message to server:", message);
+      send_message_to_server(message);
+    } else if (pendingNode.type === 'Action') {
+    message = `def ${formData.label} = action { ${formData.target} := ${formData.action} }`;
+    console.log("Sending message to server:", message);
+    send_message_to_server(message);
     }
   
     // Add the new node
@@ -419,11 +534,13 @@ const DnDFlow = () => {
 
     let message = '';
     if (newNodeType === 'Variable') {
-      message = `var ${newNodeData.label} = ${newNodeData.value};${newNode.position.x}/${newNode.position.y}`;
+      //message = `var ${newNodeData.label} = ${newNodeData.value};${newNode.position.x}/${newNode.position.y}`;
+      message = `var ${newNodeData.label} = ${newNodeData.value}`;
       console.log("Sending message to server:", message);
       send_message_to_server(message);
     } else if (newNodeType === 'Definition') {
-      message = `def ${newNodeData.label} = ${newNodeData.definition};${newNode.position.x}/${newNode.position.y}`;
+      //message = `def ${newNodeData.label} = ${newNodeData.definition};${newNode.position.x}/${newNode.position.y}`;
+      message = `def ${newNodeData.label} = ${newNodeData.definition}`;
       console.log("Sending message to server:", message);
       send_message_to_server(message);
     }
@@ -454,14 +571,14 @@ const DnDFlow = () => {
   const handleAddColumn = () => {
     setFormData((prev) => ({
       ...prev,
-      columns: [...prev.columns, { name: "", type: "text" }],
+      columns: [...prev.columns, { name: "", type: "string" }],
     }));
   };
 
   const handleEditAddColumn = () => {
     setEditFormData({
       ...editFormData,
-      columns: [...editFormData.columns, { name: "", type: "text" }],
+      columns: [...editFormData.columns, { name: "", type: "string" }],
     });
   };
 
@@ -576,11 +693,11 @@ const DnDFlow = () => {
 
                         {/* Column Type Dropdown */}
                         <select
-                          value={col.type || "text"}
+                          value={col.type || "string"}
                           onChange={(e) => handleColumnChange(index, "type", e.target.value)}
                           style={styles.input}
                         >
-                          <option value="text">Text</option>
+                          <option value="string">String</option>
                           <option value="number">Number</option>
                           <option value="boolean">Boolean</option>
                         </select>

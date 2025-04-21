@@ -68,7 +68,7 @@ export default function ActionEdge({
    
     //setEdges((edges) => edges.filter((edge) => edge.id !== id));
     
-        let message = "do {"+ target+"="+data.action+"}";
+        let message = "do {"+ target+":="+data.action+"}";
         
           send_message_to_server(message);
         

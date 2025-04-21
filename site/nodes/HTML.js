@@ -17,7 +17,7 @@ const HtmlNode = ({ data, isConnectable }) => {
           <title>${data.label || "HTML Page"}</title>
       </head>
       <body>
-          ${data.definition || "<p>No HTML content</p>"}
+          ${data.value || "<p>No HTML content</p>"}
       </body>
       </html>
     `);

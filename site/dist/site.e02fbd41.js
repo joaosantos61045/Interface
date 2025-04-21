@@ -16183,42 +16183,31 @@ const DnDFlow = ()=>{
     window.update_environment = function(envString) {
         try {
             const env = JSON.parse(envString);
-            console.log(" Parsed environment:", env);
+            console.log("Parsed environment:", env);
             const dependencies = {};
             const nodesToUpdate = [];
-            for (const [rawLabel, rawValueAndType] of Object.entries(env)){
-                const baseLabel = rawLabel.replace(/\d+$/, '');
-                // Split value string into its core parts, everything after 3rd dash is considered position
-                const [valuePart, type, rawDefinition, ...positionParts] = rawValueAndType.split("-");
-                const rawPosition = positionParts.join("-");
-                // Extract value like 15 from Int(15), Bool(1), etc.
-                const parsedValueMatch = valuePart.match(/^[A-Za-z]+\((.*)\)$/);
-                const parsedValue = parsedValueMatch ? parsedValueMatch[1] : valuePart;
-                // Clean definition (strip surrounding parentheses)
-                const cleanDefinition = rawDefinition?.replace(/^\((.*)\)$/, '$1');
-                // Position parsing: from something like "17.2/-350.07"
-                let position = {
-                    x: 0,
-                    y: 0
-                };
-                if (rawPosition.includes("/")) {
-                    const [xStr, yStr] = rawPosition.split("/");
-                    const x = parseFloat(xStr);
-                    const y = parseFloat(yStr);
-                    if (!isNaN(x) && !isNaN(y)) position = {
-                        x,
-                        y
-                    };
+            for (const [label, data] of Object.entries(env)){
+                const { name, val: val1, type, exp: exp1, keyword, originalInput, operation } = data;
+                const baseLabel = name;
+                //  Handle delete operation early and skip the rest
+                if (operation === "delete") {
+                    console.log(`Deleting node: ${baseLabel}`);
+                    removeNode(baseLabel); // Make sure you have this function implemented
+                    continue;
                 }
-                // Parse dependencies from the definition
-                const nodeDependencies = cleanDefinition ? cleanDefinition.match(/\b[A-Za-z_]\w*\b/g) || [] : [];
+                const isDefinition = keyword === "def";
+                // Extract dependencies from exp (right-hand side)
+                const nodeDependencies = exp1 ? exp1.match(/\b[A-Za-z_]\w*\b/g)?.filter((dep)=>dep !== name) || [] : [];
                 dependencies[baseLabel] = nodeDependencies;
                 nodesToUpdate.push({
                     label: baseLabel,
-                    value: parsedValue,
+                    value: val1,
                     type,
-                    definition: type === "Def" ? cleanDefinition : undefined,
-                    position
+                    definition: isDefinition ? exp1 : undefined,
+                    position: {
+                        x: 0,
+                        y: 0
+                    } // Placeholder position
                 });
             }
             const sortedNodes = topologicalSort(nodesToUpdate, dependencies);
@@ -16227,30 +16216,83 @@ const DnDFlow = ()=>{
                 const updateData = {
                     value
                 };
-                if (type === "Def" && definition) updateData.definition = definition;
+                if (definition) updateData.definition = definition;
                 if (node) {
-                    console.log(` Updating node ${label} with value: ${value}`);
+                    console.log(`Updating node ${label} with value: ${value}`);
                     updateNode(label, updateData);
-                // Optional: update position if needed
-                // node.position = position;
                 } else {
-                    console.warn(` Creating new node ${label} of type ${type}.`);
-                    const newNode = {
+                    console.warn(`Creating new node ${label} with type ${type}.`);
+                    // Dynamically determine node type
+                    let nodeType = "Variable";
+                    if (type === "html") {
+                        nodeType = "HTML";
+                        console.log("HTML node detected:");
+                    } else if (definition) nodeType = "Definition";
+                    else if (type?.startsWith("array[{") || value?.startsWith("table")) nodeType = "Table";
+                    else if (type === "action") nodeType = "Action";
+                    // Build new node
+                    let newNode;
+                    if (nodeType === "Table") {
+                        const columnPattern = /array\[\{(.+?)\}\]/;
+                        const match = type.match(columnPattern);
+                        const columns = [];
+                        if (match) {
+                            const columnDefs = match[1].split(",");
+                            for (const col of columnDefs){
+                                const [colName, colType] = col.trim().split(":").map((s)=>s.trim());
+                                if (colName && colType) columns.push({
+                                    name: colName,
+                                    type: colType
+                                });
+                            }
+                        }
+                        newNode = {
+                            id: label,
+                            type: "Table",
+                            position,
+                            data: {
+                                label,
+                                columns,
+                                rows: []
+                            }
+                        };
+                    } else if (nodeType === "Action") {
+                        // Extract target and action from exp or val: action { x := x + 1 }
+                        let target = "";
+                        let actionExpr = "";
+                        const actionPattern = /action\s*\{\s*(\w+)\s*:=\s*(.+?)\s*\}/;
+                        const match = (exp || val || "").match(actionPattern);
+                        if (match) {
+                            target = match[1];
+                            actionExpr = match[2];
+                        }
+                        newNode = {
+                            id: label,
+                            type: "Action",
+                            position,
+                            data: {
+                                label,
+                                target,
+                                action: actionExpr
+                            }
+                        };
+                    } else newNode = {
                         id: label,
-                        type: type === "Def" ? "Definition" : "Variable",
+                        type: nodeType,
                         position,
                         data: {
                             label,
                             value,
-                            definition: type === "Def" ? definition : undefined
+                            definition
                         }
                     };
+                    console.log("New node:", newNode);
                     addNode(newNode);
                 }
             });
-            console.log(" Parsed nodes:", nodes);
+            console.log("Parsed nodes:", nodes);
         } catch (e) {
-            console.error(" Failed to parse environment:", e);
+            console.error("Failed to parse environment:", e);
         }
     };
     // Helper function: Topological Sort (dependency resolution)
@@ -16323,11 +16365,28 @@ const DnDFlow = ()=>{
         console.log(editFormData);
         let message = '';
         if (selectedNode.type === 'Variable') {
-            message = `var ${editFormData.label} = ${editFormData.value};${selectedNode.position.x}/${selectedNode.position.y}`;
+            //message = `var ${editFormData.label} = ${editFormData.value};${selectedNode.position.x}/${selectedNode.position.y}`;
+            message = `var ${editFormData.label} = ${editFormData.value}`;
             console.log("Sending message to server:", message);
             (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
-        } else if (selectedNode.type === 'Definition') {
-            message = `def ${editFormData.label} = ${editFormData.definition};${selectedNode.position.x}/${selectedNode.position.y}`;
+        } else if (selectedNode.type === 'Definition' || selectedNode.type === 'HTML') {
+            //message = `def ${editFormData.label} = ${editFormData.definition};${selectedNode.position.x}/${selectedNode.position.y}`;
+            message = `def ${editFormData.label} = ${editFormData.definition}`;
+            console.log("Sending message to server:", message);
+            (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
+        } else if (selectedNode.type === 'Table') {
+            console.log("Table data", editFormData);
+            const { columns } = editFormData;
+            if (!columns || columns.length === 0) {
+                alert("Table name or columns missing.");
+                return;
+            }
+            const formattedColumns = columns.map((col)=>`${col.name}:${col.type}`).join(", ");
+            const message = `table ${editFormData.label} { ${formattedColumns} }`;
+            console.log("Sending message to server:", message);
+            (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
+        } else if (selectedNode.type === 'Action') {
+            message = `def ${editFormData.label} = action { ${editFormData.target} := ${editFormData.action} }`;
             console.log("Sending message to server:", message);
             (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
         }
@@ -16349,8 +16408,10 @@ const DnDFlow = ()=>{
         setEditFormData({});
     };
     const handleDelete = ()=>{
+        let message = 'delete ' + selectedNode.id + '';
+        (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
         if (!selectedNode) return;
-        removeNode(selectedNode.id);
+        //removeNode(selectedNode.id);
         setSelectedNode(null); // Close modal
         setEditFormData({}); // Reset form
     };
@@ -16387,7 +16448,7 @@ const DnDFlow = ()=>{
                 columns: [
                     {
                         name: "",
-                        type: "text"
+                        type: "string"
                     }
                 ],
                 rows: []
@@ -16423,11 +16484,27 @@ const DnDFlow = ()=>{
         console.log("New Node:", newNode.position);
         let message = '';
         if (pendingNode.type === 'Variable') {
-            message = `var ${formData.label} = ${formData.value};${pendingNode.position.x}/${pendingNode.position.y}`;
+            //message = `var ${formData.label} = ${formData.value};${pendingNode.position.x}/${pendingNode.position.y}`;
+            message = `var ${formData.label} = ${formData.value}`;
             console.log("Sending message to server:", message);
             (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
-        } else if (pendingNode.type === 'Definition') {
-            message = `def ${formData.label} = ${formData.definition};${pendingNode.position.x}/${pendingNode.position.y}`;
+        } else if (pendingNode.type === 'Definition' || pendingNode.type === 'HTML') {
+            //message = `def ${formData.label} = ${formData.definition};${pendingNode.position.x}/${pendingNode.position.y}`;
+            message = `def ${formData.label} = ${formData.definition}`;
+            console.log("Sending message to server:", message);
+            (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
+        } else if (pendingNode.type === 'Table') {
+            const { columns } = newNode.data;
+            if (!columns || columns.length === 0) {
+                alert("Table name or columns missing.");
+                return;
+            }
+            const formattedColumns = columns.map((col)=>`${col.name}:${col.type}`).join(", ");
+            const message = `table ${formData.label} { ${formattedColumns} }`;
+            console.log("Sending message to server:", message);
+            (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
+        } else if (pendingNode.type === 'Action') {
+            message = `def ${formData.label} = action { ${formData.target} := ${formData.action} }`;
             console.log("Sending message to server:", message);
             (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
         }
@@ -16492,11 +16569,13 @@ const DnDFlow = ()=>{
         };
         let message = '';
         if (newNodeType === 'Variable') {
-            message = `var ${newNodeData.label} = ${newNodeData.value};${newNode.position.x}/${newNode.position.y}`;
+            //message = `var ${newNodeData.label} = ${newNodeData.value};${newNode.position.x}/${newNode.position.y}`;
+            message = `var ${newNodeData.label} = ${newNodeData.value}`;
             console.log("Sending message to server:", message);
             (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
         } else if (newNodeType === 'Definition') {
-            message = `def ${newNodeData.label} = ${newNodeData.definition};${newNode.position.x}/${newNode.position.y}`;
+            //message = `def ${newNodeData.label} = ${newNodeData.definition};${newNode.position.x}/${newNode.position.y}`;
+            message = `def ${newNodeData.label} = ${newNodeData.definition}`;
             console.log("Sending message to server:", message);
             (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
         }
@@ -16540,7 +16619,7 @@ const DnDFlow = ()=>{
                     ...prev.columns,
                     {
                         name: "",
-                        type: "text"
+                        type: "string"
                     }
                 ]
             }));
@@ -16552,7 +16631,7 @@ const DnDFlow = ()=>{
                 ...editFormData.columns,
                 {
                     name: "",
-                    type: "text"
+                    type: "string"
                 }
             ]
         });
@@ -16624,7 +16703,7 @@ const DnDFlow = ()=>{
                     children: "Meerkat UI"
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 513,
+                    lineNumber: 630,
                     columnNumber: 9
                 }, undefined),
                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16657,34 +16736,34 @@ const DnDFlow = ()=>{
                                 setNodes: setNodes
                             }, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 534,
+                                lineNumber: 651,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _searchBarDefault.default), {
                                 nodes: nodes
                             }, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 535,
+                                lineNumber: 652,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _sidebarDefault.default), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 536,
+                                lineNumber: 653,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _consoleJsDefault.default), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 538,
+                                lineNumber: 655,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.Controls), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 539,
+                                lineNumber: 656,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.Background), {}, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 540,
+                                lineNumber: 657,
                                 columnNumber: 13
                             }, undefined),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react2.MiniMap), {
@@ -16695,18 +16774,18 @@ const DnDFlow = ()=>{
                                 onNodeClick: handleMinimapNodeClick
                             }, void 0, false, {
                                 fileName: "App.js",
-                                lineNumber: 541,
+                                lineNumber: 658,
                                 columnNumber: 13
                             }, undefined)
                         ]
                     }, void 0, true, {
                         fileName: "App.js",
-                        lineNumber: 516,
+                        lineNumber: 633,
                         columnNumber: 11
                     }, undefined)
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 515,
+                    lineNumber: 632,
                     columnNumber: 9
                 }, undefined),
                 pendingNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16720,7 +16799,7 @@ const DnDFlow = ()=>{
                             ]
                         }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 547,
+                            lineNumber: 664,
                             columnNumber: 13
                         }, undefined),
                         pendingNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16734,7 +16813,7 @@ const DnDFlow = ()=>{
                                     ]
                                 }, void 0, true, {
                                     fileName: "App.js",
-                                    lineNumber: 551,
+                                    lineNumber: 668,
                                     columnNumber: 17
                                 }, undefined),
                                 pendingNode.type === "Table" ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _jsxDevRuntime.Fragment), {
@@ -16756,20 +16835,20 @@ const DnDFlow = ()=>{
                                                     required: true
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 558,
+                                                    lineNumber: 675,
                                                     columnNumber: 23
                                                 }, undefined)
                                             ]
                                         }, void 0, true, {
                                             fileName: "App.js",
-                                            lineNumber: 556,
+                                            lineNumber: 673,
                                             columnNumber: 21
                                         }, undefined),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
                                             children: "Columns:"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 565,
+                                            lineNumber: 682,
                                             columnNumber: 21
                                         }, undefined),
                                         formData.columns.map((col, index)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16786,20 +16865,20 @@ const DnDFlow = ()=>{
                                                         style: styles.input
                                                     }, void 0, false, {
                                                         fileName: "App.js",
-                                                        lineNumber: 570,
+                                                        lineNumber: 687,
                                                         columnNumber: 25
                                                     }, undefined),
                                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("select", {
-                                                        value: col.type || "text",
+                                                        value: col.type || "string",
                                                         onChange: (e)=>handleColumnChange(index, "type", e.target.value),
                                                         style: styles.input,
                                                         children: [
                                                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
-                                                                value: "text",
-                                                                children: "Text"
+                                                                value: "string",
+                                                                children: "String"
                                                             }, void 0, false, {
                                                                 fileName: "App.js",
-                                                                lineNumber: 583,
+                                                                lineNumber: 700,
                                                                 columnNumber: 27
                                                             }, undefined),
                                                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16807,7 +16886,7 @@ const DnDFlow = ()=>{
                                                                 children: "Number"
                                                             }, void 0, false, {
                                                                 fileName: "App.js",
-                                                                lineNumber: 584,
+                                                                lineNumber: 701,
                                                                 columnNumber: 27
                                                             }, undefined),
                                                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -16815,13 +16894,13 @@ const DnDFlow = ()=>{
                                                                 children: "Boolean"
                                                             }, void 0, false, {
                                                                 fileName: "App.js",
-                                                                lineNumber: 585,
+                                                                lineNumber: 702,
                                                                 columnNumber: 27
                                                             }, undefined)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "App.js",
-                                                        lineNumber: 578,
+                                                        lineNumber: 695,
                                                         columnNumber: 25
                                                     }, undefined),
                                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16830,13 +16909,13 @@ const DnDFlow = ()=>{
                                                         children: "\u2716"
                                                     }, void 0, false, {
                                                         fileName: "App.js",
-                                                        lineNumber: 589,
+                                                        lineNumber: 706,
                                                         columnNumber: 25
                                                     }, undefined)
                                                 ]
                                             }, index, true, {
                                                 fileName: "App.js",
-                                                lineNumber: 568,
+                                                lineNumber: 685,
                                                 columnNumber: 23
                                             }, undefined)),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16845,7 +16924,7 @@ const DnDFlow = ()=>{
                                             children: "+ Add Column"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 596,
+                                            lineNumber: 713,
                                             columnNumber: 21
                                         }, undefined)
                                     ]
@@ -16867,13 +16946,13 @@ const DnDFlow = ()=>{
                                                 style: styles.input
                                             }, void 0, false, {
                                                 fileName: "App.js",
-                                                lineNumber: 605,
+                                                lineNumber: 722,
                                                 columnNumber: 23
                                             }, undefined)
                                         ]
                                     }, key, true, {
                                         fileName: "App.js",
-                                        lineNumber: 603,
+                                        lineNumber: 720,
                                         columnNumber: 21
                                     }, undefined)),
                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16888,7 +16967,7 @@ const DnDFlow = ()=>{
                                             children: "Cancel"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 616,
+                                            lineNumber: 733,
                                             columnNumber: 19
                                         }, undefined),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16897,19 +16976,19 @@ const DnDFlow = ()=>{
                                             children: "Confirm"
                                         }, void 0, false, {
                                             fileName: "App.js",
-                                            lineNumber: 619,
+                                            lineNumber: 736,
                                             columnNumber: 19
                                         }, undefined)
                                     ]
                                 }, void 0, true, {
                                     fileName: "App.js",
-                                    lineNumber: 615,
+                                    lineNumber: 732,
                                     columnNumber: 17
                                 }, undefined)
                             ]
                         }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 550,
+                            lineNumber: 667,
                             columnNumber: 15
                         }, undefined),
                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16924,7 +17003,7 @@ const DnDFlow = ()=>{
                                     children: "Cancel"
                                 }, void 0, false, {
                                     fileName: "App.js",
-                                    lineNumber: 628,
+                                    lineNumber: 745,
                                     columnNumber: 15
                                 }, undefined),
                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -16933,19 +17012,19 @@ const DnDFlow = ()=>{
                                     children: "Confirm"
                                 }, void 0, false, {
                                     fileName: "App.js",
-                                    lineNumber: 631,
+                                    lineNumber: 748,
                                     columnNumber: 15
                                 }, undefined)
                             ]
                         }, void 0, true, {
                             fileName: "App.js",
-                            lineNumber: 627,
+                            lineNumber: 744,
                             columnNumber: 13
                         }, undefined)
                     ]
                 }, void 0, true, {
                     fileName: "App.js",
-                    lineNumber: 546,
+                    lineNumber: 663,
                     columnNumber: 11
                 }, undefined),
                 selectedNode && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -16961,7 +17040,7 @@ const DnDFlow = ()=>{
                                 ]
                             }, void 0, true, {
                                 fileName: "App.js",
-                                lineNumber: 642,
+                                lineNumber: 759,
                                 columnNumber: 7
                             }, undefined),
                             selectedNode.type === "Table" ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _jsxDevRuntime.Fragment), {
@@ -16979,20 +17058,20 @@ const DnDFlow = ()=>{
                                                 style: styles.input
                                             }, void 0, false, {
                                                 fileName: "App.js",
-                                                lineNumber: 649,
+                                                lineNumber: 766,
                                                 columnNumber: 13
                                             }, undefined)
                                         ]
                                     }, void 0, true, {
                                         fileName: "App.js",
-                                        lineNumber: 647,
+                                        lineNumber: 764,
                                         columnNumber: 11
                                     }, undefined),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h4", {
                                         children: "Columns:"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 658,
+                                        lineNumber: 775,
                                         columnNumber: 11
                                     }, undefined),
                                     editFormData.columns.map((col, index)=>/*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -17009,7 +17088,7 @@ const DnDFlow = ()=>{
                                                     style: styles.input
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 665,
+                                                    lineNumber: 782,
                                                     columnNumber: 15
                                                 }, undefined),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("select", {
@@ -17022,7 +17101,7 @@ const DnDFlow = ()=>{
                                                             children: "Text"
                                                         }, void 0, false, {
                                                             fileName: "App.js",
-                                                            lineNumber: 682,
+                                                            lineNumber: 799,
                                                             columnNumber: 17
                                                         }, undefined),
                                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -17030,7 +17109,7 @@ const DnDFlow = ()=>{
                                                             children: "Number"
                                                         }, void 0, false, {
                                                             fileName: "App.js",
-                                                            lineNumber: 683,
+                                                            lineNumber: 800,
                                                             columnNumber: 17
                                                         }, undefined),
                                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("option", {
@@ -17038,13 +17117,13 @@ const DnDFlow = ()=>{
                                                             children: "Boolean"
                                                         }, void 0, false, {
                                                             fileName: "App.js",
-                                                            lineNumber: 684,
+                                                            lineNumber: 801,
                                                             columnNumber: 17
                                                         }, undefined)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "App.js",
-                                                    lineNumber: 675,
+                                                    lineNumber: 792,
                                                     columnNumber: 15
                                                 }, undefined),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -17053,13 +17132,13 @@ const DnDFlow = ()=>{
                                                     children: "\u2716"
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 688,
+                                                    lineNumber: 805,
                                                     columnNumber: 15
                                                 }, undefined)
                                             ]
                                         }, index, true, {
                                             fileName: "App.js",
-                                            lineNumber: 660,
+                                            lineNumber: 777,
                                             columnNumber: 13
                                         }, undefined)),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -17068,7 +17147,7 @@ const DnDFlow = ()=>{
                                         children: "+ Add Column"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 698,
+                                        lineNumber: 815,
                                         columnNumber: 11
                                     }, undefined)
                                 ]
@@ -17083,7 +17162,7 @@ const DnDFlow = ()=>{
                                                 children: "Related Nodes:"
                                             }, void 0, false, {
                                                 fileName: "App.js",
-                                                lineNumber: 706,
+                                                lineNumber: 823,
                                                 columnNumber: 13
                                             }, undefined),
                                             edges.filter((edge)=>edge.target === selectedNode.id).map((edge)=>{
@@ -17099,14 +17178,14 @@ const DnDFlow = ()=>{
                                                     children: sourceNode.data.label
                                                 }, sourceNode.id, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 712,
+                                                    lineNumber: 829,
                                                     columnNumber: 19
                                                 }, undefined) : null;
                                             })
                                         ]
                                     }, void 0, true, {
                                         fileName: "App.js",
-                                        lineNumber: 705,
+                                        lineNumber: 822,
                                         columnNumber: 11
                                     }, undefined),
                                     [
@@ -17140,13 +17219,13 @@ const DnDFlow = ()=>{
                                                     }
                                                 }, void 0, false, {
                                                     fileName: "App.js",
-                                                    lineNumber: 738,
+                                                    lineNumber: 855,
                                                     columnNumber: 19
                                                 }, undefined)
                                             ]
                                         }, key, true, {
                                             fileName: "App.js",
-                                            lineNumber: 736,
+                                            lineNumber: 853,
                                             columnNumber: 17
                                         }, undefined))
                                 ]
@@ -17160,7 +17239,7 @@ const DnDFlow = ()=>{
                                         children: "Save"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 764,
+                                        lineNumber: 881,
                                         columnNumber: 9
                                     }, undefined),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -17169,7 +17248,7 @@ const DnDFlow = ()=>{
                                         children: "Cancel"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 767,
+                                        lineNumber: 884,
                                         columnNumber: 9
                                     }, undefined),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -17178,35 +17257,35 @@ const DnDFlow = ()=>{
                                         children: "Delete"
                                     }, void 0, false, {
                                         fileName: "App.js",
-                                        lineNumber: 770,
+                                        lineNumber: 887,
                                         columnNumber: 9
                                     }, undefined)
                                 ]
                             }, void 0, true, {
                                 fileName: "App.js",
-                                lineNumber: 763,
+                                lineNumber: 880,
                                 columnNumber: 7
                             }, undefined)
                         ]
                     }, void 0, true, {
                         fileName: "App.js",
-                        lineNumber: 641,
+                        lineNumber: 758,
                         columnNumber: 5
                     }, undefined)
                 }, void 0, false, {
                     fileName: "App.js",
-                    lineNumber: 640,
+                    lineNumber: 757,
                     columnNumber: 3
                 }, undefined)
             ]
         }, void 0, true, {
             fileName: "App.js",
-            lineNumber: 512,
+            lineNumber: 629,
             columnNumber: 7
         }, undefined)
     }, void 0, false, {
         fileName: "App.js",
-        lineNumber: 510,
+        lineNumber: 627,
         columnNumber: 5
     }, undefined);
 };
@@ -17313,17 +17392,17 @@ const App = ()=>{
         children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _dnDContext.DnDProvider), {
             children: /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)(DnDFlow, {}, void 0, false, {
                 fileName: "App.js",
-                lineNumber: 877,
+                lineNumber: 994,
                 columnNumber: 9
             }, undefined)
         }, void 0, false, {
             fileName: "App.js",
-            lineNumber: 876,
+            lineNumber: 993,
             columnNumber: 7
         }, undefined)
     }, void 0, false, {
         fileName: "App.js",
-        lineNumber: 875,
+        lineNumber: 992,
         columnNumber: 5
     }, undefined);
 };
@@ -41014,7 +41093,7 @@ $RefreshReg$(_c, "FilterBar");
   globalThis.$RefreshReg$ = prevRefreshReg;
   globalThis.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","./store/store.js":"2ZYKM"}],"2ZYKM":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","./store/store.js":"2ZYKM","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"2ZYKM":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 var _zustand = require("zustand");
@@ -41468,6 +41547,32 @@ const CLOSURE_DTORS = typeof FinalizationRegistry === 'undefined' ? {
 } : new FinalizationRegistry((state)=>{
     wasm.__wbindgen_export_5.get(state.dtor)(state.a, state.b);
 });
+function makeClosure(arg0, arg1, dtor, f) {
+    const state = {
+        a: arg0,
+        b: arg1,
+        cnt: 1,
+        dtor
+    };
+    const real = (...args)=>{
+        // First up with a closure we increment the internal reference
+        // count. This ensures that the Rust closure environment won't
+        // be deallocated while we're invoking it.
+        state.cnt++;
+        try {
+            return f(state.a, state.b, ...args);
+        } finally{
+            if (--state.cnt === 0) {
+                wasm.__wbindgen_export_5.get(state.dtor)(state.a, state.b);
+                state.a = 0;
+                CLOSURE_DTORS.unregister(state);
+            }
+        }
+    };
+    real.original = state;
+    CLOSURE_DTORS.register(real, state, state);
+    return real;
+}
 function makeMutClosure(arg0, arg1, dtor, f) {
     const state = {
         a: arg0,
@@ -41489,32 +41594,6 @@ function makeMutClosure(arg0, arg1, dtor, f) {
                 wasm.__wbindgen_export_5.get(state.dtor)(a, state.b);
                 CLOSURE_DTORS.unregister(state);
             } else state.a = a;
-        }
-    };
-    real.original = state;
-    CLOSURE_DTORS.register(real, state, state);
-    return real;
-}
-function makeClosure(arg0, arg1, dtor, f) {
-    const state = {
-        a: arg0,
-        b: arg1,
-        cnt: 1,
-        dtor
-    };
-    const real = (...args)=>{
-        // First up with a closure we increment the internal reference
-        // count. This ensures that the Rust closure environment won't
-        // be deallocated while we're invoking it.
-        state.cnt++;
-        try {
-            return f(state.a, state.b, ...args);
-        } finally{
-            if (--state.cnt === 0) {
-                wasm.__wbindgen_export_5.get(state.dtor)(state.a, state.b);
-                state.a = 0;
-                CLOSURE_DTORS.unregister(state);
-            }
         }
     };
     real.original = state;
@@ -41570,35 +41649,39 @@ function send_message_to_server(message) {
     wasm.send_message_to_server(ptr0, len0);
 }
 function main() {
-    wasm.main();
+    const ret = wasm.main();
+    return ret;
+}
+function __wbg_adapter_22(arg0, arg1) {
+    wasm._dyn_core__ops__function__Fn_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__hde39dc804153eee3(arg0, arg1);
+}
+function __wbg_adapter_25(arg0, arg1, arg2) {
+    wasm.closure71_externref_shim(arg0, arg1, arg2);
 }
 function __wbg_adapter_28(arg0, arg1) {
-    wasm._dyn_core__ops__function__Fn_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__hb14e5e031a46e3fd(arg0, arg1);
+    wasm._dyn_core__ops__function__FnMut_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h1f977766bb94b8b6(arg0, arg1);
 }
-function __wbg_adapter_31(arg0, arg1) {
-    wasm._dyn_core__ops__function__FnMut_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h66792c7400242598(arg0, arg1);
+function __wbg_adapter_31(arg0, arg1, arg2) {
+    wasm.closure87_externref_shim(arg0, arg1, arg2);
 }
-function __wbg_adapter_34(arg0, arg1, arg2) {
-    wasm.closure27_externref_shim(arg0, arg1, arg2);
+function __wbg_adapter_126(arg0, arg1, arg2, arg3) {
+    wasm.closure99_externref_shim(arg0, arg1, arg2, arg3);
 }
-function __wbg_adapter_37(arg0, arg1, arg2) {
-    wasm.closure46_externref_shim(arg0, arg1, arg2);
-}
-async function __wbg_load(module1, imports) {
-    if (typeof Response === 'function' && module1 instanceof Response) {
+async function __wbg_load(module, imports) {
+    if (typeof Response === 'function' && module instanceof Response) {
         if (typeof WebAssembly.instantiateStreaming === 'function') try {
-            return await WebAssembly.instantiateStreaming(module1, imports);
+            return await WebAssembly.instantiateStreaming(module, imports);
         } catch (e) {
-            if (module1.headers.get('Content-Type') != 'application/wasm') console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);
+            if (module.headers.get('Content-Type') != 'application/wasm') console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);
             else throw e;
         }
-        const bytes = await module1.arrayBuffer();
+        const bytes = await module.arrayBuffer();
         return await WebAssembly.instantiate(bytes, imports);
     } else {
-        const instance = await WebAssembly.instantiate(module1, imports);
+        const instance = await WebAssembly.instantiate(module, imports);
         if (instance instanceof WebAssembly.Instance) return {
             instance,
-            module: module1
+            module
         };
         else return instance;
     }
@@ -41620,10 +41703,6 @@ function __wbg_get_imports() {
             return ret;
         }, arguments);
     };
-    imports.wbg.__wbg_buffer_609cc3eee51ed158 = function(arg0) {
-        const ret = arg0.buffer;
-        return ret;
-    };
     imports.wbg.__wbg_call_672a4d21634d4a24 = function() {
         return handleError(function(arg0, arg1) {
             const ret = arg0.call(arg1);
@@ -41642,10 +41721,6 @@ function __wbg_get_imports() {
             return ret;
         }, arguments);
     };
-    imports.wbg.__wbg_crypto_ed58b8e10a292839 = function(arg0) {
-        const ret = arg0.crypto;
-        return ret;
-    };
     imports.wbg.__wbg_data_432d9c3df2630942 = function(arg0) {
         const ret = arg0.data;
         return ret;
@@ -41654,14 +41729,21 @@ function __wbg_get_imports() {
         const ret = arg0.document;
         return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
     };
+    imports.wbg.__wbg_encodeURIComponent_6f2a4577aed2d0dd = function(arg0, arg1) {
+        const ret = encodeURIComponent(getStringFromWasm0(arg0, arg1));
+        return ret;
+    };
+    imports.wbg.__wbg_fetch_509096533071c657 = function(arg0, arg1) {
+        const ret = arg0.fetch(arg1);
+        return ret;
+    };
+    imports.wbg.__wbg_fetch_b7bf320f681242d2 = function(arg0, arg1) {
+        const ret = arg0.fetch(arg1);
+        return ret;
+    };
     imports.wbg.__wbg_getElementById_f827f0d6648718a8 = function(arg0, arg1, arg2) {
         const ret = arg0.getElementById(getStringFromWasm0(arg1, arg2));
         return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-    };
-    imports.wbg.__wbg_getRandomValues_bcb4912f16000dc4 = function() {
-        return handleError(function(arg0, arg1) {
-            arg0.getRandomValues(arg1);
-        }, arguments);
     };
     imports.wbg.__wbg_get_67b2ba62fc30de12 = function() {
         return handleError(function(arg0, arg1) {
@@ -41669,10 +41751,30 @@ function __wbg_get_imports() {
             return ret;
         }, arguments);
     };
+    imports.wbg.__wbg_instanceof_Error_4d54113b22d20306 = function(arg0) {
+        let result;
+        try {
+            result = arg0 instanceof Error;
+        } catch (_) {
+            result = false;
+        }
+        const ret = result;
+        return ret;
+    };
     imports.wbg.__wbg_instanceof_HtmlInputElement_12d71bf2d15dd19e = function(arg0) {
         let result;
         try {
             result = arg0 instanceof HTMLInputElement;
+        } catch (_) {
+            result = false;
+        }
+        const ret = result;
+        return ret;
+    };
+    imports.wbg.__wbg_instanceof_Response_f2cc20d9f7dfd644 = function(arg0) {
+        let result;
+        try {
+            result = arg0 instanceof Response;
         } catch (_) {
             result = false;
         }
@@ -41689,12 +41791,63 @@ function __wbg_get_imports() {
         const ret = result;
         return ret;
     };
+    imports.wbg.__wbg_instanceof_WorkerGlobalScope_dbdbdea7e3b56493 = function(arg0) {
+        let result;
+        try {
+            result = arg0 instanceof WorkerGlobalScope;
+        } catch (_) {
+            result = false;
+        }
+        const ret = result;
+        return ret;
+    };
     imports.wbg.__wbg_log_c222819a41e063d3 = function(arg0) {
         console.log(arg0);
     };
-    imports.wbg.__wbg_msCrypto_0a36e2ec3a343d26 = function(arg0) {
-        const ret = arg0.msCrypto;
+    imports.wbg.__wbg_message_97a2af9b89d693a3 = function(arg0) {
+        const ret = arg0.message;
         return ret;
+    };
+    imports.wbg.__wbg_name_0b327d569f00ebee = function(arg0) {
+        const ret = arg0.name;
+        return ret;
+    };
+    imports.wbg.__wbg_new_018dcc2d6c8c2f6a = function() {
+        return handleError(function() {
+            const ret = new Headers();
+            return ret;
+        }, arguments);
+    };
+    imports.wbg.__wbg_new_23a2665fac83c611 = function(arg0, arg1) {
+        try {
+            var state0 = {
+                a: arg0,
+                b: arg1
+            };
+            var cb0 = (arg0, arg1)=>{
+                const a = state0.a;
+                state0.a = 0;
+                try {
+                    return __wbg_adapter_126(a, state0.b, arg0, arg1);
+                } finally{
+                    state0.a = a;
+                }
+            };
+            const ret = new Promise(cb0);
+            return ret;
+        } finally{
+            state0.a = state0.b = 0;
+        }
+    };
+    imports.wbg.__wbg_new_405e22f390576ce2 = function() {
+        const ret = new Object();
+        return ret;
+    };
+    imports.wbg.__wbg_new_80bf4ee74f41ff92 = function() {
+        return handleError(function() {
+            const ret = new URLSearchParams();
+            return ret;
+        }, arguments);
     };
     imports.wbg.__wbg_new_92c54fc74574ef55 = function() {
         return handleError(function(arg0, arg1) {
@@ -41702,33 +41855,27 @@ function __wbg_get_imports() {
             return ret;
         }, arguments);
     };
-    imports.wbg.__wbg_new_a12002a7f91c75be = function(arg0) {
-        const ret = new Uint8Array(arg0);
-        return ret;
+    imports.wbg.__wbg_new_9ffbe0a71eff35e3 = function() {
+        return handleError(function(arg0, arg1) {
+            const ret = new URL(getStringFromWasm0(arg0, arg1));
+            return ret;
+        }, arguments);
     };
     imports.wbg.__wbg_newnoargs_105ed471475aaf50 = function(arg0, arg1) {
         const ret = new Function(getStringFromWasm0(arg0, arg1));
         return ret;
     };
-    imports.wbg.__wbg_newwithbyteoffsetandlength_d97e637ebe145a9a = function(arg0, arg1, arg2) {
-        const ret = new Uint8Array(arg0, arg1 >>> 0, arg2 >>> 0);
-        return ret;
+    imports.wbg.__wbg_newwithstr_78e86e03c4ae814e = function() {
+        return handleError(function(arg0, arg1) {
+            const ret = new Request(getStringFromWasm0(arg0, arg1));
+            return ret;
+        }, arguments);
     };
-    imports.wbg.__wbg_newwithlength_a381634e90c276d4 = function(arg0) {
-        const ret = new Uint8Array(arg0 >>> 0);
-        return ret;
-    };
-    imports.wbg.__wbg_node_02999533c4ea02e3 = function(arg0) {
-        const ret = arg0.node;
-        return ret;
-    };
-    imports.wbg.__wbg_now_807e54c39636c349 = function() {
-        const ret = Date.now();
-        return ret;
-    };
-    imports.wbg.__wbg_process_5c1d670bc53614b8 = function(arg0) {
-        const ret = arg0.process;
-        return ret;
+    imports.wbg.__wbg_newwithstrandinit_06c535e0a867c635 = function() {
+        return handleError(function(arg0, arg1, arg2) {
+            const ret = new Request(getStringFromWasm0(arg0, arg1), arg2);
+            return ret;
+        }, arguments);
     };
     imports.wbg.__wbg_queueMicrotask_97d92b4fcc8a61c5 = function(arg0) {
         queueMicrotask(arg0);
@@ -41737,37 +41884,47 @@ function __wbg_get_imports() {
         const ret = arg0.queueMicrotask;
         return ret;
     };
-    imports.wbg.__wbg_randomFillSync_ab2cfe79ebbf2740 = function() {
-        return handleError(function(arg0, arg1) {
-            arg0.randomFillSync(arg1);
-        }, arguments);
-    };
-    imports.wbg.__wbg_require_79b1e9274cde3c87 = function() {
-        return handleError(function() {
-            const ret = module.require;
-            return ret;
-        }, arguments);
-    };
     imports.wbg.__wbg_resolve_4851785c9c5f573d = function(arg0) {
         const ret = Promise.resolve(arg0);
         return ret;
+    };
+    imports.wbg.__wbg_search_e0e79cfe010c5c23 = function(arg0, arg1) {
+        const ret = arg1.search;
+        const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        getDataViewMemory0().setInt32(arg0 + 4, len1, true);
+        getDataViewMemory0().setInt32(arg0 + 0, ptr1, true);
     };
     imports.wbg.__wbg_send_0293179ba074ffb4 = function() {
         return handleError(function(arg0, arg1, arg2) {
             arg0.send(getStringFromWasm0(arg1, arg2));
         }, arguments);
     };
-    imports.wbg.__wbg_set_65595bdd868b3009 = function(arg0, arg1, arg2) {
-        arg0.set(arg1, arg2 >>> 0);
+    imports.wbg.__wbg_set_11cd83f45504cedf = function() {
+        return handleError(function(arg0, arg1, arg2, arg3, arg4) {
+            arg0.set(getStringFromWasm0(arg1, arg2), getStringFromWasm0(arg3, arg4));
+        }, arguments);
+    };
+    imports.wbg.__wbg_setbody_5923b78a95eedf29 = function(arg0, arg1) {
+        arg0.body = arg1;
+    };
+    imports.wbg.__wbg_setheaders_834c0bdb6a8949ad = function(arg0, arg1) {
+        arg0.headers = arg1;
     };
     imports.wbg.__wbg_setinnerHTML_31bde41f835786f7 = function(arg0, arg1, arg2) {
         arg0.innerHTML = getStringFromWasm0(arg1, arg2);
+    };
+    imports.wbg.__wbg_setmethod_3c5280fe5d890842 = function(arg0, arg1, arg2) {
+        arg0.method = getStringFromWasm0(arg1, arg2);
     };
     imports.wbg.__wbg_setonmessage_6eccab530a8fb4c7 = function(arg0, arg1) {
         arg0.onmessage = arg1;
     };
     imports.wbg.__wbg_setonopen_2da654e1f39745d5 = function(arg0, arg1) {
         arg0.onopen = arg1;
+    };
+    imports.wbg.__wbg_setsearch_609451e9e712f3c6 = function(arg0, arg1, arg2) {
+        arg0.search = getStringFromWasm0(arg1, arg2);
     };
     imports.wbg.__wbg_setvalue_6ad9ef6c692ea746 = function(arg0, arg1, arg2) {
         arg0.value = getStringFromWasm0(arg1, arg2);
@@ -41788,13 +41945,34 @@ function __wbg_get_imports() {
         const ret = typeof window === 'undefined' ? null : window;
         return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
     };
-    imports.wbg.__wbg_subarray_aa9065fa9dc5df96 = function(arg0, arg1, arg2) {
-        const ret = arg0.subarray(arg1 >>> 0, arg2 >>> 0);
-        return ret;
+    imports.wbg.__wbg_text_7805bea50de2af49 = function() {
+        return handleError(function(arg0) {
+            const ret = arg0.text();
+            return ret;
+        }, arguments);
     };
     imports.wbg.__wbg_then_44b73946d2fb3e7d = function(arg0, arg1) {
         const ret = arg0.then(arg1);
         return ret;
+    };
+    imports.wbg.__wbg_then_48b406749878a531 = function(arg0, arg1, arg2) {
+        const ret = arg0.then(arg1, arg2);
+        return ret;
+    };
+    imports.wbg.__wbg_toString_5285597960676b7b = function(arg0) {
+        const ret = arg0.toString();
+        return ret;
+    };
+    imports.wbg.__wbg_toString_c813bbd34d063839 = function(arg0) {
+        const ret = arg0.toString();
+        return ret;
+    };
+    imports.wbg.__wbg_url_8f9653b899456042 = function(arg0, arg1) {
+        const ret = arg1.url;
+        const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        getDataViewMemory0().setInt32(arg0 + 4, len1, true);
+        getDataViewMemory0().setInt32(arg0 + 0, ptr1, true);
     };
     imports.wbg.__wbg_value_91cbf0dd3ab84c1e = function(arg0, arg1) {
         const ret = arg1.value;
@@ -41802,10 +41980,6 @@ function __wbg_get_imports() {
         const len1 = WASM_VECTOR_LEN;
         getDataViewMemory0().setInt32(arg0 + 4, len1, true);
         getDataViewMemory0().setInt32(arg0 + 0, ptr1, true);
-    };
-    imports.wbg.__wbg_versions_c71aa1626a93e0a1 = function(arg0) {
-        const ret = arg0.versions;
-        return ret;
     };
     imports.wbg.__wbindgen_cb_drop = function(arg0) {
         const obj = arg0.original;
@@ -41816,20 +41990,20 @@ function __wbg_get_imports() {
         const ret = false;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper171 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 47, __wbg_adapter_37);
+    imports.wbg.__wbindgen_closure_wrapper144 = function(arg0, arg1, arg2) {
+        const ret = makeClosure(arg0, arg1, 43, __wbg_adapter_22);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper95 = function(arg0, arg1, arg2) {
-        const ret = makeClosure(arg0, arg1, 21, __wbg_adapter_28);
+    imports.wbg.__wbindgen_closure_wrapper189 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 70, __wbg_adapter_25);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper97 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 21, __wbg_adapter_31);
+    imports.wbg.__wbindgen_closure_wrapper191 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 70, __wbg_adapter_28);
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper99 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 21, __wbg_adapter_34);
+    imports.wbg.__wbindgen_closure_wrapper265 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 88, __wbg_adapter_31);
         return ret;
     };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {
@@ -41852,21 +42026,8 @@ function __wbg_get_imports() {
         const ret = typeof arg0 === 'function';
         return ret;
     };
-    imports.wbg.__wbindgen_is_object = function(arg0) {
-        const val = arg0;
-        const ret = typeof val === 'object' && val !== null;
-        return ret;
-    };
-    imports.wbg.__wbindgen_is_string = function(arg0) {
-        const ret = typeof arg0 === 'string';
-        return ret;
-    };
     imports.wbg.__wbindgen_is_undefined = function(arg0) {
         const ret = arg0 === undefined;
-        return ret;
-    };
-    imports.wbg.__wbindgen_memory = function() {
-        const ret = wasm.memory;
         return ret;
     };
     imports.wbg.__wbindgen_string_get = function(arg0, arg1) {
@@ -41887,25 +42048,25 @@ function __wbg_get_imports() {
     return imports;
 }
 function __wbg_init_memory(imports, memory) {}
-function __wbg_finalize_init(instance, module1) {
+function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
-    __wbg_init.__wbindgen_wasm_module = module1;
+    __wbg_init.__wbindgen_wasm_module = module;
     cachedDataViewMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     wasm.__wbindgen_start();
     return wasm;
 }
-function initSync(module1) {
+function initSync(module) {
     if (wasm !== undefined) return wasm;
-    if (typeof module1 !== 'undefined') {
-        if (Object.getPrototypeOf(module1) === Object.prototype) ({ module: module1 } = module1);
+    if (typeof module !== 'undefined') {
+        if (Object.getPrototypeOf(module) === Object.prototype) ({ module } = module);
         else console.warn('using deprecated parameters for `initSync()`; pass a single object instead');
     }
     const imports = __wbg_get_imports();
     __wbg_init_memory(imports);
-    if (!(module1 instanceof WebAssembly.Module)) module1 = new WebAssembly.Module(module1);
-    const instance = new WebAssembly.Instance(module1, imports);
-    return __wbg_finalize_init(instance, module1);
+    if (!(module instanceof WebAssembly.Module)) module = new WebAssembly.Module(module);
+    const instance = new WebAssembly.Instance(module, imports);
+    return __wbg_finalize_init(instance, module);
 }
 async function __wbg_init(module_or_path) {
     if (wasm !== undefined) return wasm;
@@ -41917,8 +42078,8 @@ async function __wbg_init(module_or_path) {
     const imports = __wbg_get_imports();
     if (typeof module_or_path === 'string' || typeof Request === 'function' && module_or_path instanceof Request || typeof URL === 'function' && module_or_path instanceof URL) module_or_path = fetch(module_or_path);
     __wbg_init_memory(imports);
-    const { instance, module: module1 } = await __wbg_load(await module_or_path, imports);
-    return __wbg_finalize_init(instance, module1);
+    const { instance, module } = await __wbg_load(await module_or_path, imports);
+    return __wbg_finalize_init(instance, module);
 }
 exports.default = __wbg_init;
 
@@ -42270,7 +42431,7 @@ $RefreshReg$(_c, "VariableNode");
   globalThis.$RefreshReg$ = prevRefreshReg;
   globalThis.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","../store/store.js":"2ZYKM"}],"9u9Ii":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","../store/store.js":"2ZYKM","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"9u9Ii":[function(require,module,exports,__globalThis) {
 var $parcel$ReactRefreshHelpers$1f34 = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
 $parcel$ReactRefreshHelpers$1f34.init();
 var prevRefreshReg = globalThis.$RefreshReg$;
@@ -42423,7 +42584,7 @@ $RefreshReg$(_c1, "%default%");
   globalThis.$RefreshReg$ = prevRefreshReg;
   globalThis.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","../store/store.js":"2ZYKM"}],"hpjEK":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","../store/store.js":"2ZYKM","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"hpjEK":[function(require,module,exports,__globalThis) {
 var $parcel$ReactRefreshHelpers$98cf = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
 $parcel$ReactRefreshHelpers$98cf.init();
 var prevRefreshReg = globalThis.$RefreshReg$;
@@ -42448,12 +42609,6 @@ const ActionNode = ({ id, data, isConnectable })=>{
     const isDimmed = !activeFilters.has("Action");
     const connection = (0, _react1.useConnection)();
     const isTarget = connection.inProgress && connection.fromNode.id !== id;
-    const onEdgeClick = ()=>{
-        console.log("BE", isDimmed);
-        const message = "do " + data.target + "=" + data.action;
-        console.log(message);
-        (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
-    };
     return /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
         style: {
             ...styles.node,
@@ -42461,14 +42616,13 @@ const ActionNode = ({ id, data, isConnectable })=>{
             filter: isDimmed ? "grayscale(100%)" : "none",
             pointerEvents: isDimmed ? "none" : "auto"
         },
-        onClick: onEdgeClick,
         children: [
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("strong", {
                 style: styles.text,
                 children: data.label
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 30,
+                lineNumber: 25,
                 columnNumber: 7
             }, undefined),
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
@@ -42476,7 +42630,7 @@ const ActionNode = ({ id, data, isConnectable })=>{
                 children: data.target || "No target"
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 31,
+                lineNumber: 26,
                 columnNumber: 7
             }, undefined),
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
@@ -42484,7 +42638,7 @@ const ActionNode = ({ id, data, isConnectable })=>{
                 children: data.action || "No action defined"
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 32,
+                lineNumber: 27,
                 columnNumber: 7
             }, undefined),
             !connection.inProgress && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
@@ -42494,7 +42648,7 @@ const ActionNode = ({ id, data, isConnectable })=>{
                 isConnectable: isConnectable
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 35,
+                lineNumber: 30,
                 columnNumber: 9
             }, undefined),
             (!connection.inProgress || isTarget) && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)((0, _react1.Handle), {
@@ -42505,13 +42659,13 @@ const ActionNode = ({ id, data, isConnectable })=>{
                 isConnectable: isConnectable
             }, void 0, false, {
                 fileName: "nodes/Action.js",
-                lineNumber: 43,
+                lineNumber: 38,
                 columnNumber: 9
             }, undefined)
         ]
     }, void 0, true, {
         fileName: "nodes/Action.js",
-        lineNumber: 21,
+        lineNumber: 16,
         columnNumber: 5
     }, undefined);
 };
@@ -42553,7 +42707,7 @@ $RefreshReg$(_c1, "%default%");
   globalThis.$RefreshReg$ = prevRefreshReg;
   globalThis.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","../../pkg/meerkat_remote_console_V2":"l6TqD","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","../store/store.js":"2ZYKM"}],"jkwn0":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","../store/store.js":"2ZYKM","../../pkg/meerkat_remote_console_V2":"l6TqD","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"jkwn0":[function(require,module,exports,__globalThis) {
 var $parcel$ReactRefreshHelpers$17fa = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
 $parcel$ReactRefreshHelpers$17fa.init();
 var prevRefreshReg = globalThis.$RefreshReg$;
@@ -42937,7 +43091,7 @@ const HtmlNode = ({ data, isConnectable })=>{
           <title>${data.label || "HTML Page"}</title>
       </head>
       <body>
-          ${data.definition || "<p>No HTML content</p>"}
+          ${data.value || "<p>No HTML content</p>"}
       </body>
       </html>
     `);
@@ -43068,7 +43222,7 @@ $RefreshReg$(_c1, "%default%");
   globalThis.$RefreshReg$ = prevRefreshReg;
   globalThis.$RefreshSig$ = prevRefreshSig;
 }
-},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi","../store/store.js":"2ZYKM"}],"dVi4c":[function(require,module,exports,__globalThis) {
+},{"react/jsx-dev-runtime":"dVPUn","react":"jMk1U","@xyflow/react":"3Yr6S","../store/store.js":"2ZYKM","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT","@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js":"7h6Pi"}],"dVi4c":[function(require,module,exports,__globalThis) {
 var $parcel$ReactRefreshHelpers$69de = require("@parcel/transformer-react-refresh-wrap/lib/helpers/helpers.js");
 $parcel$ReactRefreshHelpers$69de.init();
 var prevRefreshReg = globalThis.$RefreshReg$;
@@ -43132,7 +43286,7 @@ function ActionEdge({ source, data, target, id, sourceX, sourceY, targetX, targe
     // Action logic
     const onEdgeClick = (0, _react.useCallback)(()=>{
         //setEdges((edges) => edges.filter((edge) => edge.id !== id));
-        let message = "do {" + target + "=" + data.action + "}";
+        let message = "do {" + target + ":=" + data.action + "}";
         (0, _meerkatRemoteConsoleV2.send_message_to_server)(message);
     }, [
         id,

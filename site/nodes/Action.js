@@ -10,12 +10,7 @@ const ActionNode = ({ id, data, isConnectable }) => {
   const connection = useConnection();
   const isTarget = connection.inProgress && connection.fromNode.id !== id;
 
-  const onEdgeClick = () => {
-    console.log("BE",isDimmed);
-    const message = "do " + data.target + "=" + data.action;
-    console.log(message);
-    send_message_to_server(message);
-  };
+  
 
   return (
     <div
@@ -25,7 +20,7 @@ const ActionNode = ({ id, data, isConnectable }) => {
         filter: isDimmed ? "grayscale(100%)" : "none",
         pointerEvents: isDimmed ? "none" : "auto",
       }}
-      onClick={onEdgeClick}
+      
     >
       <strong style={styles.text}>{data.label}</strong>
       <p style={styles.text}>{data.target || "No target"}</p>
