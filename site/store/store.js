@@ -144,28 +144,34 @@ const useStore = create((set, get) => ({
       }
   
       //  Handle Action nodes: edge from action to target if label matches
-      if (node.type === "Action" && node.data.target) {
-        const targetNode = updatedNodes.find((n) => n.data.label === node.data.target);
-  
-        if (targetNode) {
-          const edgeExists = existingEdges.some(
-            (edge) => edge.source === node.id && edge.target === targetNode.id
-          );
-         
-          if (!edgeExists) {
-            newEdges.push({
-              id: `edge-${node.id}-${targetNode.id}`,
-              source: node.id,
-              target: targetNode.id,
-              type: "action",
-              data: {
-                action: node.data.action,
-              },
-            });
-            
+      if (node.type === "Action" && node.data.action) {
+        const actionBodyPattern = /action\s*\{\s*([a-zA-Z_]\w*)\s*:=/;
+        const match = node.data.action.match(actionBodyPattern);
+      
+        if (match) {
+          const targetVar = match[1];
+          const targetNode = updatedNodes.find((n) => n.data.label === targetVar);
+      
+          if (targetNode) {
+            const edgeExists = existingEdges.some(
+              (edge) => edge.source === node.id && edge.target === targetNode.id
+            );
+      
+            if (!edgeExists) {
+              newEdges.push({
+                id: `edge-${node.id}-${targetNode.id}`,
+                source: node.id,
+                target: targetNode.id,
+                type: "action",
+                data: {
+                  action: node.data.action,
+                },
+              });
+            }
           }
         }
       }
+      
       
       return {
         nodes: updatedNodes.map((n) => (n.id === node.id ? node : n)),
@@ -244,60 +250,67 @@ const useStore = create((set, get) => ({
   
       //  Update edges for Action nodes targeting labeled nodes
       updatedNodes.forEach((actionNode) => {
-        if (actionNode.type === "Action" && actionNode.data.target) {
-          const targetNode = updatedNodes.find(
-            (n) => n.data?.label === actionNode.data.target
-          );
-  
-          //  Remove outdated edges
-          existingEdges = existingEdges.filter((edge) => {
-            if (edge.source === actionNode.id) {
-              const target = updatedNodes.find((n) => n.id === edge.target);
-              return !(target && target.data?.label !== actionNode.data.target);
-            }
-            return true;
-          });
-  
-          //  Add missing edge
-          if (targetNode) {
-            const edgeExists = existingEdges.some(
-              (edge) => edge.source === actionNode.id && edge.target === targetNode.id
+        if (actionNode.type === "Action" && actionNode.data.action) {
+          // Extract target from action string: action { target := ... }
+          const actionBodyPattern = /action\s*\{\s*([a-zA-Z_]\w*)\s*:=/;
+          const match = actionNode.data.action.match(actionBodyPattern);
+      
+          if (match) {
+            const targetLabel = match[1];
+            const targetNode = updatedNodes.find(
+              (n) => n.data?.label === targetLabel
             );
-            
-  
-            if (!edgeExists) {
-              newEdges.push({
-                id: `edge-${actionNode.id}-${targetNode.id}`,
-                source: actionNode.id,
-                data: {
-                action: actionNode.data.action,
-              },
-                target: targetNode.id,
-                type: "action",
-              });
-            }else {
-              
-            
-              // Remove the old edge
-              existingEdges = existingEdges.filter(
-                (edge) => !(edge.source === actionNode.id && edge.target === targetNode.id)
+      
+            // Remove outdated edges
+            existingEdges = existingEdges.filter((edge) => {
+              if (edge.source === actionNode.id && edge.type === "action") {
+                const target = updatedNodes.find((n) => n.id === edge.target);
+                return !(target && target.data?.label !== targetLabel);
+              }
+              return true;
+            });
+      
+            // Add new or updated edge
+            if (targetNode) {
+              const edgeExists = existingEdges.some(
+                (edge) =>
+                  edge.source === actionNode.id &&
+                  edge.target === targetNode.id &&
+                  edge.type === "action"
               );
-              
-              // Push the new edge with updated action
-              newEdges.push({
-                id: `edge-${actionNode.id}-${targetNode.id}`,
-                source: actionNode.id,
-                target: targetNode.id,
-                type: "action",
-                data: {
-                  action: actionNode.data.action,
-                },
-              });
+      
+              if (!edgeExists) {
+                newEdges.push({
+                  id: `edge-${actionNode.id}-${targetNode.id}`,
+                  source: actionNode.id,
+                  target: targetNode.id,
+                  type: "action",
+                  data: {
+                    action: actionNode.data.action,
+                  },
+                });
+              } else {
+                // Replace outdated action edge with updated one
+                existingEdges = existingEdges.filter(
+                  (edge) =>
+                    !(edge.source === actionNode.id && edge.target === targetNode.id)
+                );
+      
+                newEdges.push({
+                  id: `edge-${actionNode.id}-${targetNode.id}`,
+                  source: actionNode.id,
+                  target: targetNode.id,
+                  type: "action",
+                  data: {
+                    action: actionNode.data.action,
+                  },
+                });
+              }
             }
-            
           }
         }
       });
+      
      
       return {
         nodes: updatedNodes,

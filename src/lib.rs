@@ -306,6 +306,74 @@ pub fn send_message_to_server(message: &str) {
     append_to_console(&format!("Sent: {}", input_display));
 }
 
+#[wasm_bindgen]
+pub fn perform_action_on_server(action: &str, arg_type: &str, arg_value: &str, env_name: &str, env_value: &str) {
+    let action = action.to_string();
+    let arg_type = arg_type.to_string();
+    let arg_value = arg_value.to_string();
+    let env_name = env_name.to_string();
+    let env_value = env_value.to_string();
+
+    let namespace = unsafe { NAMESPACE.clone() };
+    if namespace.is_none() {
+        append_to_console("Namespace not set.");
+        return;
+    }
+
+    let namespace = namespace.unwrap();
+    let url = format!("http://localhost:8080/app/{}", namespace);
+
+    // Construct JSON body
+    let data = serde_json::json!({
+        "action": action,
+        "args": {
+            "arg": {
+                "type": arg_type,
+                "value": arg_value
+            }
+        },
+        "env": {
+            env_name: env_value
+        }
+    });
+
+    let json_body = data.to_string();
+
+    spawn_local(async move {
+        let response = match Request::put(&url)
+            .header("Content-Type", "application/json")
+            .header("X-Requested-With", "XMLHttpRequest")
+            .body(json_body)
+        {
+            Ok(request) => request.send().await,
+            Err(err) => {
+                append_to_console(&format!("Failed to create PUT request: {:?}", err));
+                return;
+            }
+        };
+
+        match response {
+            Ok(resp) => {
+                if let Ok(json) = resp.json::<serde_json::Value>().await {
+                    if let Some(result) = json.get("result") {
+                        append_to_console(&format!("<span style='color: lightblue;'>Action Result: {}</span>", result));
+                    } else if let Some(error) = json.get("error") {
+                        alert_error(error.as_str().unwrap_or("Unknown error"));
+                    } else {
+                        append_to_console("⚠️ Unknown response format from action");
+                    }
+                } else {
+                    append_to_console("Failed to parse JSON response");
+                }
+            }
+            Err(err) => {
+                append_to_console(&format!("PUT request failed: {:?}", err));
+            }
+        }
+    });
+
+    append_to_console(&format!("🔧 Action sent: {}", action));
+}
 
 
 #[wasm_bindgen]

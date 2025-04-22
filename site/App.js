@@ -102,7 +102,8 @@ const DnDFlow = () => {
           continue;
         }
   
-        const isDefinition = keyword === "def";
+        const isDefinition = keyword === "def" ;
+
   
         // Extract dependencies from exp (right-hand side)
         const nodeDependencies = exp
@@ -141,12 +142,12 @@ const DnDFlow = () => {
           if (type === "html") {
             nodeType = "HTML";
             console.log("HTML node detected:");
+          } else if (type === "action") {
+            nodeType = "Action";
           } else if (definition) {
             nodeType = "Definition";
           } else if (type?.startsWith("array[{") || value?.startsWith("table")) {
             nodeType = "Table";
-          } else if (type === "action") {
-            nodeType = "Action";
           } 
 
           // Build new node
@@ -180,25 +181,14 @@ const DnDFlow = () => {
 
           } else if (nodeType === "Action") {
             // Extract target and action from exp or val: action { x := x + 1 }
-            let target = "";
-            let actionExpr = "";
-
-            const actionPattern = /action\s*\{\s*(\w+)\s*:=\s*(.+?)\s*\}/;
-            const match = (exp || val || "").match(actionPattern);
-
-            if (match) {
-              target = match[1];
-              actionExpr = match[2];
-            }
-
+            
             newNode = {
               id: label,
               type: "Action",
               position,
               data: {
                 label,
-                target,
-                action: actionExpr,
+                action: definition,
               },
             };
 
@@ -350,7 +340,7 @@ const DnDFlow = () => {
       console.log("Sending message to server:", message);
       send_message_to_server(message);
     } else if (selectedNode.type === 'Action') {
-      message = `def ${editFormData.label} = action { ${editFormData.target} := ${editFormData.action} }`;
+      message = `def ${editFormData.label} = ${editFormData.action} `;
       console.log("Sending message to server:", message);
       send_message_to_server(message);
     }
@@ -402,11 +392,11 @@ const DnDFlow = () => {
 
       /** @type {Record<NodeType, NodeData>} */
       const defaultData = {
-        Variable: { label: "v", value: 1 },
-        Definition: { label: "d",definition:"" , },
-        Action: { label: "x",target:"", action: "" },
-        Table: { label: "s", columns: [{ name: "", type: "string" }], rows: [] },
-        HTML: { label: "c", definition: "<p>Enter HTML here</p>" },
+        Variable: { label: "var1", value: 1 },
+        Definition: { label: "def1",definition:"" , },
+        Action: { label: "act" ,action: "action { var :=3}" },
+        Table: { label: "tab", columns: [{ name: "", type: "string" }], rows: [] },
+        HTML: { label: "pag", definition: "<p>Enter HTML here</p>" },
       };
 
       setFormData(defaultData[type] || { label: "" });
@@ -461,13 +451,13 @@ const DnDFlow = () => {
       console.log("Sending message to server:", message);
       send_message_to_server(message);
     } else if (pendingNode.type === 'Action') {
-    message = `def ${formData.label} = action { ${formData.target} := ${formData.action} }`;
+    message = `def ${formData.label} = action { ${formData.action} }`;
     console.log("Sending message to server:", message);
     send_message_to_server(message);
     }
   
     // Add the new node
-    addNode(newNode);
+   // addNode(newNode);
   
     // Reset the pending node and form data
     setPendingNode(null);
@@ -847,32 +837,41 @@ const DnDFlow = () => {
           </div>
               
           {/* Generic Editing for Other Node Types */}
-          {["label", "definition", "target", "action", "content", "value"].map(
-            (key) =>
-              selectedNode.data[key] !== undefined && (
-                <label key={key} style={styles.label}>
-                  {key.charAt(0).toUpperCase() + key.slice(1)}:
-                  <textarea
-                    name={key}
-                    value={editFormData[key] || ""}
-                    onChange={(e) => {
-                      setEditFormData({
-                        ...editFormData,
-                        [key]: e.target.value,
-                      });
-                      e.target.style.height = "auto"; // Reset height
-                      e.target.style.height = `${e.target.scrollHeight}px`; // Expand dynamically
-                    }}
-                    style={{
-                      ...styles.input,
-                      minHeight: "40px",
-                      resize: "none",
-                      overflow: "hidden",
-                    }}
-                  />
-                </label>
-              )
-          )}
+          {["label", "definition", "target", "action", "content", "value"]
+            .filter((key) => {
+              // Hide 'value' field if it's a Definition or Html node
+              if (
+                key === "value" &&
+                (selectedNode.type === "Definition" || selectedNode.type === "HTML")
+              ) {
+                return false;
+              }
+              return selectedNode.data[key] !== undefined;
+            })
+            .map((key) => (
+              <label key={key} style={styles.label}>
+                {key.charAt(0).toUpperCase() + key.slice(1)}:
+                <textarea
+                  name={key}
+                  value={editFormData[key] || ""}
+                  onChange={(e) => {
+                    setEditFormData({
+                      ...editFormData,
+                      [key]: e.target.value,
+                    });
+                    e.target.style.height = "auto"; // Reset height
+                    e.target.style.height = `${e.target.scrollHeight}px`; // Expand dynamically
+                  }}
+                  style={{
+                    ...styles.input,
+                    minHeight: "40px",
+                    resize: "none",
+                    overflow: "hidden",
+                  }}
+                />
+              </label>
+            ))}
+
         </>
       )}
 

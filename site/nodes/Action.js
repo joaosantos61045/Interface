@@ -23,7 +23,7 @@ const ActionNode = ({ id, data, isConnectable }) => {
       
     >
       <strong style={styles.text}>{data.label}</strong>
-      <p style={styles.text}>{data.target || "No target"}</p>
+      
       <p style={styles.text}>{data.action || "No action defined"}</p>
 
       {!connection.inProgress && (
