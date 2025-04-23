@@ -1,49 +1,12 @@
-import React, { useState, memo } from "react";
+import React, { useState, memo, useEffect } from "react";
 import { Handle, Position } from "@xyflow/react";
 import useStore from "../store/store.js";
 
 const TableNode = ({ id, data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
-  const isDimmed = !activeFilters.has("Table"); // ✅ Dim if "Table" is not in the active filters
+  const isDimmed = !activeFilters.has("Table");
 
-  const [rowsForm, setRowsForm] = useState([]);
-  const [newRowCount, setNewRowCount] = useState(1);
-  const [isEditing, setIsEditing] = useState(false);
-  const updateNode = useStore((state) => state.updateNode);
-
-  const handleRowInputChange = (e, rowIdx, colIdx) => {
-    const value = e.target.value;
-    const updatedRows = [...rowsForm];
-    updatedRows[rowIdx][colIdx] = value;
-    setRowsForm(updatedRows);
-  };
-
-  const handleAddMultipleRows = () => {
-    const newRows = Array.from({ length: newRowCount }, () => data.columns.map(() => ""));
-    setRowsForm(newRows);
-  };
-
-  const handleSubmitRows = () => {
-    updateNode(id, { rows: [...(data.rows || []), ...rowsForm] });
-    setRowsForm([]);
-  };
-
-  const handleEditRows = () => {
-    setIsEditing(!isEditing);
-  };
-
-  const handleEditRowInputChange = (e, rowIdx, colIdx) => {
-    const value = e.target.value;
-    const updatedRows = [...data.rows];
-    updatedRows[rowIdx][colIdx] = value;
-    updateNode(id, { rows: updatedRows });
-  };
-
-  const handleDeleteRow = (rowIdx) => {
-    const updatedRows = data.rows.filter((_, index) => index !== rowIdx);
-    updateNode(id, { rows: updatedRows });
-  };
-
+  
   return (
     <div
       style={{
@@ -59,37 +22,27 @@ const TableNode = ({ id, data, isConnectable }) => {
         <thead>
           <tr>
             {data.columns?.map((col, idx) => (
-              <th key={idx} style={styles.th}>{col.name}</th>
+              <th key={idx} style={styles.th}>
+              {`${col.name} (${col.type})`}
+            </th>
+            
             ))}
           </tr>
         </thead>
         <tbody>
-          {data.rows?.map((row, rowIdx) => (
-            <tr key={rowIdx}>
-              {row.map((cell, cellIdx) => (
-                <td key={cellIdx} style={styles.td}>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={cell}
-                      onChange={(e) => handleEditRowInputChange(e, rowIdx, cellIdx)}
-                      style={styles.input}
-                    />
-                  ) : (
-                    cell
-                  )}
-                </td>
-              ))}
-              {isEditing && (
-                <td>
-                  <button onClick={() => handleDeleteRow(rowIdx)} style={styles.deleteButton}>X</button>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
+  {data.rows?.map((row, rowIdx) => (
+    <tr key={rowIdx}>
+      {data.columns.map((col, colIdx) => (
+        <td key={colIdx} style={styles.td}>
+          {row[col.name] ?? ""}
+        </td>
+      ))}
+    </tr>
+  ))}
+</tbody>
       </table>
 
+      {/* 
       <label style={{ display: "block", margin: "10px 0" }}>
         Number of rows to add:
         <input
@@ -125,6 +78,7 @@ const TableNode = ({ id, data, isConnectable }) => {
           <button onClick={handleSubmitRows} style={styles.button}>Submit Rows</button>
         </div>
       )}
+      */}
 
       <Handle type="target" position={Position.Left} isConnectable={isConnectable} />
       <Handle type="source" position={Position.Right} isConnectable={isConnectable} />

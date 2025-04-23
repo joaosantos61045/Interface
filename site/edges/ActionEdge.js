@@ -5,7 +5,7 @@ import {
   getBezierPath,
   useReactFlow,
 } from "@xyflow/react";
-import init, { main,get_env, send_message_to_server } from "../../pkg/meerkat_remote_console_V2";
+import init, { main,get_env, send_message_to_server,perform_action_on_server } from "../../pkg/meerkat_remote_console_V2";
 const buttonEdgeLabelStyle = {
   position: "absolute",
   pointerEvents: "all",
@@ -68,9 +68,8 @@ export default function ActionEdge({
    
     //setEdges((edges) => edges.filter((edge) => edge.id !== id));
     
-        let message = "do {"+ target+":="+data.action+"}";
-        
-          send_message_to_server(message);
+        let message = "do "+source;
+        send_message_to_server(message);
         
   }, [id, nodes, setNodes]);
 

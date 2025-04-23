@@ -122,16 +122,18 @@ const useStore = create((set, get) => ({
       //  Add edges if the node is a Definition or HTML and references any existing node (not just variables)
       if ((node.type === "Definition" || node.type === "HTML") && node.data.definition) {
         const referencedLabels = [...new Set(node.data.definition.match(/\b[A-Za-z_]\w*\b/g))] || [];
-
-        
+      
         referencedLabels.forEach((label) => {
+          // Skip self-referencing edge
+          if (label === node.data.label) return;
+      
           const sourceNode = updatedNodes.find((n) => n.data.label === label);
-  
+      
           if (sourceNode) {
             const edgeExists = existingEdges.some(
               (edge) => edge.source === sourceNode.id && edge.target === node.id
             );
-  
+      
             if (!edgeExists) {
               newEdges.push({
                 id: `edge-${sourceNode.id}-${node.id}`,
@@ -203,14 +205,38 @@ const useStore = create((set, get) => ({
   // Update a specific node by its ID
   updateNode: (nodeId, data) => {
     set((state) => {
-      const updatedNodes = state.nodes.map((node) =>
-        node.id === nodeId ? { ...node, data: { ...node.data, ...data } } : node
-      );
-      
+      const updatedNodes = state.nodes.map((node) => {
+        if (node.id !== nodeId) return node;
+  
+        const isTable = node.type === "Table";
+        const existingData = node.data || {};
+        const mergedData = { ...existingData, ...data };
+  
+        // Special handling for Table nodes to preserve columns and parse new rows
+        if (isTable && typeof data.value === "string" && data.value.startsWith("table[")) {
+          const valuePattern = /^table\[(.+)\]$/;
+          const valueMatch = data.value.match(valuePattern);
+  
+          if (valueMatch) {
+            const rowString = `[${valueMatch[1]}]`; // wrap in brackets to make it JSON-compatible
+            try {
+              const parsedRows = JSON.parse(rowString.replace(/(\w+)\s*:/g, '"$1":')); // quote keys
+              if (Array.isArray(parsedRows)) {
+                mergedData.rows = parsedRows;
+              }
+            } catch (e) {
+              console.warn("Failed to parse table rows from value:", data.value);
+            }
+          }
+        }
+  
+        return { ...node, data: mergedData };
+      });
+  
       let existingEdges = state.edges;
       let newEdges = [];
   
-      // Update edges for Definition nodes
+      // Update edges for Definition and HTML nodes
       updatedNodes.forEach((defNode) => {
         if ((defNode.type === "Definition" || defNode.type === "HTML") && defNode.data.definition) {
           const referencedLabels = [...new Set(defNode.data.definition.match(/\b[A-Za-z_]\w*\b/g))] || [];
@@ -219,7 +245,11 @@ const useStore = create((set, get) => ({
           existingEdges = existingEdges.filter((edge) => {
             if (edge.target === defNode.id) {
               const sourceNode = updatedNodes.find((n) => n.id === edge.source);
-              if (sourceNode && sourceNode.data?.label) {
+              if (
+                sourceNode &&
+                sourceNode.data?.label &&
+                sourceNode.data.label !== defNode.data.label
+              ) {
                 return referencedLabels.includes(sourceNode.data.label);
               }
             }
@@ -228,19 +258,17 @@ const useStore = create((set, get) => ({
   
           // Add missing edges from any node with matching label
           referencedLabels.forEach((label) => {
+            if (label === defNode.data.label) return; // skip self-referencing
             const sourceNode = updatedNodes.find((n) => n.data?.label === label);
-  
             if (sourceNode) {
               const edgeExists = existingEdges.some(
                 (edge) => edge.source === sourceNode.id && edge.target === defNode.id
               );
-  
               if (!edgeExists) {
                 newEdges.push({
                   id: `edge-${sourceNode.id}-${defNode.id}`,
                   source: sourceNode.id,
                   target: defNode.id,
-                  
                 });
               }
             }
@@ -248,19 +276,16 @@ const useStore = create((set, get) => ({
         }
       });
   
-      //  Update edges for Action nodes targeting labeled nodes
+      // Update edges for Action nodes
       updatedNodes.forEach((actionNode) => {
         if (actionNode.type === "Action" && actionNode.data.action) {
-          // Extract target from action string: action { target := ... }
           const actionBodyPattern = /action\s*\{\s*([a-zA-Z_]\w*)\s*:=/;
           const match = actionNode.data.action.match(actionBodyPattern);
-      
+  
           if (match) {
             const targetLabel = match[1];
-            const targetNode = updatedNodes.find(
-              (n) => n.data?.label === targetLabel
-            );
-      
+            const targetNode = updatedNodes.find((n) => n.data?.label === targetLabel);
+  
             // Remove outdated edges
             existingEdges = existingEdges.filter((edge) => {
               if (edge.source === actionNode.id && edge.type === "action") {
@@ -269,8 +294,8 @@ const useStore = create((set, get) => ({
               }
               return true;
             });
-      
-            // Add new or updated edge
+  
+            // Add or update edge
             if (targetNode) {
               const edgeExists = existingEdges.some(
                 (edge) =>
@@ -278,7 +303,7 @@ const useStore = create((set, get) => ({
                   edge.target === targetNode.id &&
                   edge.type === "action"
               );
-      
+  
               if (!edgeExists) {
                 newEdges.push({
                   id: `edge-${actionNode.id}-${targetNode.id}`,
@@ -290,12 +315,12 @@ const useStore = create((set, get) => ({
                   },
                 });
               } else {
-                // Replace outdated action edge with updated one
+                // Replace outdated edge with updated action
                 existingEdges = existingEdges.filter(
                   (edge) =>
                     !(edge.source === actionNode.id && edge.target === targetNode.id)
                 );
-      
+  
                 newEdges.push({
                   id: `edge-${actionNode.id}-${targetNode.id}`,
                   source: actionNode.id,
@@ -310,8 +335,7 @@ const useStore = create((set, get) => ({
           }
         }
       });
-      
-     
+  
       return {
         nodes: updatedNodes,
         edges: [...existingEdges, ...newEdges],

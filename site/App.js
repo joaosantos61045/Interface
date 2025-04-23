@@ -98,7 +98,7 @@ const DnDFlow = () => {
         //  Handle delete operation early and skip the rest
         if (operation === "delete") {
           console.log(`Deleting node: ${baseLabel}`);
-          removeNode(baseLabel); // Make sure you have this function implemented
+          removeNode(baseLabel); 
           continue;
         }
   
@@ -157,7 +157,7 @@ const DnDFlow = () => {
             const columnPattern = /array\[\{(.+?)\}\]/;
             const match = type.match(columnPattern);
             const columns = [];
-
+          
             if (match) {
               const columnDefs = match[1].split(",");
               for (const col of columnDefs) {
@@ -167,7 +167,24 @@ const DnDFlow = () => {
                 }
               }
             }
-
+            console.log("Columns:", value);
+            // Extract rows from value: table[{...}, {...}]
+            const rows = [];
+            const valuePattern = /^table\[(.+)\]$/;
+            const valueMatch = value?.match(valuePattern);
+          
+            if (valueMatch) {
+              const rowString = `[${valueMatch[1]}]`; // wrap to make it a valid array
+              try {
+                const parsedRows = JSON.parse(rowString.replace(/(\w+)\s*:/g, '"$1":')); // turn into valid JSON
+                if (Array.isArray(parsedRows)) {
+                  rows.push(...parsedRows);
+                }
+              } catch (e) {
+                console.warn("Failed to parse table rows from value:", value);
+              }
+            }
+          
             newNode = {
               id: label,
               type: "Table",
@@ -175,11 +192,11 @@ const DnDFlow = () => {
               data: {
                 label,
                 columns,
-                rows: [],
+                rows,
               },
             };
-
-          } else if (nodeType === "Action") {
+          }
+          else if (nodeType === "Action") {
             // Extract target and action from exp or val: action { x := x + 1 }
             
             newNode = {
@@ -451,7 +468,7 @@ const DnDFlow = () => {
       console.log("Sending message to server:", message);
       send_message_to_server(message);
     } else if (pendingNode.type === 'Action') {
-    message = `def ${formData.label} = action { ${formData.action} }`;
+    message = `def ${formData.label} = ${formData.action}`;
     console.log("Sending message to server:", message);
     send_message_to_server(message);
     }
@@ -709,13 +726,23 @@ const DnDFlow = () => {
                   Object.keys(formData).map((key) => (
                     <label key={key} style={{ display: "block", marginBottom: "10px" }}>
                       {key.charAt(0).toUpperCase() + key.slice(1)}:
-                      <input
+                      <textarea
                         value={formData[key]}
-                        onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
-                        style={styles.input}
+                        onChange={(e) => {
+                          setFormData({ ...formData, [key]: e.target.value });
+                          e.target.style.height = "auto";
+                          e.target.style.height = `${e.target.scrollHeight}px`;
+                        }}
+                        style={{
+                          ...styles.input,
+                          minHeight: "40px",
+                          resize: "none",
+                          overflow: "hidden",
+                        }}
                       />
                     </label>
                   ))
+                  
                 )}
 
                 {/* Cancel & Confirm Buttons */}
@@ -837,12 +864,12 @@ const DnDFlow = () => {
           </div>
               
           {/* Generic Editing for Other Node Types */}
-          {["label", "definition", "target", "action", "content", "value"]
+          {["label", "definition", "action", "content", "value"]
             .filter((key) => {
               // Hide 'value' field if it's a Definition or Html node
               if (
-                key === "value" &&
-                (selectedNode.type === "Definition" || selectedNode.type === "HTML")
+                (key === "value" &&
+                (selectedNode.type === "Definition" || selectedNode.type === "HTML" || selectedNode.type === "Action")) || selectedNode.type === "Action" && key === "definition"
               ) {
                 return false;
               }
