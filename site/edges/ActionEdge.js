@@ -1,9 +1,12 @@
-import React, { useCallback } from "react";
+import React, { useCallback,useState } from "react";
 import {
   BaseEdge,
   EdgeLabelRenderer,
   getBezierPath,
   useReactFlow,
+  SmoothStepEdge,
+  getSmoothStepPath,
+
 } from "@xyflow/react";
 import init, { main,get_env, send_message_to_server,perform_action_on_server } from "../../pkg/meerkat_remote_console_V2";
 const buttonEdgeLabelStyle = {
@@ -52,8 +55,10 @@ export default function ActionEdge({
   style = {},
   markerEnd = { type: "arrow", color: "#f00" },
 }) {
-  const { nodes, setNodes } = useReactFlow();
-  const { setEdges } = useReactFlow();
+  const { nodes, setNodes, setEdges } = useReactFlow();
+  const [shouldAnimate, setShouldAnimate] = useState(false);
+  const [animationKey, setAnimationKey] = useState(0);
+
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -63,29 +68,50 @@ export default function ActionEdge({
     targetPosition,
   });
 
-  // Action logic
   const onEdgeClick = useCallback(() => {
-   
-    //setEdges((edges) => edges.filter((edge) => edge.id !== id));
-    
-        let message = "do "+source;
-        send_message_to_server(message);
-        
-  }, [id, nodes, setNodes]);
+    send_message_to_server("do " + source);
+
+    setShouldAnimate(true);
+    setAnimationKey((prev) => prev + 1);
+
+    setTimeout(() => {
+      setShouldAnimate(false);
+    }, 500);
+  }, [source]);
+
+  const pathId = `animated-path-${id}`;
 
   return (
     <>
-      {/* Dashed edge */}
+      {/* Main edge path */}
       <BaseEdge
         path={edgePath}
         markerEnd={markerEnd}
         style={{
           ...style,
-          stroke: "rgb(85, 86, 87)", // Edge color
+          stroke: "rgb(85, 86, 87)",
           strokeWidth: 2,
-          strokeDasharray: "5,5", // Dashed effect
+          strokeDasharray: "5,5",
         }}
       />
+
+      {/* Animated ball path */}
+      {shouldAnimate && (
+        <svg
+          style={{ position: "absolute", overflow: "visible", pointerEvents: "none" }}
+        >
+          <defs>
+            <path id={pathId} d={edgePath} />
+          </defs>
+          <circle r="10" fill="#ff0073">
+            <animateMotion dur="0.5s" repeatCount="1">
+              <mpath href={`#${pathId}`} />
+            </animateMotion>
+          </circle>
+        </svg>
+      )}
+
+      {/* Button on edge */}
       <EdgeLabelRenderer>
         <div
           style={{

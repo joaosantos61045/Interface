@@ -125,7 +125,7 @@ const DnDFlow = () => {
   
       sortedNodes.forEach(({ label, value, type, definition, position }) => {
         const node = nodes.find((node) => node.id === label);
-  
+        
         const updateData = { value };
         if (definition) {
           updateData.definition = definition;
@@ -135,8 +135,9 @@ const DnDFlow = () => {
           console.log(`Updating node ${label} with value: ${value}`);
           updateNode(label, updateData);
         } else {
+          if(type.startsWith("$")) return; // Skip if type starts with $
           console.warn(`Creating new node ${label} with type ${type}.`);
-
+          
           // Dynamically determine node type
           let nodeType = "Variable";
           if (type === "html") {

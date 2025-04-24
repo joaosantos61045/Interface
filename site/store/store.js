@@ -147,18 +147,34 @@ const useStore = create((set, get) => ({
   
       //  Handle Action nodes: edge from action to target if label matches
       if (node.type === "Action" && node.data.action) {
-        const actionBodyPattern = /action\s*\{\s*([a-zA-Z_]\w*)\s*:=/;
-        const match = node.data.action.match(actionBodyPattern);
+        const actionText = node.data.action;
+        let targetLabel = null;
+        console.log("Action Text:", actionText);
+        // Match all possible forms of assign
+        const patterns = [
+          /([a-zA-Z_]\w*)\s*:=/,                          // a := e
+          /insert\s+.+\s+into\s+([a-zA-Z_]\w*)/,          // insert e into a
+          /update\s+\w+\s+in\s+([a-zA-Z_]\w*)\s+with/,    // update x in a with e
+          /delete\s+\w+\s+in\s+([a-zA-Z_]\w*)\s+where/    // delete x in a where e
+        ];
       
-        if (match) {
-          const targetVar = match[1];
-          const targetNode = updatedNodes.find((n) => n.data.label === targetVar);
+        for (const pattern of patterns) {
+          const match = actionText.match(pattern);
+          
+          if (match) {
+            targetLabel = match[1];
+            break;
+          }
+        }
       
+        if (targetLabel) {
+          const targetNode = get().nodes.find((n) => n.data?.label === targetLabel);
+          
           if (targetNode) {
-            const edgeExists = existingEdges.some(
+            const edgeExists = get().edges.some(
               (edge) => edge.source === node.id && edge.target === targetNode.id
             );
-      
+            
             if (!edgeExists) {
               newEdges.push({
                 id: `edge-${node.id}-${targetNode.id}`,
@@ -206,32 +222,38 @@ const useStore = create((set, get) => ({
   updateNode: (nodeId, data) => {
     set((state) => {
       const updatedNodes = state.nodes.map((node) => {
-        if (node.id !== nodeId) return node;
-  
-        const isTable = node.type === "Table";
-        const existingData = node.data || {};
-        const mergedData = { ...existingData, ...data };
-  
-        // Special handling for Table nodes to preserve columns and parse new rows
-        if (isTable && typeof data.value === "string" && data.value.startsWith("table[")) {
-          const valuePattern = /^table\[(.+)\]$/;
-          const valueMatch = data.value.match(valuePattern);
-  
-          if (valueMatch) {
-            const rowString = `[${valueMatch[1]}]`; // wrap in brackets to make it JSON-compatible
-            try {
-              const parsedRows = JSON.parse(rowString.replace(/(\w+)\s*:/g, '"$1":')); // quote keys
-              if (Array.isArray(parsedRows)) {
-                mergedData.rows = parsedRows;
-              }
-            } catch (e) {
-              console.warn("Failed to parse table rows from value:", data.value);
-            }
+  if (node.id !== nodeId) return node;
+
+  const isTable = node.type === "Table";
+  const existingData = node.data || {};
+  const mergedData = { ...existingData, ...data };
+
+  if (isTable && typeof data.value === "string" && data.value.startsWith("table[")) {
+    const valuePattern = /^table\[(.*)\]$/; // allow empty inner brackets
+    const valueMatch = data.value.match(valuePattern);
+
+    if (valueMatch) {
+      const content = valueMatch[1].trim();
+      console.log("Parsed content:", content); // Debugging line
+      if (content === "") {
+        mergedData.rows = []; // Explicitly set to empty array
+      } else {
+        const rowString = `[${content}]`; // wrap to make JSON-like
+        try {
+          const parsedRows = JSON.parse(rowString.replace(/(\w+)\s*:/g, '"$1":'));
+          if (Array.isArray(parsedRows)) {
+            mergedData.rows = parsedRows;
           }
+        } catch (e) {
+          console.warn("Failed to parse table rows from value:", data.value);
         }
-  
-        return { ...node, data: mergedData };
-      });
+      }
+    }
+  }
+
+  return { ...node, data: mergedData };
+});
+
   
       let existingEdges = state.edges;
       let newEdges = [];
@@ -277,64 +299,83 @@ const useStore = create((set, get) => ({
       });
   
       // Update edges for Action nodes
-      updatedNodes.forEach((actionNode) => {
-        if (actionNode.type === "Action" && actionNode.data.action) {
-          const actionBodyPattern = /action\s*\{\s*([a-zA-Z_]\w*)\s*:=/;
-          const match = actionNode.data.action.match(actionBodyPattern);
-  
-          if (match) {
-            const targetLabel = match[1];
-            const targetNode = updatedNodes.find((n) => n.data?.label === targetLabel);
-  
-            // Remove outdated edges
-            existingEdges = existingEdges.filter((edge) => {
-              if (edge.source === actionNode.id && edge.type === "action") {
-                const target = updatedNodes.find((n) => n.id === edge.target);
-                return !(target && target.data?.label !== targetLabel);
-              }
-              return true;
-            });
-  
-            // Add or update edge
-            if (targetNode) {
-              const edgeExists = existingEdges.some(
-                (edge) =>
-                  edge.source === actionNode.id &&
-                  edge.target === targetNode.id &&
-                  edge.type === "action"
-              );
-  
-              if (!edgeExists) {
-                newEdges.push({
-                  id: `edge-${actionNode.id}-${targetNode.id}`,
-                  source: actionNode.id,
-                  target: targetNode.id,
-                  type: "action",
-                  data: {
-                    action: actionNode.data.action,
-                  },
-                });
-              } else {
-                // Replace outdated edge with updated action
-                existingEdges = existingEdges.filter(
-                  (edge) =>
-                    !(edge.source === actionNode.id && edge.target === targetNode.id)
-                );
-  
-                newEdges.push({
-                  id: `edge-${actionNode.id}-${targetNode.id}`,
-                  source: actionNode.id,
-                  target: targetNode.id,
-                  type: "action",
-                  data: {
-                    action: actionNode.data.action,
-                  },
-                });
-              }
-            }
-          }
+      // Update edges for Action nodes targeting labeled nodes
+updatedNodes.forEach((actionNode) => {
+  if (actionNode.type === "Action" && actionNode.data.action) {
+    const actionText = actionNode.data.action;
+    let targetLabel = null;
+
+    // Try each form in order of priority
+    const patterns = [
+      /([a-zA-Z_]\w*)\s*:=/,                          // a := e
+      /insert\s+.+\s+into\s+([a-zA-Z_]\w*)/,          // insert e into a
+      /update\s+\w+\s+in\s+([a-zA-Z_]\w*)\s+with/,    // update x in a with e
+      /delete\s+\w+\s+in\s+([a-zA-Z_]\w*)\s+where/    // delete x in a where e
+    ];
+
+    for (const pattern of patterns) {
+      const match = actionText.match(pattern);
+      if (match) {
+        targetLabel = match[1];
+        break;
+      }
+    }
+
+    if (targetLabel) {
+      const targetNode = updatedNodes.find(
+        (n) => n.data?.label === targetLabel
+      );
+
+      // Remove outdated edges
+      existingEdges = existingEdges.filter((edge) => {
+        if (edge.source === actionNode.id && edge.type === "action") {
+          const target = updatedNodes.find((n) => n.id === edge.target);
+          return !(target && target.data?.label !== targetLabel);
         }
+        return true;
       });
+
+      // Add or update edge
+      if (targetNode) {
+        const edgeExists = existingEdges.some(
+          (edge) =>
+            edge.source === actionNode.id &&
+            edge.target === targetNode.id &&
+            edge.type === "action"
+        );
+
+        if (!edgeExists) {
+          newEdges.push({
+            id: `edge-${actionNode.id}-${targetNode.id}`,
+            source: actionNode.id,
+            target: targetNode.id,
+            type: "action",
+            data: {
+              action: actionNode.data.action,
+            },
+          });
+        } else {
+          // Replace outdated action edge with updated one
+          existingEdges = existingEdges.filter(
+            (edge) =>
+              !(edge.source === actionNode.id && edge.target === targetNode.id)
+          );
+
+          newEdges.push({
+            id: `edge-${actionNode.id}-${targetNode.id}`,
+            source: actionNode.id,
+            target: targetNode.id,
+            type: "action",
+            data: {
+              action: actionNode.data.action,
+            },
+          });
+        }
+      }
+    }
+  }
+});
+
   
       return {
         nodes: updatedNodes,
