@@ -3,76 +3,89 @@ import React, { useState } from "react";
 
 const Sidebar = () => {
   const [_, setType] = useDnD();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // State to track sidebar collapse/expand
-  
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   const onDragStart = (event, nodeType) => {
     setType(nodeType);
     event.dataTransfer.effectAllowed = 'move';
   };
 
-  // Toggle sidebar visibility
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   return (
     <div
       style={{
-        background: "#fff",
-        boxShadow: "0px 4px 10px rgba(0,0,0,0.1)",
-        padding: "10px",
-        width: isSidebarOpen ? "220px" : "50px", // Adjust width based on collapse state
+        background: "#f9f9fb",
+        boxShadow: "0px 4px 20px rgba(0,0,0,0.1)",
+        padding: "12px",
+        width: isSidebarOpen ? "240px" : "60px",
         position: "absolute",
-        top: "0px", // Adjust this value to place Sidebar below the SearchBar
-        left: 0, 
+        top: "10px",
+        left: "10px",
         zIndex: 1000,
-        borderRadius: "8px",
-        transition: "width 0.3s ease-in-out", // Smooth transition for collapse/expand
+        borderRadius: "10px",
+        transition: "width 0.3s ease",
+        overflow: "hidden",
       }}
     >
-      {/* Button to toggle the sidebar */}
       <button
         onClick={toggleSidebar}
         style={{
-          backgroundColor: "#007BFF",
+          backgroundColor: "#6366f1",
           color: "white",
-          border: "1px solid ",
-          padding: "8px",
+          border: "none",
+          padding: "10px",
           cursor: "pointer",
           fontSize: "14px",
-          marginBottom: "5px",
-          borderRadius: "4px",
+          borderRadius: "6px",
           width: "100%",
+          marginBottom: "12px",
+          transition: "background-color 0.3s",
         }}
+        onMouseEnter={(e) => (e.target.style.backgroundColor = "#4f46e5")}
+        onMouseLeave={(e) => (e.target.style.backgroundColor = "#6366f1")}
       >
         {isSidebarOpen ? "Collapse" : "Open"}
       </button>
 
-      {/* Sidebar content */}
       {isSidebarOpen && (
         <div>
           <aside>
-            <div className="description">Drag these nodes to the canvas.</div>
+            <div
+              style={{
+                fontSize: "13px",
+                marginBottom: "16px",
+                color: "#555",
+                textAlign: "center",
+              }}
+            >
+              Drag a node into the canvas
+            </div>
 
-            {/* Custom-shaped nodes */}
-            <div className="dndnode variable shape-circle" onDragStart={(event) => onDragStart(event, 'Variable')} draggable>
+            {/* Draggable Node Buttons */}
+            <div className="dndnode variable shape-circle" onDragStart={(e) => onDragStart(e, 'Variable')} draggable>
               Variable
             </div>
-            <div className="dndnode definition shape-diamond" onDragStart={(event) => onDragStart(event, 'Definition')} draggable>
+            <div className="dndnode definition shape-diamond" onDragStart={(e) => onDragStart(e, 'Definition')} draggable>
               Definition
             </div>
-            <div className="dndnode action shape-hexagon" onDragStart={(event) => onDragStart(event, 'Action')} draggable>
+            <div className="dndnode action shape-hexagon" onDragStart={(e) => onDragStart(e, 'Action')} draggable>
               Action
             </div>
-            <div className="dndnode table shape-rectangle" onDragStart={(event) => onDragStart(event, 'Table')} draggable>
+            <div className="dndnode table shape-rectangle" onDragStart={(e) => onDragStart(e, 'Table')} draggable>
               Table
             </div>
-            <div className="dndnode html shape-triangle" onDragStart={(event) => onDragStart(event, 'HTML')} draggable>
+            <div className="dndnode html shape-triangle" onDragStart={(e) => onDragStart(e, 'HTML')} draggable>
               HTML
+            </div>
+            <div className="dndnode group shape-rounded" onDragStart={(e) => onDragStart(e, 'group')} draggable>
+              Module
             </div>
           </aside>
         </div>
       )}
 
-      {/* Styling for custom shapes */}
+      {/* Node Styles */}
       <style>
         {`
           .dndnode {
@@ -81,23 +94,28 @@ const Sidebar = () => {
             justify-content: center;
             cursor: grab;
             user-select: none;
-            margin: 10px 0;
-            padding: 10px;
-            font-weight: bold;
+            margin: 8px 0;
+            padding: 12px;
+            font-weight: 600;
             text-align: center;
-            background: #eee;
-            transition: transform 0.2s ease-in-out;
+            background: #ffffff;
+            color: #333;
+            box-shadow: 0px 2px 6px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            transition: all 0.2s ease;
           }
           .dndnode:hover {
             transform: scale(1.05);
+            background: #f0f0f0;
           }
 
           /* Shape Styles */
-          .shape-circle { width: 80px; height: 80px; border-radius: 50%; background: #ffcc00; }
-          .shape-hexagon { width: 90px; height: 52px; background: #4caf50; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
-          .shape-triangle { width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent; border-bottom: 70px solid #f44336; }
-          .shape-rectangle { width: 100px; height: 60px; background: #2196F3; border-radius: 5px; }
-          .shape-diamond { width: 70px; height: 70px; background: #9c27b0; transform: rotate(45deg); }
+          .shape-circle { width: 80px; height: 80px; border-radius: 50%; background: #ffcd38; }
+          .shape-hexagon { width: 90px; height: 52px; background: #34d399; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
+          .shape-triangle { width: 0; height: 0; border-left: 40px solid transparent; border-right: 40px solid transparent; border-bottom: 70px solid #f87171; }
+          .shape-rectangle { width: 100px; height: 60px; background: #60a5fa; border-radius: 8px; }
+          .shape-diamond { width: 70px; height: 70px; background: #c084fc; transform: rotate(45deg); }
+          .shape-rounded { width: 100px; height: 60px; background: #facc15; border-radius: 12px; }
         `}
       </style>
     </div>

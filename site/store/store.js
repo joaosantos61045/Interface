@@ -4,6 +4,13 @@ import Console from '../console';
 
 // Initial data for nodes and edges
 const initialNodes = [
+  {
+    id: '2',
+    data: { label: 'Group A' },
+    position: { x: 100, y: 100 },
+    style: { width: 200, height: 200 },
+    type: 'group',
+  }
  /* {
     id: "1",
     type: "Table", // Changed to Table node
@@ -227,7 +234,11 @@ const useStore = create((set, get) => ({
   const isTable = node.type === "Table";
   const existingData = node.data || {};
   const mergedData = { ...existingData, ...data };
-
+  if ('parentId' in data) {
+    console.log("Parent ID found in data:", data.parentId); // Debugging line
+    node.parentId = data.parentId;
+    delete node.data.parentId; // remove it from inside data
+  }
   if (isTable && typeof data.value === "string" && data.value.startsWith("table[")) {
     const valuePattern = /^table\[(.*)\]$/; // allow empty inner brackets
     const valueMatch = data.value.match(valuePattern);

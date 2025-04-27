@@ -69,7 +69,7 @@ const DnDFlow = () => {
     const interval = setInterval(() => {
       //console.log("nodes", nodes);
       //console.log("edges", edges);
-      
+      console.log("Pending Node:", nodes);
     }, 4000);
 
     return () => clearInterval(interval);
@@ -313,6 +313,7 @@ const DnDFlow = () => {
   );
   
   const onDragOver = useCallback((event) => {
+   
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
   }, []);
@@ -412,9 +413,10 @@ const DnDFlow = () => {
       const defaultData = {
         Variable: { label: "var1", value: 1 },
         Definition: { label: "def1",definition:"" , },
-        Action: { label: "act" ,action: "action { var :=3}" },
+        Action: { label: "act" ,action: "action { var1 :=3}" },
         Table: { label: "tab", columns: [{ name: "", type: "string" }], rows: [] },
         HTML: { label: "pag", definition: "<p>Enter HTML here</p>" },
+        group: { label: "mod" },
       };
 
       setFormData(defaultData[type] || { label: "" });
@@ -438,7 +440,7 @@ const DnDFlow = () => {
       position: pendingNode.position,
       data: { ...formData },
     };
-    console.log("New Node:",newNode.position)
+    console.log("New Node:",newNode.type)
     
     
     let message = '';
@@ -472,10 +474,15 @@ const DnDFlow = () => {
     message = `def ${formData.label} = ${formData.action}`;
     console.log("Sending message to server:", message);
     send_message_to_server(message);
+    } else if (pendingNode.type === 'group') {
+      message = `module ${formData.label}`;
+      console.log("Sending message to server:", message);
+     // send_message_to_server(message);
     }
   
     // Add the new node
-   // addNode(newNode);
+    
+   addNode(newNode);
   
     // Reset the pending node and form data
     setPendingNode(null);
@@ -488,7 +495,25 @@ const DnDFlow = () => {
     setSelectedNode(node);
     setEditFormData(node.data);
   };
+  const onNodeDragStop = (event, node) => {
+    
+    // Find all group nodes
+    const groupNodes = nodes.filter((n) => n.type === 'group');
 
+    let newParentId = null;
+
+    // Check if dragged node is inside any group
+    for (const groupNode of groupNodes) {
+      const insideGroup = isInside(node.position, groupNode);
+      
+      if (insideGroup) {
+        newParentId = groupNode.id;
+        break; // Only one group at a time
+      }
+    }
+    
+   // updateNode(node.id, { parentId: newParentId });
+  }
   const onConnectEnd = useCallback(
     (event, connectionState) => {
       if ( connectionState.isValid || connectionState.fromHandle.type === 'target') {
@@ -630,18 +655,40 @@ const DnDFlow = () => {
       });
     }
   };
-  
+  const isInside = (childPos, parentNode) => {
+    const { position, style } = parentNode;
+    const width = style?.width || 150;
+    const height = style?.height || 22;
+    console.log("childPos",childPos)
+    console.log("parentNode",position)
+    return (
+      childPos.x > position.x &&
+      childPos.x < position.x + width &&
+      childPos.y > position.y &&
+      childPos.y < position.y + height
+    );
+  };
+ 
   return (
     <div style={{ width: "100vw", height: "100vh", display: "flex" }} ref={refs.setReference}>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", borderRight: "2px solid #ddd", padding: "10px" }}>
-        <h2 style={{ textAlign: "center" }}>Meerkat UI</h2>
+      <h2 style={{
+      textAlign: "center",
+      fontFamily: "Arial, sans-serif",
+      fontSize: "22px",  
+      color: "#333",  
+      marginBottom: "20px", 
+    }}>
+      Meerkat UI
+    </h2>
 
         <div  style={{ flex: 1, border: "1px solid #ccc", borderRadius: "8px" }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
+            onNodeDragStop={onNodeDragStop}
             onEdgesChange={onEdgesChange}
             onNodesDelete={onNodesDelete}
             onBeforeDelete={onBeforeDelete}
@@ -653,7 +700,11 @@ const DnDFlow = () => {
             onNodeDoubleClick={onNodeDoubleClick}
             onDragOver={onDragOver}
             fitView
-            style={{ backgroundColor: "#F7F9FB" }}
+            style={{ 
+              backgroundColor: "#F7F9FB",
+              borderRadius: "8px", 
+              padding: "15px", 
+            }}
           >
             
             <FilterBar nodes={nodes} setNodes={setNodes} />
@@ -747,7 +798,7 @@ const DnDFlow = () => {
                 )}
 
                 {/* Cancel & Confirm Buttons */}
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div style={styles.buttonContainer}>
                   <button onClick={() => setPendingNode(null)} style={styles.cancel_button}>
                     Cancel
                   </button>
@@ -759,14 +810,7 @@ const DnDFlow = () => {
             )}
 
 
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <button onClick={() => setPendingNode(null)} style={styles.cancel_button}>
-                Cancel
-              </button>
-              <button onClick={handleConfirm} style={styles.button}>
-                Confirm
-              </button>
-            </div>
+           
           </div>
         )}
 
@@ -943,28 +987,34 @@ const styles = {
   modal: {
     background: "#fff",
     padding: "20px",
-    borderRadius: "8px",
-    boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+    borderRadius: "10px", // More rounded corners
+    boxShadow: "0 4px 10px rgba(0, 0, 0, 0.15)", // Softer shadow for depth
     textAlign: "center",
-    width: "300px",
+    width: "350px", // Slightly wider modal
   },
   saveButton: {
-    padding: "8px 16px",
+    padding: "10px 20px",
     background: "#007BFF",
     color: "white",
     border: "none",
-    borderRadius: "4px",
+    borderRadius: "6px", // Rounded edges for buttons
     cursor: "pointer",
-
+    width: "100%",
+    fontSize: "14px",
+    marginBottom: "10px", // Add spacing between buttons
+    transition: "background-color 0.3s ease",
   },
   deleteButton: {
-    padding: "8px 16px",
+    padding: "10px 20px",
     background: "#FF0000",
     color: "white",
     border: "none",
-    borderRadius: "4px",
+    borderRadius: "6px",
     cursor: "pointer",
-
+    width: "100%",
+    fontSize: "14px",
+    marginBottom: "10px", // Add spacing between buttons
+    transition: "background-color 0.3s ease",
   },
   configPanel: {
     position: "fixed", // Center it relative to the viewport
@@ -972,38 +1022,73 @@ const styles = {
     left: "50%",
     transform: "translate(-50%, -50%)",
     background: "white",
-    padding: "16px",
-    borderRadius: "8px",
-    boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-    width: "300px",
+    padding: "20px",
+    borderRadius: "10px", // More rounded corners
+    boxShadow: "0 4px 10px rgba(0, 0, 0, 0.15)",
+    width: "350px", // Slightly wider config panel
     zIndex: 1000,
     textAlign: "center",
   },
   input: {
-    width: "95%",
-    padding: "8px",
-    marginBottom: "8px",
+    width: "100%",
+    padding: "12px",
+    marginBottom: "12px",
     fontSize: "14px",
+    borderRadius: "6px", // Rounded input corners
+    border: "1px solid #e2e8f0",
+    boxSizing: "border-box", // Prevent padding from affecting width
+    outline: "none",
+    transition: "border 0.3s ease",
+  },
+  buttonContainer: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px", // Add space between buttons
+    marginTop: "20px", // Add margin for spacing
+  },
+  cancel_button: {
+    padding: "12px 18px",
+    background: "#FF4C4C",
+    color: "white",
+    border: "none",
+    borderRadius: "6px",
+    cursor: "pointer",
+    width: "100%",
+    fontSize: "14px",
+    transition: "background-color 0.3s ease",
   },
   button: {
-    padding: "8px 16px",
+    padding: "12px 18px",
     background: "#007BFF",
     color: "white",
     border: "none",
-    borderRadius: "4px",
+    borderRadius: "6px",
     cursor: "pointer",
     width: "100%",
+    fontSize: "14px",
+    transition: "background-color 0.3s ease",
   },
-  cancel_button: {
-    padding: "8px 16px",
+  label: {
+    fontSize: "14px",
+    marginBottom: "8px",
+    textAlign: "left",
+    display: "block",
+    color: "#333", // Darker text for better readability
+  },
+  deleteColumnButton: {
+    padding: "8px 14px",
     background: "#FF0000",
     color: "white",
     border: "none",
-    borderRadius: "4px",
+    borderRadius: "6px",
     cursor: "pointer",
-    width: "100%",
-  }
+    marginLeft: "10px", // Space between the input and button
+  },
+  buttonHover: {
+    backgroundColor: "#5B9BD5",
+  },
 };
+
 const App = () => {
   useEffect(() => {
    

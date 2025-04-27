@@ -33,32 +33,39 @@ const SearchBar = ({ nodes }) => {
   };
 
   return (
-    <div style={{ position: 'absolute', top: 0, left: 250, zIndex: 1000 }}>
+    <div style={{ position: 'absolute', top: 15, left: 270, zIndex: 1000 }}>
       <input
         type="text"
         placeholder="🔍 Search nodes..."
         value={query}
         onChange={handleSearch}
         style={{
-          padding: '8px',
-          borderRadius: '4px',
-          border: '1px solid #ccc',
-          width: '200px',
+          padding: '10px 15px',
+          borderRadius: '20px', // Soft, rounded corners
+          border: '1px solid #ddd',
+          width: '220px',
+          fontSize: '14px',
+          outline: 'none',
+          transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
         }}
+        onFocus={(e) => e.target.style.boxShadow = '0 0 10px rgba(0, 123, 255, 0.5)'}
+        onBlur={(e) => e.target.style.boxShadow = 'none'}
       />
       {results.length > 0 && (
         <ul
           style={{
             listStyle: 'none',
             margin: 0,
-            padding: '5px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
+            padding: '5px 0',
+            border: '1px solid #ddd',
+            borderRadius: '8px',
             backgroundColor: '#fff',
             maxHeight: '200px',
             overflowY: 'auto',
             position: 'absolute',
-            width: '200px',
+            width: '220px',
+            boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.1)', // Soft shadow for depth
+            zIndex: 1100,
           }}
         >
           {results.map((node) => (
@@ -66,10 +73,14 @@ const SearchBar = ({ nodes }) => {
               key={node.id}
               onClick={() => handleSelect(node)}
               style={{
-                padding: '5px',
+                padding: '10px 15px',
                 cursor: 'pointer',
-                borderBottom: '1px solid #eee',
+                borderBottom: '1px solid #f1f1f1',
+                fontSize: '14px',
+                transition: 'background-color 0.3s ease',
               }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f8f8'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
             >
               {node.data?.label || node.id}
             </li>
