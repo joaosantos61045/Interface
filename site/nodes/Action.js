@@ -1,7 +1,6 @@
 import React, { memo } from "react";
 import { Handle, Position, useConnection } from "@xyflow/react";
-import useStore from '../store/store.js';
-import init, { main, get_env, send_message_to_server } from "../../pkg/meerkat_remote_console_V2";
+import useStore from "../store/store.js";
 
 const ActionNode = ({ id, data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
@@ -10,22 +9,25 @@ const ActionNode = ({ id, data, isConnectable }) => {
   const connection = useConnection();
   const isTarget = connection.inProgress && connection.fromNode.id !== id;
 
-  
-
   return (
     <div
       style={{
-        ...styles.node,
+        ...styles.wrapper,
         opacity: isDimmed ? 0.4 : 1,
         filter: isDimmed ? "grayscale(100%)" : "none",
         pointerEvents: isDimmed ? "none" : "auto",
       }}
-      
     >
-      <strong style={styles.text}>{data.label}</strong>
-      
-      <p style={styles.text}>{data.action || "No action defined"}</p>
+      <div style={styles.node}>
+        <div style={styles.header}>
+          {data.label || "Unnamed Action"}
+        </div>
+        <div style={styles.subtext}>
+          {data.action || "No Action Defined"}
+        </div>
+      </div>
 
+      {/* Connection Handles */}
       {!connection.inProgress && (
         <Handle
           className="customHandle"
@@ -48,24 +50,43 @@ const ActionNode = ({ id, data, isConnectable }) => {
 };
 
 const styles = {
-  node: {
-    padding: "10px",
-    border: "2px solid rgb(252, 0, 55)",
-    borderRadius: "5px",
-    background: "#fff",
-    width: "auto",
-    maxWidth: "550px",
-    textAlign: "center",
-    boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
-    cursor: "pointer",
-    transition: "all 0.2s ease-in-out",
+  wrapper: {
+    position: "relative",
+    transition: "all 0.3s ease-in-out",
   },
-  text: {
+  node: {
+    background: "linear-gradient(135deg, #fff 0%, #ffe4e6 100%)", 
+    border: "2px solid rgb(252, 0, 55)",
+    borderRadius: "12px",
+    padding: "12px 16px",
+    minWidth: "140px",
+    maxWidth: "300px",
+    textAlign: "center",
+    boxShadow: "0px 4px 10px rgba(252, 0, 55, 0.2)", 
+    fontFamily: "'Inter', sans-serif",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "4px",
+    cursor: "pointer",
+  },
+  header: {
+    fontWeight: "700",
+    fontSize: "16px",
+    color: "#dc2626",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    width: "100%",
-    display: "block",
+    maxWidth: "100%",
+  },
+  subtext: {
+    fontWeight: "500",
+    fontSize: "13px",
+    color: "#6b7280", 
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    maxWidth: "100%",
   },
 };
 

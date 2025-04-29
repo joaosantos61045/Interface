@@ -1,43 +1,34 @@
 import React, { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
-import useStore from "../store/store.js"; // ✅ Import Zustand store
+import useStore from "../store/store.js";
 
 const HtmlNode = ({ data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
-  const isDimmed = !activeFilters.has("HTML"); // ✅ Check if "HTML" is filtered out
+  const isDimmed = !activeFilters.has("HTML");
 
   const openHtmlContent = () => {
-    const newWindow = window.open();
-    newWindow.document.write(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>${data.label || "HTML Page"}</title>
-      </head>
-      <body>
-          ${data.value || "<p>No HTML content</p>"}
-      </body>
-      </html>
-    `);
-    newWindow.document.close();
+    const name = data.label || "UnnamedHTML";
+    const url = `http://localhost:8080/app/A7pX2/${encodeURIComponent(name)}`;
+    window.open(url, "_blank");
   };
 
   return (
     <div
       style={{
-        ...styles.node,
+        ...styles.wrapper,
         opacity: isDimmed ? 0.4 : 1,
         filter: isDimmed ? "grayscale(100%)" : "none",
         pointerEvents: isDimmed ? "none" : "auto",
       }}
     >
-      <div style={styles.screen}>
-        <strong style={styles.label}>{data.label || "Unnamed HTML definition"}</strong>
-        <button onClick={openHtmlContent} style={styles.button}>
-          Open HTML
-        </button>
+      <div style={styles.device}>
+        <div style={styles.notch}></div>
+        <div style={styles.screen}>
+          <strong style={styles.label}>{data.label || "Unnamed HTML"}</strong>
+          <button onClick={openHtmlContent} style={styles.button}>
+            Open HTML
+          </button>
+        </div>
       </div>
 
       <Handle type="target" position={Position.Left} isConnectable={isConnectable} />
@@ -47,53 +38,74 @@ const HtmlNode = ({ data, isConnectable }) => {
 };
 
 const styles = {
-  node: {
+  wrapper: {
     position: "relative",
-    width: "120px",
-    height: "220px",
-    borderRadius: "20px",
-    border: "5px solid #000",
-    backgroundColor: "#ccc",
+    transition: "all 0.3s ease",
+  },
+  device: {
+    width: "140px",
+    height: "260px",
+    backgroundColor: "#222",
+    borderRadius: "30px",
+    padding: "8px",
+    boxShadow: "0 8px 16px rgba(0,0,0,0.4)",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
-    boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
-    transition: "all 0.2s ease-in-out",
+    position: "relative",
+    overflow: "hidden",
+  },
+  notch: {
+    width: "60px",
+    height: "8px",
+    backgroundColor: "#000",
+    borderRadius: "4px",
+    position: "absolute",
+    top: "6px",
+    left: "50%",
+    transform: "translateX(-50%)",
+    zIndex: 2,
   },
   screen: {
+    marginTop: "20px",
     backgroundImage: "url('https://miro.medium.com/v2/resize:fit:1400/1*bXww9rpeTUyZ1J31sgPR9A.jpeg')",
     backgroundSize: "cover",
-    width: "85%",
-    height: "100%",
+    backgroundPosition: "center",
+    width: "100%",
+    height: "calc(100% - 20px)",
+    borderRadius: "20px",
+    padding: "10px",
     backgroundColor: "white",
-    borderRadius: "10px",
     display: "flex",
     flexDirection: "column",
-    alignItems: "center",
     justifyContent: "center",
-    padding: "10px",
-    boxShadow: "inset 0 0 5px rgba(0,0,0,0.2)",
+    alignItems: "center",
+    boxShadow: "inset 0 0 10px rgba(0,0,0,0.3)",
   },
   label: {
     fontSize: "12px",
-    fontWeight: "bold",
-    marginBottom: "5px",
+    fontWeight: "600",
+    marginBottom: "8px",
+    color: "#fff",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    padding: "4px 8px",
+    borderRadius: "6px",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    width: "100%",
-    display: "block",
+    maxWidth: "100%",
   },
   button: {
-    padding: "4px 8px",
+    marginTop: "8px",
+    padding: "6px 10px",
     fontSize: "10px",
-    background: "#007BFF",
+    fontWeight: "600",
+    background: "#00bcd4",
     color: "white",
     border: "none",
-    borderRadius: "4px",
+    borderRadius: "6px",
     cursor: "pointer",
+    transition: "background 0.2s ease-in-out",
   },
 };
 

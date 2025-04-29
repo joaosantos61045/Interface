@@ -4,14 +4,14 @@ import Console from '../console';
 
 // Initial data for nodes and edges
 const initialNodes = [
-  {
+   /*{
     id: '2',
     data: { label: 'Group A' },
     position: { x: 100, y: 100 },
     style: { width: 200, height: 200 },
     type: 'group',
   }
- /* {
+ {
     id: "1",
     type: "Table", // Changed to Table node
     data: {

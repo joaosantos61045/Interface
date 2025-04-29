@@ -3,6 +3,7 @@ import { useFloating } from '@floating-ui/react';
 import Console from "./console.js";
 import SearchBar from './SearchBar';
 import FilterBar from './FilterBar';
+import * as d3 from "d3-force";
 import init, { main,get_env, send_message_to_server } from "../pkg/meerkat_remote_console_V2";
 import {
   ReactFlow,
@@ -69,7 +70,7 @@ const DnDFlow = () => {
     const interval = setInterval(() => {
       //console.log("nodes", nodes);
       //console.log("edges", edges);
-      console.log("Pending Node:", nodes);
+     
     }, 4000);
 
     return () => clearInterval(interval);
@@ -95,17 +96,14 @@ const DnDFlow = () => {
   
         const baseLabel = name;
   
-        //  Handle delete operation early and skip the rest
         if (operation === "delete") {
           console.log(`Deleting node: ${baseLabel}`);
-          removeNode(baseLabel); 
+          removeNode(baseLabel);
           continue;
         }
   
-        const isDefinition = keyword === "def" ;
-
+        const isDefinition = keyword === "def";
   
-        // Extract dependencies from exp (right-hand side)
         const nodeDependencies = exp
           ? exp.match(/\b[A-Za-z_]\w*\b/g)?.filter(dep => dep !== name) || []
           : [];
@@ -113,115 +111,106 @@ const DnDFlow = () => {
         dependencies[baseLabel] = nodeDependencies;
   
         nodesToUpdate.push({
+          id: baseLabel,
           label: baseLabel,
           value: val,
           type,
           definition: isDefinition ? exp : undefined,
-          position: { x: 0, y: 0 } // Placeholder position
+          x: 0,
+          y: 0 // These will be updated by D3
         });
       }
   
-      const sortedNodes = topologicalSort(nodesToUpdate, dependencies);
+      // 🔧 Apply force-directed layout to prevent overlap
+      const applyForceLayout = (nodes) => {
+        const simulation = d3.forceSimulation(nodes)
+        .force("charge", d3.forceManyBody().strength(-20))        // was -250
+        .force("center", d3.forceCenter(0, 0))
+        .force("collision", d3.forceCollide().radius(30))         // was 80
+        .stop();
   
-      sortedNodes.forEach(({ label, value, type, definition, position }) => {
-        const node = nodes.find((node) => node.id === label);
-        
+        for (let i = 0; i < 30; i++) simulation.tick();
+  
+        return nodes.map(node => ({
+          ...node,
+          position: { x: node.x, y: node.y }
+        }));
+      };
+  
+      const sortedNodes = topologicalSort(nodesToUpdate, dependencies);
+      const positionedNodes = applyForceLayout(sortedNodes);
+  
+      positionedNodes.forEach(({ id, label, value, type, definition, position }) => {
+        const node = nodes.find(n => n.id === label);
+  
         const updateData = { value };
-        if (definition) {
-          updateData.definition = definition;
-        }
+        if (definition) updateData.definition = definition;
   
         if (node) {
           console.log(`Updating node ${label} with value: ${value}`);
           updateNode(label, updateData);
         } else {
-          if(type.startsWith("$")) return; // Skip if type starts with $
+          if (type.startsWith("$")) return;
+  
           console.warn(`Creating new node ${label} with type ${type}.`);
-          
-          // Dynamically determine node type
           let nodeType = "Variable";
-          if (type === "html") {
-            nodeType = "HTML";
-            console.log("HTML node detected:");
-          } else if (type === "action") {
-            nodeType = "Action";
-          } else if (definition) {
-            nodeType = "Definition";
-          } else if (type?.startsWith("array[{") || value?.startsWith("table")) {
-            nodeType = "Table";
-          } 
-
-          // Build new node
+  
+          if (type === "html") nodeType = "HTML";
+          else if (type.includes("action")) nodeType = "Action";
+          else if (definition) nodeType = "Definition";
+          else if (type?.startsWith("array[{") || value?.startsWith("table")) nodeType = "Table";
+  
           let newNode;
-
+  
           if (nodeType === "Table") {
             const columnPattern = /array\[\{(.+?)\}\]/;
             const match = type.match(columnPattern);
             const columns = [];
-          
+  
             if (match) {
               const columnDefs = match[1].split(",");
               for (const col of columnDefs) {
                 const [colName, colType] = col.trim().split(":").map(s => s.trim());
-                if (colName && colType) {
-                  columns.push({ name: colName, type: colType });
-                }
+                if (colName && colType) columns.push({ name: colName, type: colType });
               }
             }
-            console.log("Columns:", value);
-            // Extract rows from value: table[{...}, {...}]
+  
             const rows = [];
             const valuePattern = /^table\[(.+)\]$/;
             const valueMatch = value?.match(valuePattern);
-          
+  
             if (valueMatch) {
-              const rowString = `[${valueMatch[1]}]`; // wrap to make it a valid array
+              const rowString = `[${valueMatch[1]}]`;
               try {
-                const parsedRows = JSON.parse(rowString.replace(/(\w+)\s*:/g, '"$1":')); // turn into valid JSON
-                if (Array.isArray(parsedRows)) {
-                  rows.push(...parsedRows);
-                }
+                const parsedRows = JSON.parse(rowString.replace(/(\w+)\s*:/g, '"$1":'));
+                if (Array.isArray(parsedRows)) rows.push(...parsedRows);
               } catch (e) {
                 console.warn("Failed to parse table rows from value:", value);
               }
             }
-          
+  
             newNode = {
               id: label,
               type: "Table",
               position,
-              data: {
-                label,
-                columns,
-                rows,
-              },
+              data: { label, columns, rows }
             };
-          }
-          else if (nodeType === "Action") {
-            // Extract target and action from exp or val: action { x := x + 1 }
-            
+          } else if (nodeType === "Action") {
             newNode = {
               id: label,
               type: "Action",
               position,
-              data: {
-                label,
-                action: definition,
-              },
+              data: { label, action: definition }
             };
-
           } else {
             newNode = {
               id: label,
               type: nodeType,
               position,
-              data: {
-                label,
-                value,
-                definition,
-              },
+              data: { label, value, definition }
             };
           }
+  
           console.log("New node:", newNode);
           addNode(newNode);
         }
@@ -508,11 +497,12 @@ const DnDFlow = () => {
       
       if (insideGroup) {
         newParentId = groupNode.id;
+       // updateNode(node.id, { parentId: newParentId });
         break; // Only one group at a time
       }
     }
     
-   // updateNode(node.id, { parentId: newParentId });
+    
   }
   const onConnectEnd = useCallback(
     (event, connectionState) => {
@@ -659,8 +649,7 @@ const DnDFlow = () => {
     const { position, style } = parentNode;
     const width = style?.width || 150;
     const height = style?.height || 22;
-    console.log("childPos",childPos)
-    console.log("parentNode",position)
+ 
     return (
       childPos.x > position.x &&
       childPos.x < position.x + width &&
@@ -881,7 +870,7 @@ const DnDFlow = () => {
       ) : (
         <>
           {/* NEW: Buttons for Nodes That Point to This Node */}
-          <div style={{ marginBottom: "10px" }}>
+          { selectedNode.type == "Definition" && <div style={{ marginBottom: "10px" }}>
             <h4>Related Nodes:</h4>
             {edges
               .filter((edge) => edge.target === selectedNode.id)
@@ -889,24 +878,24 @@ const DnDFlow = () => {
                 const sourceNode = nodes.find((node) => node.id === edge.source);
                 return sourceNode ? (
                   <button
-                    key={sourceNode.id}
-                    onClick={() =>{
-                      setEditFormData((prev) => ({
-                        ...prev,
-                        definition: prev.definition
-                          ? `${prev.definition} ${sourceNode.data.label}`
-                          : sourceNode.data.label,
-                      }))
-                    
-                    }
-                    }
-                    style={styles.button}
-                  >
-                    {sourceNode.data.label}
-                  </button>
+                  key={sourceNode.id}
+                  onClick={() => {
+                    setEditFormData((prev) => ({
+                      ...prev,
+                      definition: prev.definition
+                        ? `${prev.definition} ${sourceNode.data.label}`
+                        : sourceNode.data.label,
+                    }));
+                  }}
+                  style={{ ...styles.button, margin: "5px" }}
+                >
+                  {sourceNode.data.label}
+                </button>
+
+                  
                 ) : null;
               })}
-          </div>
+          </div>}
               
           {/* Generic Editing for Other Node Types */}
           {["label", "definition", "action", "content", "value"]

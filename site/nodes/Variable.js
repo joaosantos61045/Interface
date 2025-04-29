@@ -1,6 +1,6 @@
 import React from "react";
 import { Handle, Position, useConnection } from "@xyflow/react";
-import useStore from '../store/store.js';
+import useStore from "../store/store.js";
 
 const VariableNode = ({ id, data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
@@ -18,8 +18,12 @@ const VariableNode = ({ id, data, isConnectable }) => {
         pointerEvents: isDimmed ? "none" : "auto",
       }}
     >
-      <strong style={styles.text}>{data.label || "Unnamed Variable"}</strong>
-      <p style={styles.text}>{data.value || "No Value"}</p>
+      <div style={styles.header}>
+        {data.label || "Unnamed Variable"}
+      </div>
+      <div style={styles.value}>
+        {data.value || "No Value"}
+      </div>
 
       {/* Connection Handles */}
       {!connection.inProgress && (
@@ -45,23 +49,37 @@ const VariableNode = ({ id, data, isConnectable }) => {
 
 const styles = {
   node: {
-    padding: "10px",
-    border: "2px solid rgb(225, 0, 255)",
-    borderRadius: "5px",
-    background: "#fff",
+    padding: "16px 20px",
+    border: "2px solid #e100ff",
+    borderRadius: "12px",
+    background: "linear-gradient(135deg, #ffffff 0%, #fdf4ff 100%)", 
     width: "auto",
-    maxWidth: "550px",
+    maxWidth: "500px",
+    minWidth: "180px",
     textAlign: "center",
-    boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
+    boxShadow: "0px 4px 10px rgba(225, 0, 255, 0.2)",
     cursor: "pointer",
-    transition: "all 0.2s ease-in-out",
+    transition: "all 0.3s ease-in-out",
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+    fontFamily: "'Inter', sans-serif",
   },
-  text: {
+  header: {
+    fontWeight: 700,
+    fontSize: "16px",
+    color: "#8b5cf6", 
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    width: "100%",
-    display: "block",
+  },
+  value: {
+    fontWeight: 500,
+    fontSize: "14px",
+    color: "#6b7280", 
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
 };
 

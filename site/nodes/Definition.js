@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 import { Handle, Position, useConnection } from "@xyflow/react";
-import useStore from '../store/store.js';
+import useStore from "../store/store.js";
 
 const DefinitionNode = ({ id, data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
@@ -20,9 +20,15 @@ const DefinitionNode = ({ id, data, isConnectable }) => {
     >
       <div style={styles.node}>
         <div style={styles.content}>
-          <strong style={styles.text}>{data.label || "Unnamed"}</strong>
-          <p style={styles.text}>{data.definition || "No Value"}</p>
-          <p style={styles.text}>{data.value || "No Value"}</p>
+          <div style={styles.header}>
+            {data.label || "Unnamed"}
+          </div>
+          <div style={styles.subtext}>
+            {data.definition || "No Definition"}
+          </div>
+          <div style={styles.subtext}>
+            {data.value || "No Value"}
+          </div>
         </div>
       </div>
 
@@ -50,39 +56,51 @@ const DefinitionNode = ({ id, data, isConnectable }) => {
 
 const styles = {
   wrapper: {
-    position: "relative", // Needed for absolute positioning of handles
-    transition: "all 0.2s ease-in-out",
+    position: "relative",
+    transition: "all 0.3s ease-in-out",
   },
   node: {
-    width: "120px",
-    height: "120px",
-    background: "#fff",
-    border: "2px solid rgb(19, 223, 29)",
+    width: "140px",
+    height: "140px",
+    background: "linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)", 
+    border: "2px solid #13df1d", 
     transform: "rotate(45deg)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: "2px 2px 5px rgba(0,0,0,0.1)",
+    boxShadow: "0px 4px 10px rgba(19, 223, 29, 0.3)", 
     position: "relative",
-    padding: "10px",
+    borderRadius: "12px", 
+    padding: "12px",
+    cursor: "pointer",
   },
   content: {
     transform: "rotate(-45deg)",
-    textAlign: "center",
-    fontSize: "12px",
-    wordBreak: "break-word",
-    maxWidth: "100%",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
+    textAlign: "center",
+    fontFamily: "'Inter', sans-serif",
+    gap: "4px",
+    width: "100%",
   },
-  text: {
+  header: {
+    fontWeight: 700,
+    fontSize: "16px",
+    color: "#059669",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    width: "100%",
-    display: "block",
-    textAlign: "center",
+    maxWidth: "100%",
+  },
+  subtext: {
+    fontWeight: 500,
+    fontSize: "13px",
+    color: "#6b7280",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    maxWidth: "100%",
   },
 };
 
