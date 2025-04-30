@@ -1,15 +1,32 @@
-import React, { memo } from "react";
+import React, { memo, useState } from "react";
 import { Handle, Position } from "@xyflow/react";
 import useStore from "../store/store.js";
 
 const HtmlNode = ({ data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
   const isDimmed = !activeFilters.has("HTML");
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  const openHtmlContent = () => {
-    const name = data.label || "UnnamedHTML";
-    const url = `http://localhost:8080/app/A7pX2/${encodeURIComponent(name)}`;
-    window.open(url, "_blank");
+  const name = data.label || "UnnamedHTML";
+  const url = `http://localhost:8080/app/A7pX2/${encodeURIComponent(name)}`;
+
+  const toggleExpanded = () => {
+    setIsExpanded((prev) => !prev);
+  };
+
+  const dynamicDeviceStyle = {
+    ...styles.device,
+    height: isExpanded ? "600px" : "260px",
+    width: isExpanded ? "100%" : "150px", 
+  };
+
+  const dynamicScreenStyle = {
+    ...styles.screen,
+    height: "100%",
+    width: "100%",
+    backgroundImage: isExpanded
+      ? "none"
+      : "url('https://miro.medium.com/v2/resize:fit:1400/1*bXww9rpeTUyZ1J31sgPR9A.jpeg')",
   };
 
   return (
@@ -21,13 +38,33 @@ const HtmlNode = ({ data, isConnectable }) => {
         pointerEvents: isDimmed ? "none" : "auto",
       }}
     >
-      <div style={styles.device}>
+      <div style={dynamicDeviceStyle}>
         <div style={styles.notch}></div>
-        <div style={styles.screen}>
+        <div style={dynamicScreenStyle}>
           <strong style={styles.label}>{data.label || "Unnamed HTML"}</strong>
-          <button onClick={openHtmlContent} style={styles.button}>
-            Open HTML
-          </button>
+
+          {isExpanded ? (
+            <>
+              <iframe
+                src={url}
+                title={name}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  border: "none",
+                  borderRadius: "10px",
+                  flex: 1,
+                }}
+              />
+              <button onClick={toggleExpanded} style={styles.button}>
+                Collapse
+              </button>
+            </>
+          ) : (
+            <button onClick={toggleExpanded} style={styles.button}>
+              Open HTML Inline
+            </button>
+          )}
         </div>
       </div>
 
@@ -44,7 +81,6 @@ const styles = {
   },
   device: {
     width: "140px",
-    height: "260px",
     backgroundColor: "#222",
     borderRadius: "30px",
     padding: "8px",
@@ -54,6 +90,7 @@ const styles = {
     alignItems: "center",
     position: "relative",
     overflow: "hidden",
+    transition: "height 0.3s ease",
   },
   notch: {
     width: "60px",
@@ -68,11 +105,10 @@ const styles = {
   },
   screen: {
     marginTop: "20px",
-    backgroundImage: "url('https://miro.medium.com/v2/resize:fit:1400/1*bXww9rpeTUyZ1J31sgPR9A.jpeg')",
     backgroundSize: "cover",
     backgroundPosition: "center",
     width: "100%",
-    height: "calc(100% - 20px)",
+    height: "100%",
     borderRadius: "20px",
     padding: "10px",
     backgroundColor: "white",

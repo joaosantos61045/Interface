@@ -8,21 +8,35 @@ const FilterBar = () => {
   const toggleFilter = useStore((state) => state.toggleFilter);
 
   return (
-    <div style={{
-      position: 'absolute',
-      top: '10px',
-      left: '1150px',
-      zIndex: 1100,
-      background: '#fff',
-      padding: '10px',
-      borderRadius: '8px',
-      boxShadow: '0px 4px 10px rgba(0,0,0,0.1)',
-      display: 'flex',
-      gap: '10px',
-      flexWrap: 'wrap',
-    }}>
+    <div
+      style={{
+        position: 'absolute',
+        top: '15px',
+        right: '350px', // Changed from left: 1150px
+        zIndex: 1100,
+        background: '#fff',
+        padding: '10px 15px',
+        borderRadius: '20px',
+        boxShadow: '0px 4px 10px rgba(0,0,0,0.1)',
+        display: 'flex',
+        gap: '10px',
+        flexWrap: 'wrap',
+        maxWidth: '90vw', // Prevent overflow
+        minWidth: '200px',
+        width: 'auto',
+      }}
+    >
       {nodeTypes.map((type) => (
-        <label key={type} style={{ display: 'flex', alignItems: 'center', fontSize: '14px', cursor: 'pointer' }}>
+        <label
+          key={type}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: '14px',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
           <input
             type="checkbox"
             checked={activeFilters.has(type)}
