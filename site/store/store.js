@@ -4,29 +4,12 @@ import Console from '../console';
 
 // Initial data for nodes and edges
 const initialNodes = [
-   /*{
+  /*  {
     id: '2',
     data: { label: 'Group A' },
     position: { x: 100, y: 100 },
     style: { width: 200, height: 200 },
-    type: 'group',
-  }
- {
-    id: "1",
-    type: "Table", // Changed to Table node
-    data: {
-      label: "Table Node",
-      columns: [
-        { name: "Column 1", type: "text" },
-        { name: "Column 2", type: "text" },
-        { name: "Column 3", type: "text" }
-      ],
-      rows: [
-        ["Row 1, Col 1", "Row 1, Col 2", "Row 1, Col 3"], // Example row
-        ["Row 2, Col 1", "Row 2, Col 2", "Row 2, Col 3"]  // Example row
-      ]
-    },
-    position: { x: 250, y: 5 },
+    type: 'Module',
   },
   {
     id: 'X',
@@ -35,6 +18,8 @@ const initialNodes = [
       label: 'X',
       value: 3,
     },
+    parentId: '2',
+    extent: 'parent',
     position: { x: 700, y: 100 },
   },*/
 ];
@@ -49,7 +34,7 @@ const useStore = create((set, get) => ({
   // Store for nodes and edges
   nodes: initialNodes,
   edges: initialEdges,
-  activeFilters: new Set(['Variable', 'Definition', 'Action', 'Table', 'HTML']),
+  activeFilters: new Set(['Variable', 'Definition', 'Action', 'Table', 'HTML','Module']), // Default active filters
   toggleFilter: (type) =>
     set((state) => {
       const newFilters = new Set(state.activeFilters);
@@ -130,13 +115,13 @@ const useStore = create((set, get) => ({
       if ((node.type === "Definition" || node.type === "HTML") && node.data.definition) {
         const referencedLabels = [...new Set(node.data.definition.match(/\b[A-Za-z_]\w*\b/g))] || [];
       
-        referencedLabels.forEach((label) => {
+        /* referencedLabels.forEach((label) => {
           // Skip self-referencing edge
           if (label === node.data.label) return;
       
           const sourceNode = updatedNodes.find((n) => n.data.label === label);
       
-          if (sourceNode) {
+         if (sourceNode) {
             const edgeExists = existingEdges.some(
               (edge) => edge.source === sourceNode.id && edge.target === node.id
             );
@@ -149,14 +134,14 @@ const useStore = create((set, get) => ({
               });
             }
           }
-        });
+        });*/
       }
   
       //  Handle Action nodes: edge from action to target if label matches
       if (node.type === "Action" && node.data.action) {
         const actionText = node.data.action;
         let targetLabel = null;
-        console.log("Action Text:", actionText);
+        //console.log("Action Text:", actionText);
         // Match all possible forms of assign
         const patterns = [
           /([a-zA-Z_]\w*)\s*:=/,                          // a := e
@@ -174,7 +159,7 @@ const useStore = create((set, get) => ({
           }
         }
       
-        if (targetLabel) {
+       /* if (targetLabel) {
           const targetNode = get().nodes.find((n) => n.data?.label === targetLabel);
           
           if (targetNode) {
@@ -194,7 +179,7 @@ const useStore = create((set, get) => ({
               });
             }
           }
-        }
+        }*/
       }
       
       
@@ -234,11 +219,22 @@ const useStore = create((set, get) => ({
   const isTable = node.type === "Table";
   const existingData = node.data || {};
   const mergedData = { ...existingData, ...data };
-  if ('parentId' in data) {
+ /*
+  if('width' in data && 'height' in data) {
+    console.log("Width and height found in data:", node); // Debugging line
+    node.position = {
+      x: data.x || node.position.x,
+      y: data.y || node.position.y,
+    };
+  }
+  if ('parentId' in data && data.parentId !== null) {
     console.log("Parent ID found in data:", data.parentId); // Debugging line
     node.parentId = data.parentId;
-    delete node.data.parentId; // remove it from inside data
-  }
+    node.extent = data.extent;
+    delete node.data.extent; 
+    delete node.data.parentId;
+    
+  }*/
   if (isTable && typeof data.value === "string" && data.value.startsWith("table[")) {
     const valuePattern = /^table\[(.*)\]$/; // allow empty inner brackets
     const valueMatch = data.value.match(valuePattern);
@@ -268,7 +264,7 @@ const useStore = create((set, get) => ({
   
       let existingEdges = state.edges;
       let newEdges = [];
-  
+  /*
       // Update edges for Definition and HTML nodes
       updatedNodes.forEach((defNode) => {
         if ((defNode.type === "Definition" || defNode.type === "HTML") && defNode.data.definition) {
@@ -386,7 +382,7 @@ updatedNodes.forEach((actionNode) => {
     }
   }
 });
-
+*/
   
       return {
         nodes: updatedNodes,

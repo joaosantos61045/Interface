@@ -5,7 +5,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{console, window, HtmlInputElement, WebSocket, MessageEvent};
 use js_sys::Date;
 use rand::Rng;
-use js_sys::Function;
+
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{ RequestInit, RequestMode, Response};
@@ -15,6 +15,12 @@ use serde_json::json;
 use reqwest::{Client, StatusCode};
 use reqwest::header::{COOKIE, HeaderMap};
 use std::collections::HashMap;
+use wasm_bindgen::prelude::*;
+
+use serde_wasm_bindgen::to_value;
+use js_sys::{Function, JsString};
+use serde_json::Value;
+use web_sys::Window;
 // -------------------- Message Structs --------------------
 
 
@@ -60,12 +66,7 @@ static mut NAMESPACE: Option<String> = None;
 
 // -------------------- Utility --------------------
 
-fn get_input_value(id: &str) -> Option<String> {
-    let document = window().unwrap().document().unwrap();
-    let input_element = document.get_element_by_id(id)?;
-    let input_element = input_element.dyn_into::<HtmlInputElement>().ok()?;
-    Some(input_element.value())
-}
+
 
 fn append_to_console(message: &str) {
     let document = window().unwrap().document().unwrap();
@@ -304,6 +305,43 @@ pub fn send_message_to_server(message: &str) {
     });
 
     append_to_console(&format!("Sent: {}", input_display));
+}
+
+#[wasm_bindgen]
+pub async fn fetch_dependencies(name: &str) -> Result<JsValue, JsValue> {
+    let namespace = unsafe { NAMESPACE.clone() };
+    if namespace.is_none() {
+        return Err(JsValue::from_str("Namespace not set"));
+    }
+
+    let namespace = namespace.unwrap();
+    let name = name.to_string();
+    let url = format!("http://localhost:8080/app/{}/dependencies/{}", namespace, name);
+
+    let response = Request::get(&url)
+        .header("Content-Type", "application/json")
+        .header("X-Requested-With", "XMLHttpRequest")
+        .send()
+        .await
+        .map_err(|e| JsValue::from_str(&format!("Request failed: {:?}", e)))?;
+
+    let json: Value = response
+        .json()
+        .await
+        .map_err(|e| JsValue::from_str(&format!("Failed to parse JSON: {:?}", e)))?;
+
+    if let Ok(global) = js_sys::global().dyn_into::<Window>() {
+        if let Some(func) = js_sys::Reflect::get(&global, &JsValue::from_str("setupEdges"))
+            .ok()
+            .and_then(|v| v.dyn_into::<Function>().ok())
+        {
+            let js_value = to_value(&json)
+                .map_err(|e| JsValue::from_str(&format!("Serde conversion failed: {:?}", e)))?;
+            let _ = func.call1(&JsValue::NULL, &js_value);
+        }
+    }
+
+    to_value(&json).map_err(|e| JsValue::from_str(&format!("Serde error: {:?}", e)))
 }
 
 #[wasm_bindgen]

@@ -77,7 +77,7 @@ const Sidebar = () => {
             <div className="dndnode html shape-document" onDragStart={(e) => onDragStart(e, "HTML")} draggable>
               HTML
             </div>
-            <div className="dndnode group shape-rounded" onDragStart={(e) => onDragStart(e, "group")} draggable>
+            <div className="dndnode group shape-rounded" onDragStart={(e) => onDragStart(e, "Module")} draggable>
               Module
             </div>
           </aside>
