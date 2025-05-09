@@ -27,6 +27,8 @@ use web_sys::Window;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VariableInfo {
     pub name: String,
+    #[serde(default)]
+    pub commands: HashMap<String, VariableInfo>,
     pub originalInput: String,
     pub exp: String,
     pub keyword: String,
@@ -41,24 +43,9 @@ pub struct VariableInfo {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Server2ClientMsg(pub HashMap<String, VariableInfo>);
 
-#[derive(Serialize, Deserialize, Debug)]
-struct Client2ServerMsg {
-    input: String,
-    user_id: i32,
-    timestamp: u128,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct ClientInitMsg {
-    user_id: i32,
-}
 
 // -------------------- Static State --------------------
 
-
-use once_cell::sync::Lazy;
-
-static USER_ID: Lazy<i32> = Lazy::new(|| rand::thread_rng().gen::<i32>());
 static mut WS_CONNECTED: bool = false;
 static mut WS: Option<WebSocket> = None;
 static mut NAMESPACE: Option<String> = None;
@@ -144,7 +131,7 @@ pub fn setup_websocket_with_namespace(base_url: String) {
 fn setup_message_handler(ws: &WebSocket) {
     let onmessage_callback = Closure::wrap(Box::new(move |event: MessageEvent| {
         if let Some(received_raw) = event.data().as_string() {
-            console::log_1(&format!("Raw message received: {}", received_raw).into());
+           // console::log_1(&format!("Raw message received: {}", received_raw).into());
 
             // Try parsing as structured Server2ClientMsg first
             if let Ok(received) = serde_json::from_str::<Server2ClientMsg>(&received_raw) {
@@ -250,8 +237,15 @@ fn setup_send_message(_ws: &WebSocket) {
 }
 
 
-
-
+#[wasm_bindgen]
+pub fn get_namespace() -> String {
+    unsafe {
+        if let Some(namespace) = NAMESPACE.clone() {
+            return namespace;
+        }
+    }
+    "Namespace not set".to_string()
+}
 
 
 #[wasm_bindgen]

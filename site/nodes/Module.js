@@ -4,6 +4,7 @@ import useStore from "../store/store.js";
 
 const ModuleNode = ({ id, data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
+  const enterModule = useStore((state) => state.enterModule); // action you'll define
   const isDimmed = !activeFilters.has("Module");
 
   const connection = useConnection();
@@ -21,54 +22,65 @@ const ModuleNode = ({ id, data, isConnectable }) => {
       <div style={styles.header}>
         {data.label || "Unnamed Module"}
       </div>
+      <div style={{ fontSize: "14px", color: "#6b7280" }}>
+        {data.value || "No description available."}
+      </div>
 
-      {/* Connection Handles */}
-      {!connection.inProgress && (
-        <Handle
-          className="customHandle"
-          position={Position.Right}
-          type="source"
-          isConnectable={isConnectable}
-        />
-      )}
-      {(!connection.inProgress || isTarget) && (
-        <Handle
-          className="customHandle"
-          position={Position.Left}
-          type="target"
-          isConnectableStart={false}
-          isConnectable={isConnectable}
-        />
-      )}
+      <button
+        onClick={() => enterModule(data.label)}
+        style={styles.button}
+      >
+        Enter Module
+      </button>
+
+      <Handle
+        className="customHandle"
+        position={Position.Right}
+        type="source"
+        isConnectable={isConnectable}
+      />
+      <Handle
+        className="customHandle"
+        position={Position.Left}
+        type="target"
+        isConnectableStart={false}
+        isConnectable={isConnectable}
+      />
     </div>
   );
 };
 
 const styles = {
   node: {
-    padding: "20px 30px",
+    padding: "20px",
     border: "2px solid #a855f7",
     borderRadius: "16px",
-    background: "linear-gradient(135deg, #e6e0ff 0%, #f3f0ff 100%)", // Lighter background
+    background: "linear-gradient(135deg, #e6e0ff 0%, #f3f0ff 100%)",
     width: "auto",
-    maxWidth: "700px", // Bigger width for the container
-    minWidth: "250px", // At least a certain size
+    minWidth: "220px",
+    maxWidth: "400px",
     textAlign: "center",
     boxShadow: "0px 6px 15px rgba(168, 85, 247, 0.2)",
-    cursor: "pointer",
-    transition: "all 0.3s ease-in-out",
+    cursor: "default",
     display: "flex",
     flexDirection: "column",
+    alignItems: "center",
     gap: "10px",
     fontFamily: "'Inter', sans-serif",
   },
   header: {
     fontWeight: 700,
-    fontSize: "18px", // Larger font size for the label
-    color: "#9333ea", // Purple color for the module label
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
+    fontSize: "18px",
+    color: "#9333ea",
+  },
+  button: {
+    padding: "6px 14px",
+    borderRadius: "8px",
+    background: "#9333ea",
+    color: "#fff",
+    border: "none",
+    fontWeight: "bold",
+    cursor: "pointer",
   },
 };
 

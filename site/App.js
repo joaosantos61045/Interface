@@ -1,12 +1,12 @@
-import React, { useEffect, useRef, useCallback, useState } from "react";
+import React, { useEffect, useRef, useCallback, useState, use } from "react";
 import { useFloating } from '@floating-ui/react';
 import Console from "./console.js";
-import SearchBar from './SearchBar';
-import FilterBar from './FilterBar';
+import SearchBar from './SearchBar.js';
+import FilterBar from './FilterBar.js';
 import * as d3 from "d3-force";
 import ELK from 'elkjs/lib/elk.bundled.js';
 import Dagre from '@dagrejs/dagre';
-import init, { main, get_env, send_message_to_server, fetch_dependencies } from "../pkg/meerkat_remote_console_V2";
+import init, { main, get_env, send_message_to_server, fetch_dependencies, get_namespace } from "../pkg/meerkat_remote_console_V2.js";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -21,15 +21,15 @@ import {
   Panel
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import Sidebar from "./Sidebar";
-import { DnDProvider, useDnD } from "./DnDContext";
-import VariableNode from "./nodes/Variable";
-import DefinitionNode from './nodes/Definition';
-import ActionNode from './nodes/Action';
-import TableNode from './nodes/Table';
-import HtmlNode from './nodes/HTML';
-import ModuleNode from './nodes/Module';
-import ActionEdge from './edges/ActionEdge';
+import Sidebar from "./Sidebar.js";
+import { DnDProvider, useDnD } from "./DnDContext.js";
+import VariableNode from "./nodes/Variable.js";
+import DefinitionNode from './nodes/Definition.js';
+import ActionNode from './nodes/Action.js';
+import TableNode from './nodes/Table.js';
+import HtmlNode from './nodes/HTML.js';
+import ModuleNode from './nodes/Module.js';
+import ActionEdge from './edges/ActionEdge.js';
 import useStore from './store/store.js';
 import { /** @type {NodeType} */ NodeType, /** @type {NodeData} */ NodeData } from "./types.d.ts";
 
@@ -47,176 +47,231 @@ const edgeTypes = {
 };
 let id = 0;
 const getId = () => {
-  let str = '';
-  let num = id++;
-  do {
-    str = String.fromCharCode(97 + (num % 26)) + str; // 'a' = 97
-    num = Math.floor(num / 26) - 1;
-  } while (num >= 0);
-  return `dndnode_${str}`;
+  const randomId = Math.floor(Math.random() * 100000);
+  return `dndnode_${randomId}`;
 };
 
+
 const DnDFlow = () => {
-  const reactFlowWrapper = useRef(null);
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, setNodes, setEdges } = useStore();
+
+  const { onNodesChange, environments, onEdgesChange, onConnect, currentEnvId, getCurrentEnv, getEnv, addNode, updateNode, removeNode, addEdge, removeEdge, checkExists, setNodes, setEdges } = useStore();
+  const { nodes, edges } = getCurrentEnv(); // Get nodes and edges of the current environment
+  const pathStack = useStore((state) => state.pathStack);
+  const setEnv = useStore((state) => state.setEnv);
   const [nodeColorFilter, setNodeColorFilter] = useState(() => (node) => node.data?.color || '#333');
   const { getIntersectingNodes } = useReactFlow();
   const { screenToFlowPosition, setCenter } = useReactFlow();
   const [type] = useDnD();
 
-  const elk = new ELK();
   const { refs, floatingStyles } = useFloating();
-  const addNode = useStore((state) => state.addNode);
-  const updateNode = useStore((state) => state.updateNode);
-  const removeNode = useStore((state) => state.removeNode);
-  const removeEdge = useStore((state) => state.removeEdge);
-  const addEdge = useStore((state) => state.addEdge);
-  const checkExists = useStore((state) => state.checkExists);
+
+  // Local states for node and form management
   const [pendingNode, setPendingNode] = useState(null);
   const [formData, setFormData] = useState({});
   const [editFormData, setEditFormData] = useState({});
   const [selectedNode, setSelectedNode] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const { fitView } = useReactFlow();
-  const defaultOptions = {
-    'elk.algorithm': 'layered',
-    'elk.layered.spacing.nodeNodeBetweenLayers': 100,
-    'elk.spacing.nodeNode': 80,
-  };
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Your repeated logic here
+      console.log(useStore.getState().pathStack);
+
+    }, 5000); // 1000 ms = 1 second
+
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, []);
   window.update_environment = function (envString) {
     try {
-      const env = JSON.parse(envString);
+      const env = typeof envString === 'string' ? JSON.parse(envString) : envString;
       console.log("Parsed environment:", env);
 
       const dependencies = {};
       const nodesToUpdate = [];
 
+      const processModuleCommands = (commands, parentModule = null) => {
+        const parsedCommands = typeof commands === "string" ? JSON.parse(commands) : commands;
+
+        for (const [subLabel, subData] of Object.entries(parsedCommands)) {
+          const subFullName = subData.name || `${subLabel}@${parentModule}`;
+          const [baseLabel, subModuleName] = subFullName.includes("@") ? subFullName.split("@") : [subFullName, null];
+
+          const subNodeDependencies = subData.exp
+            ? subData.exp.match(/\b[A-Za-z_]\w*\b/g)?.filter(dep => dep !== subFullName) || []
+            : [];
+
+          dependencies[baseLabel] = subNodeDependencies;
+
+          nodesToUpdate.push({
+            id: subFullName,
+            label: baseLabel,
+            value: subData.val,
+            type: subData.type,
+            definition: subData.keyword === "def" ? subData.exp : undefined,
+            moduleName: parentModule,
+            position: { x: 0, y: 0 },
+            commands: subData.commands // nested modules
+          });
+
+          // If this node is a module, recurse
+          if (subData.type === "module" && subData.commands) {
+            processModuleCommands(subData.commands, baseLabel);
+          }
+        }
+      };
+
       for (const [label, data] of Object.entries(env)) {
         const {
-          name,
-          val,
-          type,
-          exp,
-          keyword,
-          originalInput,
-          operation
+          name, val, type, exp, keyword, originalInput,
+          operation, commands
         } = data;
-        if (type && type.startsWith("$")) continue;
-        const baseLabel = name;
 
+        // Skip internal/system types
+        if (type && type.includes("$")) continue;
+
+        // Handle delete first
+        const [baseLabel, moduleNameFromName] = name.includes("@") ? name.split("@") : [name, null];
         if (operation === "delete") {
-          console.log(`Deleting node: ${baseLabel}`);
-          removeNode(baseLabel);
+          removeNode(name);
           continue;
         }
 
+        const fullModuleName = moduleNameFromName || null;
         const isDefinition = keyword === "def";
 
+        // Collect dependencies
         const nodeDependencies = exp
           ? exp.match(/\b[A-Za-z_]\w*\b/g)?.filter(dep => dep !== name) || []
           : [];
-
         dependencies[baseLabel] = nodeDependencies;
 
         nodesToUpdate.push({
-          id: baseLabel,
+          id: name,
           label: baseLabel,
           value: val,
           type,
           definition: isDefinition ? exp : undefined,
-          position: { x: 0, y: 0 } // All nodes at 0,0
+          moduleName: fullModuleName,
+          position: { x: 0, y: 0 },
+          commands
         });
 
+        // If module, recursively parse its commands
+        if (type === "module" && commands) {
+          try {
+            processModuleCommands(commands, baseLabel);
+          } catch (e) {
+            console.warn(`Failed to parse module commands for ${label}`, e);
+          }
+        }
       }
 
       const sortedNodes = topologicalSort(nodesToUpdate, dependencies);
 
-      sortedNodes.forEach(({ id, label, value, type, definition, position }) => {
-        const node = nodes.find(n => n.id === label);
 
-        const updateData = { value };
-        if (definition) updateData.definition = definition;
+      for (const { id, label, value, type, definition, position, moduleName, commands } of sortedNodes) {
+        function extractModuleHierarchy(id) {
+          const parts = id.split("@");
 
-        if (node) {
-          console.log(`Updating node ${label} with value: ${value}`);
-          updateNode(label, updateData);
-        } else {
-
-
-          //console.warn(`Creating new node ${label} with type ${type}.`);
-          let nodeType = "Variable";
-
-          if (type === "html") nodeType = "HTML";
-          else if (type.includes("action")) nodeType = "Action";
-          else if (definition) nodeType = "Definition";
-          else if (type?.startsWith("array[{") || value?.startsWith("table")) nodeType = "Table";
-
-          let newNode;
-
-          if (nodeType === "Table") {
-            const columnPattern = /array\[\{(.+?)\}\]/;
-            const match = type.match(columnPattern);
-            const columns = [];
-
-            if (match) {
-              const columnDefs = match[1].split(",");
-              for (const col of columnDefs) {
-                const [colName, colType] = col.trim().split(":").map(s => s.trim());
-                if (colName && colType) columns.push({ name: colName, type: colType });
-              }
-            }
-
-            const rows = [];
-            const valuePattern = /^table\[(.+)\]$/;
-            const valueMatch = value?.match(valuePattern);
-
-            if (valueMatch) {
-              const rowString = `[${valueMatch[1]}]`;
-              try {
-                const parsedRows = JSON.parse(rowString.replace(/(\w+)\s*:/g, '"$1":'));
-                if (Array.isArray(parsedRows)) rows.push(...parsedRows);
-              } catch (e) {
-                console.warn("Failed to parse table rows from value:", value);
-              }
-            }
-
-            newNode = {
-              id: label,
-              type: "Table",
-              position,
-              data: { label, columns, rows }
-            };
-          } else if (nodeType === "Action") {
-            newNode = {
-              id: label,
-              type: "Action",
-              position,
-              data: { label, action: definition }
-            };
+          if (parts.length === 1) {
+            return { envId: "root", parentId: null };
+          } else if (parts.length === 2) {
+            return { envId: parts[1], parentId: "root" };
           } else {
-            newNode = {
-              id: label,
-              type: nodeType,
-              position,
-              data: { label, value, definition }
+            return {
+              envId: parts[parts.length - 2],
+              parentId: parts[parts.length - 1]
             };
           }
-
-          //console.log("New node:", newNode);
-          addNode(newNode);
         }
-      });
 
+        const { envId, parentId } = extractModuleHierarchy(id);
+        const nodeType = (() => {
+          if (type === "html") return "HTML";
+          if (type === "module") return "Module";
+          if (type?.includes("action")) return "Action";
+          if (definition) return "Definition";
+          if (type?.startsWith("array[{") || value?.startsWith("table")) return "Table";
+          return "Variable";
+        })();
+
+        let newNode;
+
+        if (nodeType === "Table") {
+          const columnPattern = /array\[\{(.+?)\}\]/;
+          const match = type.match(columnPattern);
+          const columns = [];
+
+          if (match) {
+            const columnDefs = match[1].split(",");
+            for (const col of columnDefs) {
+              const [colName, colType] = col.trim().split(":").map(s => s.trim());
+              if (colName && colType) columns.push({ name: colName, type: colType });
+            }
+          }
+
+          const rows = [];
+          const valuePattern = /^table\[(.+)\]$/;
+          const valueMatch = value?.match(valuePattern);
+          if (valueMatch) {
+            try {
+              const parsedRows = JSON.parse(`[${valueMatch[1]}]`.replace(/(\w+):/g, '"$1":'));
+              if (Array.isArray(parsedRows)) rows.push(...parsedRows);
+            } catch (e) {
+              console.warn("Failed to parse table rows from value:", value);
+            }
+          }
+
+          newNode = {
+            id,
+            type: "Table",
+            position,
+            data: { label, columns, rows }
+          };
+
+        } else if (nodeType === "Action") {
+          newNode = {
+            id,
+            type: "Action",
+            position,
+            data: { label, action: definition }
+          };
+
+        } else if (nodeType === "Module") {
+          newNode = {
+            id,
+            type: "Module",
+            position,
+            data: { label, value }
+          };
+        } else {
+          newNode = {
+            id,
+            type: nodeType,
+            position,
+            data: { label, value, definition }
+          };
+        }
+
+        const existing = getCurrentEnv().nodes.find(n => n.id === id);
+        if (existing) {
+          updateNode(id, newNode.data);
+        } else {
+          parentId == envId
+            ? addNode(newNode, envId)
+            : addNode(newNode, envId, parentId);
+        }
+      }
+
+      // Fetch dependencies
       (async () => {
         for (const node of sortedNodes) {
-
           try {
-            setSelectedNodeId(node.label);
-            await fetch_dependencies(node.label);
-
+            setSelectedNodeId(node.id);
+            await fetch_dependencies(node.id);
           } catch (e) {
-            console.error(`Error fetching for ${node.label}:`, e);
+            console.error(`Error fetching for ${node.id}:`, e);
           }
         }
       })();
@@ -224,62 +279,79 @@ const DnDFlow = () => {
     } catch (e) {
       console.error("Failed to parse environment:", e);
     }
-
-
   };
+
+  function findNodeById(globalEnvs, nodeId) {
+    for (const env of Object.values(globalEnvs)) {
+      const found = env.nodes.find((n) => n.id === nodeId);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function findNodeByLabel(globalEnvs, label) {
+    for (const env of Object.values(globalEnvs)) {
+      const found = env.nodes.find((n) => n.data?.label === label);
+      if (found) return found;
+    }
+    return null;
+  }
+
   window.setupEdges = function (dependencies) {
     const source = selectedNodeId;
-    const node = nodes.find((n) => n.id === source);
+    const node = findNodeById(environments, source);
+    console.log("Setting up edges for node:", node);
     if (!node) return;
+    console.log("Dependencies:", dependencies);
+    // 🔧 Extract module ID from node ID (everything except final label)
+    const moduleId = source.includes("@")
+      ? source.split("@").at(-1)
+      : "root";
 
-    // When no dependencies are returned from backend
     if (dependencies.length === 0) {
-      console.log("No dependencies found for node:", source);
+      console.log("No dependencies found.");
 
-      if (
-        (node.type === "Definition" || node.type === "HTML") &&
-        node.data?.definition
-      ) {
+      if ((node.type === "Definition" || node.type === "HTML") && node.data?.definition) {
         const referencedLabels = [
-          ...new Set(node.data.definition.match(/\b[A-Za-z_]\w*\b/g) || [])
+          ...new Set(node.data.definition.match(/\b[A-Za-z_]\w*\b/g) || []),
         ].filter((label) => label !== node.data.label); // avoid self-reference
 
-        // Remove outdated edges pointing TO this node
         edges.forEach((edge) => {
           if (edge.target === source) {
-            const sourceNode = nodes.find((n) => n.id === edge.source);
-            const sourceLabel = sourceNode?.data?.label;
+            const sourceNode = findNodeById(environments, source); 
+            const sourceLabel = sourceNode?.data?.label; 
             if (sourceLabel && !referencedLabels.includes(sourceLabel)) {
-              removeEdge(edge.id);
+              removeEdge(edge.id, moduleId); 
             }
           }
         });
 
-        // Add any missing edges based on current references
         referencedLabels.forEach((label) => {
-          const sourceNode = nodes.find((n) => n.data?.label === label);
+          const sourceNode = findNodeByLabel(environments, label);
           if (sourceNode) {
             const edgeId = `${sourceNode.id}->${source}`;
             if (!edges.find((e) => e.id === edgeId)) {
-              addEdge({
-                id: edgeId,
-                source: sourceNode.id,
-                target: source,
-                type: 'default',
-                reconnectable: true,
-              });
+              addEdge(
+                {
+                  id: edgeId,
+                  source: sourceNode.id,
+                  target: source,
+                  type: "default",
+                  reconnectable: true,
+                },
+                moduleId 
+              );
             }
           }
         });
       }
 
-      // Same for Action nodes
       if (node.type === "Action" && node.data?.action) {
         const patterns = [
           /([a-zA-Z_]\w*)\s*:=/,
           /insert\s+.+\s+into\s+([a-zA-Z_]\w*)/,
           /update\s+\w+\s+in\s+([a-zA-Z_]\w*)\s+with/,
-          /delete\s+\w+\s+in\s+([a-zA-Z_]\w*)\s+where/
+          /delete\s+\w+\s+in\s+([a-zA-Z_]\w*)\s+where/,
         ];
 
         let targetLabel = null;
@@ -293,27 +365,30 @@ const DnDFlow = () => {
 
         edges.forEach((edge) => {
           if (edge.source === source && edge.type === "action") {
-            const targetNode = nodes.find((n) => n.id === edge.target);
+            const targetNode = findNodeByLabel(environments, targetLabel);
             const targetEdgeLabel = targetNode?.data?.label;
             if (targetEdgeLabel && targetEdgeLabel !== targetLabel) {
-              removeEdge(edge.id);
+              removeEdge(edge.id, moduleId); // 👈 pass moduleId
             }
           }
         });
 
         if (targetLabel) {
-          const targetNode = nodes.find((n) => n.data?.label === targetLabel);
+          const targetNode = findNodeByLabel(environments, targetLabel);
           if (targetNode) {
             const edgeId = `${source}->${targetNode.id}`;
             if (!edges.find((e) => e.id === edgeId)) {
-              addEdge({
-                id: edgeId,
-                source,
-                target: targetNode.id,
-                type: 'action',
-                data: { action: node.data.action },
-                reconnectable: true,
-              });
+              addEdge(
+                {
+                  id: edgeId,
+                  source,
+                  target: targetNode.id,
+                  type: "action",
+                  data: { action: node.data.action },
+                  reconnectable: true,
+                },
+                moduleId // 👈 pass moduleId
+              );
             }
           }
         }
@@ -322,15 +397,25 @@ const DnDFlow = () => {
       setSelectedNodeId(null);
       return;
     }
+    console.log("BRH found:");
 
-    // Backend returned dependencies – normal flow
+    // Handle backend dependency response
     for (const target of dependencies) {
-      const targetNode = nodes.find((n) => n.id === target);
+      console.log("Target:", target);
+      const targetNode = findNodeById(environments, target);
+      console.log("Target node:", targetNode);
       if (!targetNode) continue;
 
       let id = `${source}->${target}`;
-      let type = "default";
 
+      let type = "default";
+      if (moduleId === "User") {
+        console.log("Setting up edges for node:", node);
+
+        console.log("Target node:", targetNode);
+        console.log(id)
+
+      }
       if (targetNode.type === "Action") {
         id = `${target}->${source}`;
         type = "action";
@@ -344,54 +429,61 @@ const DnDFlow = () => {
           type,
           data: type === "action" ? { action: targetNode.data.action } : {},
           reconnectable: true,
-        });
+        }, moduleId); // 👈 pass module
       }
     }
 
     setSelectedNodeId(null);
-    console.log("Edges updated:", edges);
   };
+
 
   function layoutNodesCircular(nodes, setNodes) {
     const centerX = 0;
     const centerY = 0;
-    const baseRadius = 150;
-    const radiusIncrement = 60;
-    const angleStep = 0.3; // radians
+
+    // Define groups with matching type names
+    const groups = {
+      HTML: [],
+      Variable: [],
+      Definition: [],
+      Action: [],
+      Misc: [],
+    };
+
+    // Group nodes based on `node.data.type`
+    nodes.forEach((node) => {
+      const type = node.data?.type;
+      if (type && groups[type]) {
+        groups[type].push(node);
+      } else {
+        groups.Misc.push(node);
+      }
+    });
+
+    // Order of rings from center outward
+    const layerOrder = ["HTML", "Variable", "Definition", "Action", "Misc"];
+    const baseRadius = 0;
+    const radiusIncrement = 150;
 
     const placedNodes = [];
 
-    nodes.forEach((node, i) => {
-      let radius = baseRadius;
-      let angle = i * angleStep;
-      let attempts = 0;
-      let x, y, overlaps;
+    layerOrder.forEach((type, layerIndex) => {
+      const layerNodes = groups[type];
+      if (layerNodes.length === 0) return;
 
-      do {
-        x = centerX + radius * Math.cos(angle);
-        y = centerY + radius * Math.sin(angle);
+      const radius = baseRadius + radiusIncrement * layerIndex;
+      const angleStep = (2 * Math.PI) / layerNodes.length;
 
-        const tempNode = { ...node, position: { x, y } };
+      layerNodes.forEach((node, i) => {
+        const angle = i * angleStep;
+        const x = centerX + radius * Math.cos(angle);
+        const y = centerY + radius * Math.sin(angle);
 
-        overlaps = placedNodes.some((placed) => {
-          const dx = placed.position.x - x;
-          const dy = placed.position.y - y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          return dist < 250; // minimum spacing between nodes
+        placedNodes.push({
+          ...node,
+          position: { x, y },
         });
-
-        if (overlaps) {
-          angle += angleStep;
-          if (angle >= 2 * Math.PI) {
-            angle = 0;
-            radius += radiusIncrement;
-          }
-        }
-
-        attempts++;
-      } while (overlaps && attempts < 1000);
-
-      placedNodes.push({ ...node, position: { x, y } });
+      });
     });
 
     setNodes(placedNodes);
@@ -400,10 +492,11 @@ const DnDFlow = () => {
 
 
 
+
   const getLayoutedElements = (nodes, edges, options) => {
     const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
     g.setGraph({ rankdir: options.direction });
-   
+
     edges.forEach((edge) => g.setEdge(edge.source, edge.target));
     nodes.forEach((node) =>
       g.setNode(node.id, {
@@ -412,9 +505,9 @@ const DnDFlow = () => {
         height: node.measured?.height ?? 0,
       }),
     );
-   
+
     Dagre.layout(g);
-   
+
     return {
       nodes: nodes.map((node) => {
         const position = g.node(node.id);
@@ -422,7 +515,7 @@ const DnDFlow = () => {
         // so it matches the React Flow node anchor point (top left).
         const x = position.x - (node.measured?.width ?? 0) / 2;
         const y = position.y - (node.measured?.height ?? 0) / 2;
-   
+
         return { ...node, position: { x, y } };
       }),
       edges,
@@ -439,7 +532,7 @@ const DnDFlow = () => {
 
   const onLayout = useCallback(
     (direction) => {
-      console.log(nodes);
+
       const layouted = getLayoutedElements(nodes, edges, { direction });
 
       setNodes([...layouted.nodes]);
@@ -454,34 +547,47 @@ const DnDFlow = () => {
   function topologicalSort(nodes, dependencies) {
     const sorted = [];
     const visited = new Set();
-    const tempMark = new Set(); // to detect cycles
+    const tempMark = new Set(); // To detect cycles
 
+    const nodeMap = new Map(); // To store nodes by their id for easy lookup
+
+    // First, organize nodes by module
+    nodes.forEach(node => {
+      nodeMap.set(node.id, node);
+    });
+
+    // A helper function to visit nodes and resolve dependencies
     function visit(node) {
-      if (tempMark.has(node.label)) {
-        throw new Error(`Circular dependency detected: ${node.label}`);
+      if (tempMark.has(node.id)) {
+        throw new Error(`Circular dependency detected: ${node.id}`);
       }
-      if (!visited.has(node.label)) {
-        tempMark.add(node.label);
-        const nodeDeps = dependencies[node.label] || [];
+      if (!visited.has(node.id)) {
+        tempMark.add(node.id);
+
+        // Get node dependencies based on the node's module context
+        const nodeDeps = dependencies[node.id] || [];
+
+        // Visit all dependencies of this node
         nodeDeps.forEach(dep => {
-          const depNode = nodes.find(n => n.label === dep);
+          const depNode = nodeMap.get(dep);
           if (depNode) {
             visit(depNode);
           }
         });
-        visited.add(node.label);
-        tempMark.delete(node.label);
+
+        visited.add(node.id);
+        tempMark.delete(node.id);
         sorted.push(node);
       }
     }
 
+    // Start visiting all nodes to detect cycles and sort them
     nodes.forEach(node => {
       visit(node);
     });
 
     return sorted;
   }
-
 
   const onNodesDelete = useCallback(
     (deleted) => {
@@ -533,25 +639,22 @@ const DnDFlow = () => {
     event.dataTransfer.dropEffect = "move";
   }, []);
 
+  const wrapInNestedModules = (message) => {
+    const modules = pathStack.slice(1).reverse(); // Exclude 'root' and reverse order
 
+    return modules.reduce((msg, mod) => `@${mod} { ${msg} }`, message);
+  };
 
   const handleSave = () => {
     if (!selectedNode) return;
 
-    console.log(editFormData)
     let message = '';
+
     if (selectedNode.type === 'Variable') {
-      //message = `var ${editFormData.label} = ${editFormData.value};${selectedNode.position.x}/${selectedNode.position.y}`;
       message = `var ${editFormData.label} = ${editFormData.value}`;
-      console.log("Sending message to server:", message);
-      send_message_to_server(message);
     } else if (selectedNode.type === 'Definition' || selectedNode.type === 'HTML') {
-      //message = `def ${editFormData.label} = ${editFormData.definition};${selectedNode.position.x}/${selectedNode.position.y}`;
       message = `def ${editFormData.label} = ${editFormData.definition}`;
-      console.log("Sending message to server:", message);
-      send_message_to_server(message);
     } else if (selectedNode.type === 'Table') {
-      console.log("Table data", editFormData)
       const { columns } = editFormData;
 
       if (!columns || columns.length === 0) {
@@ -563,35 +666,19 @@ const DnDFlow = () => {
         .map(col => `${col.name}:${col.type}`)
         .join(", ");
 
-      const message = `table ${editFormData.label} { ${formattedColumns} }`;
-
-      console.log("Sending message to server:", message);
-      send_message_to_server(message);
+      message = `table ${editFormData.label} { ${formattedColumns} }`;
     } else if (selectedNode.type === 'Action') {
-      message = `def ${editFormData.label} = ${editFormData.action} `;
-      console.log("Sending message to server:", message);
-      send_message_to_server(message);
+      message = `def ${editFormData.label} = ${editFormData.action}`;
     }
 
+    // Wrap in nested modules if not in root
+    const wrappedMessage = wrapInNestedModules(message);
+    send_message_to_server(wrappedMessage);
 
-    if (selectedNode.id === editFormData.label)
-      updateNode(selectedNode.id, editFormData);
-    else {
-      const newNode = {
-        id: editFormData.label,
-        type: selectedNode.type,
-        position: selectedNode.position,
-        data: { ...editFormData },
-      };
-      console.log("New Node:", selectedNode)
-      removeNode(selectedNode.id); // Remove the old node problema se tiver edges
-      send_message_to_server(`delete ${selectedNode.id}`);
-      addNode(newNode);
-
-    }
     setSelectedNode(null);
     setEditFormData({});
   };
+
   const handleDelete = () => {
     let message = 'delete ' + selectedNode.id + '';
     send_message_to_server(message);
@@ -639,62 +726,57 @@ const DnDFlow = () => {
     setSelectedNode(null);
     setEditFormData({});
   };
+
+
   const handleConfirm = () => {
     if (!pendingNode) return;
+
     checkExists(formData.label);
 
-    // Create the new node
     const newNode = {
       id: formData.label,
       type: pendingNode.type,
       position: pendingNode.position,
       data: { ...formData },
     };
-    console.log("New Node:", newNode.type)
-
 
     let message = '';
-    if (pendingNode.type === 'Variable') {
-      //message = `var ${formData.label} = ${formData.value};${pendingNode.position.x}/${pendingNode.position.y}`;
-      message = `var ${formData.label} = ${formData.value}`;
-      console.log("Sending message to server:", message);
-      send_message_to_server(message);
-    } else if (pendingNode.type === 'Definition' || pendingNode.type === 'HTML') {
-      //message = `def ${formData.label} = ${formData.definition};${pendingNode.position.x}/${pendingNode.position.y}`;
-      message = `def ${formData.label} = ${formData.definition}`;
-      console.log("Sending message to server:", message);
-      send_message_to_server(message);
-    } else if (pendingNode.type === 'Table') {
-      const { columns } = newNode.data;
 
-      if (!columns || columns.length === 0) {
-        alert("Table name or columns missing.");
+    switch (pendingNode.type) {
+      case 'Variable':
+        message = `var ${formData.label} = ${formData.value}`;
+        break;
+      case 'Definition':
+      case 'HTML':
+        message = `def ${formData.label} = ${formData.definition}`;
+        break;
+      case 'Table':
+        const { columns } = newNode.data;
+        if (!columns || columns.length === 0) {
+          alert("Table name or columns missing.");
+          return;
+        }
+        const formattedColumns = columns.map(col => `${col.name}:${col.type}`).join(", ");
+        message = `table ${formData.label} { ${formattedColumns} }`;
+        break;
+      case 'Action':
+        message = `def ${formData.label} = ${formData.action}`;
+        break;
+      case 'Module':
+        message = `module ${formData.label} {}`;
+        break;
+      default:
+        console.warn("Unsupported node type:", pendingNode.type);
         return;
-      }
-
-      const formattedColumns = columns
-        .map(col => `${col.name}:${col.type}`)
-        .join(", ");
-
-      const message = `table ${formData.label} { ${formattedColumns} }`;
-
-      console.log("Sending message to server:", message);
-      send_message_to_server(message);
-    } else if (pendingNode.type === 'Action') {
-      message = `def ${formData.label} = ${formData.action}`;
-      console.log("Sending message to server:", message);
-      send_message_to_server(message);
-    } else if (pendingNode.type === 'group') {
-      message = `module ${formData.label}`;
-      console.log("Sending message to server:", message);
-      // send_message_to_server(message);
     }
 
-    // Add the new node
+    const nestedMessage = currentEnvId === 'root'
+      ? message
+      : wrapInNestedModules(message);
 
-    addNode(newNode);
+    console.log("Sending message to server:", nestedMessage);
+    send_message_to_server(nestedMessage);
 
-    // Reset the pending node and form data
     setPendingNode(null);
     setFormData({});
   };
@@ -705,33 +787,7 @@ const DnDFlow = () => {
     setSelectedNode(node);
     setEditFormData(node.data);
   };
-  const onNodeDragStop = (event, node) => {
-    // Get the current node position and size
-    return;
-    const nodeWidth = node.width || 150; // Default width if not provided
-    const nodeHeight = node.height || 100; // Default height if not provided
 
-    // Find all group nodes (modules)
-    const intersections = getIntersectingNodes(node);
-
-    if (intersections.length === 0 && node.parentId !== null) {
-      updateNode(node.id, { parentId: null, extent: null });
-    }
-
-    // Check if dragged node is inside any group (module)
-    for (const groupNode of intersections) {
-      if (groupNode.type === 'Module') {
-        console.log("Group node found:", groupNode.id);
-
-        // Update the node to be part of the group
-        updateNode(node.id, { parentId: groupNode.id, extent: "parent" });
-
-        // Now, adjust the group node (module) to include the dragged node
-        adjustModuleSize(groupNode.id, nodeWidth, nodeHeight);
-        break;
-      }
-    }
-  };
 
   // Function to adjust the size of the Module when a node is added
   const adjustModuleSize = (moduleId, nodeWidth, nodeHeight) => {
@@ -765,7 +821,10 @@ const DnDFlow = () => {
 
       const fromNodeId = connectionState.fromNode.id;
       const fromNodeType = connectionState.fromNode.type;
-      const id = getId();
+      let id = getId();
+      while (nodes.find(node => node.id === id)) {
+        id = getId();
+      }
       const { clientX, clientY } = 'changedTouches' in event ? event.changedTouches[0] : event;
 
       let newNodeType = '';
@@ -776,13 +835,12 @@ const DnDFlow = () => {
         newNodeType = 'Variable';
         newNodeData = { label: id, value: "" };
         edgeType = 'action';
-        console.log("ALO")
+
         action = connectionState.fromNode.data.action;
-        console.log("Action", action)
         updateNode(fromNodeId, { target: id });
       } else if (fromNodeType === 'Variable') {
         newNodeType = 'Definition';
-        newNodeData = { label: id, definition: "" + connectionState.fromNode.data.label };
+        newNodeData = { label: id, definition: connectionState.fromNode.data.label };
       } else {
         return;
       }
@@ -821,7 +879,7 @@ const DnDFlow = () => {
         send_message_to_server(message);
       }
       // Update nodes and edges
-      addNode(newNode);
+      addNode(newNode, currentEnvId);
       console.log("Adding edge", newEdge)
       if (fromNodeType === 'Action')
         addEdge(newEdge);
@@ -898,18 +956,7 @@ const DnDFlow = () => {
       });
     }
   };
-  const isInside = (childPos, parentNode) => {
-    const { position, style } = parentNode;
-    const width = style?.width || 150;
-    const height = style?.height || 22;
 
-    return (
-      childPos.x > position.x &&
-      childPos.x < position.x + width &&
-      childPos.y > position.y &&
-      childPos.y < position.y + height
-    );
-  };
 
   return (
     <div style={{ width: "100vw", height: "100vh", display: "flex" }} ref={refs.setReference}>
@@ -930,7 +977,6 @@ const DnDFlow = () => {
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
-            onNodeDragStop={onNodeDragStop}
             onEdgesChange={onEdgesChange}
             onNodesDelete={onNodesDelete}
             onBeforeDelete={onBeforeDelete}
@@ -958,6 +1004,34 @@ const DnDFlow = () => {
             <Background />
             <MiniMap nodeColor={nodeColor} nodeStrokeWidth={3} zoomable pannable onNodeClick={handleMinimapNodeClick} />
           </ReactFlow>
+          <div style={{ position: 'absolute', top: 140, left: 280, zIndex: 1000 }}>
+            <div style={{ fontSize: '14px', color: '#666', display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ marginRight: 4 }}>@</span>
+              {pathStack.map((id, idx) => (
+                <div key={id} style={{ display: 'flex', alignItems: 'center' }}>
+                  <button
+                    onClick={() => setEnv(id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#3498db',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      fontSize: '14px',
+                      padding: 0,
+                      marginRight: 4,
+                    }}
+                  >
+                    {id}
+                  </button>
+                  {idx < pathStack.length - 1 && (
+                    <span style={{ color: '#aaa', marginRight: 4 }}>/</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
           <Panel position="top-left">
             <div style={{
               display: "flex",
@@ -1011,12 +1085,14 @@ const DnDFlow = () => {
               >
                 Layers
               </button>
-              
+
             </div>
+
           </Panel>
 
 
         </div>
+
         {pendingNode && (
           <div style={styles.configPanel}>
             <h3>Configure {pendingNode.type} Node</h3>
