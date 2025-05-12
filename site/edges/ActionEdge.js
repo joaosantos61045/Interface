@@ -6,6 +6,7 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import { send_message_to_server } from "../../pkg/meerkat_remote_console_V2";
+import useStore from "../store/store.js";
 
 const buttonEdgeLabelStyle = {
   position: "absolute",
@@ -54,14 +55,15 @@ export default function ActionEdge({
   data,
   markerEnd = { type: "arrow", color: "#ff0073" },
 }) {
-  const { setEdges } = useReactFlow();
+
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
-
+  const { onNodesChange, environments, onEdgesChange, onConnect, currentEnvId, getCurrentEnv,paramInputs} = useStore();
+  const { nodes, edges } = getCurrentEnv();
   const [showPrompt, setShowPrompt] = useState(false);
   const [paramValues, setParamValues] = useState({});
   const [paramNames, setParamNames] = useState([]);
-
+  let modParam = "";
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -75,7 +77,7 @@ export default function ActionEdge({
     const regex = /\(([^)]*)\)\s*=>/g;
     let match;
     const params = [];
-  
+
     while ((match = regex.exec(actionStr)) !== null) {
       const part = match[1]
         .split(",")
@@ -83,13 +85,27 @@ export default function ActionEdge({
         .filter((p) => p.length > 0);
       params.push(...part);
     }
-  
+
     return params;
   };
-
+  function findNodeById(globalEnvs, nodeId) {
+    for (const env of Object.values(globalEnvs)) {
+      const found = env.nodes.find((n) => n.id === nodeId);
+      if (found) return found;
+    }
+    return null;
+  }
   const onEdgeClick = useCallback(() => {
     const actionStr = data?.action ?? "";
-
+    
+    if (currentEnvId != "root" && findNodeById(environments, currentEnvId).data.params) {
+      
+      modParam = `"${paramInputs}"`;
+      console.log("Params:", modParam);
+    }else {
+      modParam ="";
+      console.log("No params");
+    }
     const params = extractParams(actionStr);
     if (params.length > 0) {
       // Open input prompt
@@ -98,7 +114,8 @@ export default function ActionEdge({
       setShowPrompt(true);
     } else {
       // No params, just fire immediately
-      send_message_to_server(`do ${source}`);
+      
+      send_message_to_server(`do ${source} ${modParam}`);
       setShouldAnimate(true);
       setAnimationKey((prev) => prev + 1);
       setTimeout(() => setShouldAnimate(false), 600);
@@ -110,8 +127,16 @@ export default function ActionEdge({
   };
 
   const onSubmit = () => {
+    if (currentEnvId != "root" && findNodeById(environments, currentEnvId).data.params) {
+      
+      modParam = `"${paramInputs}"`;
+      console.log("Params:", modParam);
+    }else {
+      modParam ="";
+      console.log("No params");
+    }
     const args = paramNames.map((p) => paramValues[p] || "").join(" ");
-    send_message_to_server(`do ${source} ${args}`);
+    send_message_to_server(`do ${source} ${modParam} ${args}`);
     setShowPrompt(false);
 
     setShouldAnimate(true);
@@ -162,64 +187,64 @@ export default function ActionEdge({
           }}
         >
           {showPrompt ? (
-  <div
-    style={{
-      backgroundColor: "#fff",
-      border: "1px solid #ccc",
-      borderRadius: "8px",
-      padding: "8px",
-      boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
-      minWidth: "180px",
-      position: "relative",
-    }}
-  >
-    <button
-      onClick={() => setShowPrompt(false)}
-      style={{
-        position: "absolute",
-        top: "-10px",
-        right: "-90px",
-        border: "none",
-        background: "transparent",
-        fontWeight: "bold",
-        fontSize: "14px",
-        color: "#888",
-        cursor: "pointer",
-      }}
-    >
-      X
-    </button>
+            <div
+              style={{
+                backgroundColor: "#fff",
+                border: "1px solid #ccc",
+                borderRadius: "8px",
+                padding: "8px",
+                boxShadow: "0 4px 8px rgba(0,0,0,0.2)",
+                minWidth: "180px",
+                position: "relative",
+              }}
+            >
+              <button
+                onClick={() => setShowPrompt(false)}
+                style={{
+                  position: "absolute",
+                  top: "-10px",
+                  right: "-90px",
+                  border: "none",
+                  background: "transparent",
+                  fontWeight: "bold",
+                  fontSize: "14px",
+                  color: "#888",
+                  cursor: "pointer",
+                }}
+              >
+                X
+              </button>
 
-    {paramNames.map((param) => (
-      <div key={param} style={{ marginBottom: "4px" }}>
-        <label style={{ fontSize: "12px" }}>{param}</label>
-        <input
-          type="text"
-          value={paramValues[param]}
-          onChange={(e) => onInputChange(param, e.target.value)}
-          style={{ width: "100%", padding: "4px", fontSize: "12px" }}
-        />
-      </div>
-    ))}
+              {paramNames.map((param) => (
+                <div key={param} style={{ marginBottom: "4px" }}>
+                  <label style={{ fontSize: "12px" }}>{param}</label>
+                  <input
+                    type="text"
+                    value={paramValues[param]}
+                    onChange={(e) => onInputChange(param, e.target.value)}
+                    style={{ width: "100%", padding: "4px", fontSize: "12px" }}
+                  />
+                </div>
+              ))}
 
-    <button
-      onClick={onSubmit}
-      style={{
-        marginTop: "6px",
-        padding: "4px 8px",
-        fontSize: "12px",
-        backgroundColor: "#ff0073",
-        color: "#fff",
-        border: "none",
-        borderRadius: "4px",
-        cursor: "pointer",
-        width: "100%",
-      }}
-    >
-      Run
-    </button>
-  </div>
-) : (
+              <button
+                onClick={onSubmit}
+                style={{
+                  marginTop: "6px",
+                  padding: "4px 8px",
+                  fontSize: "12px",
+                  backgroundColor: "#ff0073",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  width: "100%",
+                }}
+              >
+                Run
+              </button>
+            </div>
+          ) : (
             <button
               style={buttonEdgeButtonStyle}
               onClick={onEdgeClick}

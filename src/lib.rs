@@ -1,28 +1,28 @@
+use js_sys::Date;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{console, window, HtmlInputElement, WebSocket, MessageEvent};
-use js_sys::Date;
-use rand::Rng;
+use web_sys::{console, window, HtmlInputElement, MessageEvent, WebSocket};
 
-use wasm_bindgen::JsValue;
-use wasm_bindgen_futures::spawn_local;
-use web_sys::{ RequestInit, RequestMode, Response};
-use js_sys::Promise;
 use gloo_net::http::Request;
-use serde_json::json;
+use js_sys::Promise;
+use reqwest::header::{HeaderMap, COOKIE};
 use reqwest::{Client, StatusCode};
-use reqwest::header::{COOKIE, HeaderMap};
+use serde_json::json;
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsValue;
+use wasm_bindgen_futures::spawn_local;
+use web_sys::{RequestInit, RequestMode, Response};
 
-use serde_wasm_bindgen::to_value;
 use js_sys::{Function, JsString};
+use rand::distributions::Alphanumeric;
 use serde_json::Value;
+use serde_wasm_bindgen::to_value;
 use web_sys::Window;
 // -------------------- Message Structs --------------------
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VariableInfo {
@@ -43,17 +43,13 @@ pub struct VariableInfo {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Server2ClientMsg(pub HashMap<String, VariableInfo>);
 
-
 // -------------------- Static State --------------------
 
 static mut WS_CONNECTED: bool = false;
 static mut WS: Option<WebSocket> = None;
 static mut NAMESPACE: Option<String> = None;
 
-
 // -------------------- Utility --------------------
-
-
 
 fn append_to_console(message: &str) {
     let document = window().unwrap().document().unwrap();
@@ -77,14 +73,42 @@ fn handle_server_message(json: String) {
     }
 }
 
+fn save_namespace_to_local_storage(namespace: &str) {
+    if let Some(window) = window() {
+        if let Ok(Some(storage)) = window.local_storage() {
+            let _ = storage.set_item("namespace", namespace);
+        }
+    }
+}
 
+fn generate_random_namespace() -> String {
+    rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(5)
+        .map(char::from)
+        .collect()
+}
+fn get_or_create_namespace() -> String {
+    if let Some(win) = window() {
+        if let Ok(Some(storage)) = win.local_storage() {
+            // Try to get it
+            if let Ok(Some(existing)) = storage.get_item("namespace") {
+                return existing;
+            }
 
-
+            // Not found — generate and store it
+            let new_namespace = generate_random_namespace();
+            let _ = storage.set_item("namespace", &new_namespace);
+            return new_namespace;
+        }
+    }
+    // fallback if storage is unavailable
+    generate_random_namespace()
+}
 // -------------------- WebSocket Setup --------------------
 
 pub fn setup_websocket_with_namespace(base_url: String) {
     spawn_local(async move {
-        
         // Establish WebSocket connection
         let ws_url = format!("{}/ws", base_url);
         let ws = match WebSocket::new(&ws_url) {
@@ -95,12 +119,13 @@ pub fn setup_websocket_with_namespace(base_url: String) {
             }
         };
         let ws_clone = ws.clone();
-        let namespace_clone = "A7pX2"; //  Needed inside closure
+        let namespace_value = get_or_create_namespace();
+        let namespace_clone = namespace_value.clone(); //  Needed inside closure
 
         // STEP 4: Send the subscription JSON message on open
         let on_open = Closure::wrap(Box::new(move || {
             console::log_1(&"WebSocket connection opened".into());
-
+            save_namespace_to_local_storage(&namespace_clone);
             let json_msg = json!({
                 "namespace": namespace_clone,
                 "subscribe": "all"
@@ -127,11 +152,10 @@ pub fn setup_websocket_with_namespace(base_url: String) {
     });
 }
 
-
 fn setup_message_handler(ws: &WebSocket) {
     let onmessage_callback = Closure::wrap(Box::new(move |event: MessageEvent| {
         if let Some(received_raw) = event.data().as_string() {
-           // console::log_1(&format!("Raw message received: {}", received_raw).into());
+            // console::log_1(&format!("Raw message received: {}", received_raw).into());
 
             // Try parsing as structured Server2ClientMsg first
             if let Ok(received) = serde_json::from_str::<Server2ClientMsg>(&received_raw) {
@@ -145,7 +169,6 @@ fn setup_message_handler(ws: &WebSocket) {
             } else if let Ok(_env_json) = serde_json::from_str::<serde_json::Value>(&received_raw) {
                 // Just forward the raw string to handle_server_message directly
                 handle_server_message(received_raw);
-
             } else {
                 append_to_console(&format!(
                     "<span style='color: lightgreen;'> {}</span>",
@@ -161,7 +184,6 @@ fn setup_message_handler(ws: &WebSocket) {
     ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
     onmessage_callback.forget();
 }
-
 
 fn setup_send_message(_ws: &WebSocket) {
     let document = window().unwrap().document().unwrap();
@@ -194,8 +216,11 @@ fn setup_send_message(_ws: &WebSocket) {
             let form_data = format!("exp={}", js_sys::encode_uri_component(&input_clone));
 
             let response = match Request::post(&url)
-                .header("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-                .header("X-Requested-With", "XMLHttpRequest") 
+                .header(
+                    "Content-Type",
+                    "application/x-www-form-urlencoded; charset=UTF-8",
+                )
+                .header("X-Requested-With", "XMLHttpRequest")
                 .body(form_data)
             {
                 Ok(request) => request.send().await,
@@ -209,7 +234,10 @@ fn setup_send_message(_ws: &WebSocket) {
                 Ok(resp) => {
                     if let Ok(json) = resp.json::<serde_json::Value>().await {
                         if let Some(result) = json.get("result") {
-                            append_to_console(&format!("<span style='color: lightgreen;'>Result: {}", result));
+                            append_to_console(&format!(
+                                "<span style='color: lightgreen;'>Result: {}",
+                                result
+                            ));
                         } else if let Some(error) = json.get("error") {
                             alert_error(error.as_str().unwrap_or("Unknown error"));
                         } else {
@@ -236,7 +264,6 @@ fn setup_send_message(_ws: &WebSocket) {
     console::log_1(&"Send message POST setup done.".into());
 }
 
-
 #[wasm_bindgen]
 pub fn get_namespace() -> String {
     unsafe {
@@ -246,7 +273,6 @@ pub fn get_namespace() -> String {
     }
     "Namespace not set".to_string()
 }
-
 
 #[wasm_bindgen]
 pub fn send_message_to_server(message: &str) {
@@ -267,7 +293,10 @@ pub fn send_message_to_server(message: &str) {
         let form_data = format!("exp={}", js_sys::encode_uri_component(&input_clone));
 
         let response = match Request::post(&url)
-            .header("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+            .header(
+                "Content-Type",
+                "application/x-www-form-urlencoded; charset=UTF-8",
+            )
             .header("X-Requested-With", "XMLHttpRequest")
             .body(form_data)
         {
@@ -282,7 +311,10 @@ pub fn send_message_to_server(message: &str) {
             Ok(resp) => {
                 if let Ok(json) = resp.json::<serde_json::Value>().await {
                     if let Some(result) = json.get("result") {
-                        append_to_console(&format!("<span style='color: lightgreen;'>Result: {}", result));
+                        append_to_console(&format!(
+                            "<span style='color: lightgreen;'>Result: {}",
+                            result
+                        ));
                     } else if let Some(error) = json.get("error") {
                         alert_error(error.as_str().unwrap_or("Unknown error"));
                     } else {
@@ -310,7 +342,10 @@ pub async fn fetch_dependencies(name: &str) -> Result<JsValue, JsValue> {
 
     let namespace = namespace.unwrap();
     let name = name.to_string();
-    let url = format!("http://localhost:8080/app/{}/dependencies/{}", namespace, name);
+    let url = format!(
+        "http://localhost:8080/app/{}/dependencies/{}",
+        namespace, name
+    );
 
     let response = Request::get(&url)
         .header("Content-Type", "application/json")
@@ -339,74 +374,44 @@ pub async fn fetch_dependencies(name: &str) -> Result<JsValue, JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn perform_action_on_server(action: &str, arg_type: &str, arg_value: &str, env_name: &str, env_value: &str) {
-    let action = action.to_string();
-    let arg_type = arg_type.to_string();
-    let arg_value = arg_value.to_string();
-    let env_name = env_name.to_string();
-    let env_value = env_value.to_string();
-
+pub async fn get_usid() -> String {
     let namespace = unsafe { NAMESPACE.clone() };
     if namespace.is_none() {
         append_to_console("Namespace not set.");
-        return;
+        return "".to_string();
     }
 
     let namespace = namespace.unwrap();
     let url = format!("http://localhost:8080/app/{}", namespace);
+    let form_data = format!("exp={}", js_sys::encode_uri_component("usid"));
 
-    // Construct JSON body
-    let data = serde_json::json!({
-        "action": action,
-        "args": {
-            "arg": {
-                "type": arg_type,
-                "value": arg_value
+    match Request::post(&url)
+        .header(
+            "Content-Type",
+            "application/x-www-form-urlencoded; charset=UTF-8",
+        )
+        .header("X-Requested-With", "XMLHttpRequest")
+        .body(form_data)
+    {
+        Ok(request) => match request.send().await {
+            Ok(resp) => match resp.text().await {
+                Ok(text) => return text,
+                Err(err) => {
+                    append_to_console(&format!("Failed to get text: {:?}", err));
+                    return "".to_string();
+                }
+            },
+            Err(err) => {
+                append_to_console(&format!("POST failed: {:?}", err));
+                return "".to_string();
             }
         },
-        "env": {
-            env_name: env_value
+        Err(err) => {
+            append_to_console(&format!("Failed to create request: {:?}", err));
+            return "".to_string();
         }
-    });
-
-    let json_body = data.to_string();
-
-    spawn_local(async move {
-        let response = match Request::put(&url)
-            .header("Content-Type", "application/json")
-            .header("X-Requested-With", "XMLHttpRequest")
-            .body(json_body)
-        {
-            Ok(request) => request.send().await,
-            Err(err) => {
-                append_to_console(&format!("Failed to create PUT request: {:?}", err));
-                return;
-            }
-        };
-
-        match response {
-            Ok(resp) => {
-                if let Ok(json) = resp.json::<serde_json::Value>().await {
-                    if let Some(result) = json.get("result") {
-                        append_to_console(&format!("<span style='color: lightblue;'>Action Result: {}</span>", result));
-                    } else if let Some(error) = json.get("error") {
-                        alert_error(error.as_str().unwrap_or("Unknown error"));
-                    } else {
-                        append_to_console("⚠️ Unknown response format from action");
-                    }
-                } else {
-                    append_to_console("Failed to parse JSON response");
-                }
-            }
-            Err(err) => {
-                append_to_console(&format!("PUT request failed: {:?}", err));
-            }
-        }
-    });
-
-    append_to_console(&format!("🔧 Action sent: {}", action));
+    }
 }
-
 
 #[wasm_bindgen]
 extern "C" {
@@ -434,4 +439,3 @@ pub async fn main() -> Result<(), JsValue> {
 
     Ok(())
 }
-

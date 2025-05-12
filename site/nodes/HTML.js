@@ -2,13 +2,15 @@ import React, { memo, useState } from "react";
 import { Handle, Position } from "@xyflow/react";
 import useStore from "../store/store.js";
 import { get_namespace } from "../../pkg/meerkat_remote_console_V2.js";
-const HtmlNode = ({ data, isConnectable }) => {
+const HtmlNode = ({ id, data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
   const isDimmed = !activeFilters.has("HTML");
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const name = data.label || "UnnamedHTML";
-  const url = `http://localhost:8080/app/${get_namespace()}/${encodeURIComponent(name)}`;
+  const name = id || "UnnamedHTML";
+  const pathParts = name.split("@").reverse().map(encodeURIComponent);
+  const path = pathParts.join("/");
+  const url = `http://localhost:8080/app/${get_namespace()}/${path}`;
 
   const toggleExpanded = () => {
     setIsExpanded((prev) => !prev);
@@ -17,7 +19,7 @@ const HtmlNode = ({ data, isConnectable }) => {
   const dynamicDeviceStyle = {
     ...styles.device,
     height: isExpanded ? "600px" : "260px",
-    width: isExpanded ? "100%" : "150px", 
+    width: isExpanded ? "100%" : "150px",
   };
 
   const dynamicScreenStyle = {

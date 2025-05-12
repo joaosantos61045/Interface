@@ -18,7 +18,14 @@ const useStore = create((set, get) => ({
   },
   currentEnvId: "root", // Current environment ID
   pathStack: ["root"], // Used for breadcrumb navigation later
+  paramInputs: "",
 
+  setParamInput: (value) =>
+    set(() => ({
+      paramInputs: value,
+    })),
+
+  resetParamInputs: () => set({ paramInputs: {} }),
   activeFilters: new Set([
     "Variable",
     "Definition",
@@ -103,87 +110,87 @@ const useStore = create((set, get) => ({
 
   // Add a new node
   addNode: (node, envId, parentId = null) => {
-  set((state) => {
-    //  Ensure the environment exists
-    if (!state.environments[envId]) {
-      state.environments[envId] = createEmptyEnv(envId);
-    }
-
-    const env = state.environments[envId];
-  if (env.nodes.some((n) => n.id === node.id)) {
-      return {}; 
-    }
-    // If this env should be attached as a child of another
-    if (parentId && state.environments[parentId]) {
-      const parentEnv = state.environments[parentId];
-      if (!parentEnv.children[envId]) {
-        parentEnv.children[envId] = state.environments[envId];
+    set((state) => {
+      //  Ensure the environment exists
+      if (!state.environments[envId]) {
+        state.environments[envId] = createEmptyEnv(envId);
       }
-    }
 
-    const updatedNodes =
-      node.type === "Module"
-        ? [node, ...env.nodes]
-        : [...env.nodes, node];
+      const env = state.environments[envId];
+      if (env.nodes.some((n) => n.id === node.id)) {
+        return {};
+      }
+      // If this env should be attached as a child of another
+      if (parentId && state.environments[parentId]) {
+        const parentEnv = state.environments[parentId];
+        if (!parentEnv.children[envId]) {
+          parentEnv.children[envId] = state.environments[envId];
+        }
+      }
 
-    env.nodes = updatedNodes.map((n) => (n.id === node.id ? node : n));
+      const updatedNodes =
+        node.type === "Module"
+          ? [node, ...env.nodes]
+          : [...env.nodes, node];
 
-    return { environments: { ...state.environments } };
-  });
-},
+      env.nodes = updatedNodes.map((n) => (n.id === node.id ? node : n));
+
+      return { environments: { ...state.environments } };
+    });
+  },
 
 
 
   // Remove a node by ID
   removeNode: (nodeId) => {
-  const state = get();
-  const env = state.getCurrentEnv();
-  const nodeToRemove = env.nodes.find((node) => node.id === nodeId);
+    const state = get();
+    const env = state.getCurrentEnv();
+    const nodeToRemove = env.nodes.find((node) => node.id === nodeId);
 
-  // Remove the node from the current environment
-  const updatedNodes = env.nodes.filter((node) => node.id !== nodeId);
-  state.setNodes(updatedNodes);
+    // Remove the node from the current environment
+    const updatedNodes = env.nodes.filter((node) => node.id !== nodeId);
+    state.setNodes(updatedNodes);
     console.log("Removing node:", nodeToRemove);
-  if ( nodeToRemove?.type === "Module") {
-    // Delete the associated environment from `environments`
-    const environments = { ...state.environments };
-    console.log("Deleting environment:", environments[nodeId]);
-    delete environments[nodeId];
+    if (nodeToRemove?.type === "Module") {
+      // Delete the associated environment from `environments`
+      const environments = { ...state.environments };
+      console.log("Deleting environment:", environments[nodeId]);
+      delete environments[nodeId];
 
-    // Also remove from parent's children
-    for (const envKey in environments) {
-      const childEnv = environments[envKey];
-      if (childEnv.children && childEnv.children[nodeId]) {
-        console.log("Deleting child environment:", childEnv.children[nodeId]);
-        delete childEnv.children[nodeId];
+      // Also remove from parent's children
+      for (const envKey in environments) {
+        const childEnv = environments[envKey];
+        if (childEnv.children && childEnv.children[nodeId]) {
+          console.log("Deleting child environment:", childEnv.children[nodeId]);
+          delete childEnv.children[nodeId];
+        }
       }
+
+      set({ environments });
     }
-   
-    set({ environments });
-  }
-},
+  },
 
 
   // Add a new edge
   addEdge: (edge, envId) => {
-  const envs = get().environments;
-  const env = envs[envId];
-  if (!env) return;
-  if (env.edges.some((n) => n.id === edge.id)) {
-      return {}; 
+    const envs = get().environments;
+    const env = envs[envId];
+    if (!env) return;
+    if (env.edges.some((n) => n.id === edge.id)) {
+      return {};
     }
-  env.edges = [...(env.edges || []), edge];
-  set({ environments: { ...envs } });
-},
+    env.edges = [...(env.edges || []), edge];
+    set({ environments: { ...envs } });
+  },
 
   // Remove an edge by ID
- removeEdge: (edgeId, envId) => {
-  const envs = get().environments;
-  const env = envs[envId];
-  if (!env) return;
-  env.edges = env.edges.filter((e) => e.id !== edgeId);
-  set({ environments: { ...envs } });
-},
+  removeEdge: (edgeId, envId) => {
+    const envs = get().environments;
+    const env = envs[envId];
+    if (!env) return;
+    env.edges = env.edges.filter((e) => e.id !== edgeId);
+    set({ environments: { ...envs } });
+  },
 
   // Update a specific node by its ID
   updateNode: (nodeId, data) => {
@@ -251,21 +258,21 @@ const useStore = create((set, get) => ({
     });
   },
   setEnv: (envId) => {
-    
+
     const path = get().pathStack;
     const index = path.indexOf(envId);
-  
+
     if (index !== -1) {
       set({
         currentEnvId: envId,
         pathStack: path.slice(0, index + 1),
       });
-     console.log("Setting environment to:", envId);
+      console.log("Setting environment to:", envId);
     }
-   
-    
+
+
   },
-  
+
   // Exit the current module and return to the previous environment
   exitModule: () => {
     const path = [...get().pathStack];
@@ -278,8 +285,8 @@ const useStore = create((set, get) => ({
       });
     }
   },
- 
-  
+
+
 }));
 
 export default useStore;

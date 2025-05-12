@@ -1,7 +1,7 @@
 import React from 'react';
 import useStore from './store/store.js';
 
-const nodeTypes = ['Variable', 'Definition', 'Action', 'Table', 'HTML'];
+const nodeTypes = ['Variable', 'Definition', 'Action', 'Table', 'HTML', 'Module'];
 
 const FilterBar = () => {
   const activeFilters = useStore((state) => state.activeFilters);

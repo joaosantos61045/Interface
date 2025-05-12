@@ -61,6 +61,7 @@ const styles = {
     maxWidth: "400px",
     textAlign: "center",
     boxShadow: "0px 6px 15px rgba(168, 85, 247, 0.2)",
+    transition: "all 0.3s ease-in-out",
     cursor: "default",
     display: "flex",
     flexDirection: "column",

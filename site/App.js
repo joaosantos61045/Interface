@@ -6,7 +6,7 @@ import FilterBar from './FilterBar.js';
 import * as d3 from "d3-force";
 import ELK from 'elkjs/lib/elk.bundled.js';
 import Dagre from '@dagrejs/dagre';
-import init, { main, get_env, send_message_to_server, fetch_dependencies, get_namespace } from "../pkg/meerkat_remote_console_V2.js";
+import init, { main, get_env, send_message_to_server, fetch_dependencies, get_usid } from "../pkg/meerkat_remote_console_V2.js";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -32,6 +32,7 @@ import ModuleNode from './nodes/Module.js';
 import ActionEdge from './edges/ActionEdge.js';
 import useStore from './store/store.js';
 import { /** @type {NodeType} */ NodeType, /** @type {NodeData} */ NodeData } from "./types.d.ts";
+import { send } from "process";
 
 const nodeTypes = {
   Variable: VariableNode,
@@ -45,7 +46,7 @@ const nodeTypes = {
 const edgeTypes = {
   action: ActionEdge,
 };
-let id = 0;
+
 const getId = () => {
   const randomId = Math.floor(Math.random() * 100000);
   return `dndnode_${randomId}`;
@@ -54,39 +55,62 @@ const getId = () => {
 
 const DnDFlow = () => {
 
-  const { onNodesChange, environments, onEdgesChange, onConnect, currentEnvId, getCurrentEnv, getEnv, addNode, updateNode, removeNode, addEdge, removeEdge, checkExists, setNodes, setEdges } = useStore();
+  const { paramInputs,setParamInput,onNodesChange, environments, onEdgesChange, onConnect, currentEnvId, getCurrentEnv, getEnv, addNode, updateNode, removeNode, addEdge, removeEdge, checkExists, setNodes, setEdges } = useStore();
   const { nodes, edges } = getCurrentEnv(); // Get nodes and edges of the current environment
   const pathStack = useStore((state) => state.pathStack);
   const setEnv = useStore((state) => state.setEnv);
-  const [nodeColorFilter, setNodeColorFilter] = useState(() => (node) => node.data?.color || '#333');
-  const { getIntersectingNodes } = useReactFlow();
   const { screenToFlowPosition, setCenter } = useReactFlow();
   const [type] = useDnD();
-
+const handleParamChange = useStore((state) => state.setParamInput);
   const { refs, floatingStyles } = useFloating();
-
+  let usid = localStorage.getItem("usid");
+  const namespace = localStorage.getItem("namespace");
   // Local states for node and form management
   const [pendingNode, setPendingNode] = useState(null);
   const [formData, setFormData] = useState({});
   const [editFormData, setEditFormData] = useState({});
   const [selectedNode, setSelectedNode] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [fetchNodeId, setFetchNodeId] = useState(null);
   const { fitView } = useReactFlow();
 
+ 
   useEffect(() => {
     const interval = setInterval(() => {
-      // Your repeated logic here
-      console.log(useStore.getState().pathStack);
 
-    }, 5000); // 1000 ms = 1 second
 
-    return () => clearInterval(interval); // Cleanup on unmount
+      
+
+      //console.log("namespace:", namespace);
+
+
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
+
+  async function checkUsid() {
+
+    if (!usid) {
+      const raw = await get_usid();
+      try {
+        const parsed = JSON.parse(raw); // => { result: "\"yyuxcvthlkaq136b3rfw0nt5k\"" }
+        usid = JSON.parse(parsed.result); // => "yyuxcvthlkaq136b3rfw0nt5k"
+      } catch (e) {
+        console.error("Failed to parse USID response:", e);
+        usid = "unknown";
+      }
+
+      localStorage.setItem("usid", usid);
+      console.log("usid", usid);
+    }
+
+  }
   window.update_environment = function (envString) {
     try {
       const env = typeof envString === 'string' ? JSON.parse(envString) : envString;
       console.log("Parsed environment:", env);
-
+      checkUsid();
       const dependencies = {};
       const nodesToUpdate = [];
 
@@ -124,7 +148,7 @@ const DnDFlow = () => {
       for (const [label, data] of Object.entries(env)) {
         const {
           name, val, type, exp, keyword, originalInput,
-          operation, commands
+          operation, commands, params
         } = data;
 
         // Skip internal/system types
@@ -154,7 +178,8 @@ const DnDFlow = () => {
           definition: isDefinition ? exp : undefined,
           moduleName: fullModuleName,
           position: { x: 0, y: 0 },
-          commands
+          commands,
+          params
         });
 
         // If module, recursively parse its commands
@@ -170,7 +195,7 @@ const DnDFlow = () => {
       const sortedNodes = topologicalSort(nodesToUpdate, dependencies);
 
 
-      for (const { id, label, value, type, definition, position, moduleName, commands } of sortedNodes) {
+      for (const { id, label, value, type, definition, position, moduleName, commands, params } of sortedNodes) {
         function extractModuleHierarchy(id) {
           const parts = id.split("@");
 
@@ -239,11 +264,12 @@ const DnDFlow = () => {
           };
 
         } else if (nodeType === "Module") {
+          console.log("Module detected:", label, params);
           newNode = {
             id,
             type: "Module",
             position,
-            data: { label, value }
+            data: { label, value, params }
           };
         } else {
           newNode = {
@@ -300,10 +326,10 @@ const DnDFlow = () => {
   window.setupEdges = function (dependencies) {
     const source = selectedNodeId;
     const node = findNodeById(environments, source);
-    console.log("Setting up edges for node:", node);
+
     if (!node) return;
-    console.log("Dependencies:", dependencies);
-    // 🔧 Extract module ID from node ID (everything except final label)
+
+    //  Extract module ID from node ID (everything except final label)
     const moduleId = source.includes("@")
       ? source.split("@").at(-1)
       : "root";
@@ -318,10 +344,10 @@ const DnDFlow = () => {
 
         edges.forEach((edge) => {
           if (edge.target === source) {
-            const sourceNode = findNodeById(environments, source); 
-            const sourceLabel = sourceNode?.data?.label; 
+            const sourceNode = findNodeById(environments, source);
+            const sourceLabel = sourceNode?.data?.label;
             if (sourceLabel && !referencedLabels.includes(sourceLabel)) {
-              removeEdge(edge.id, moduleId); 
+              removeEdge(edge.id, moduleId);
             }
           }
         });
@@ -339,7 +365,7 @@ const DnDFlow = () => {
                   type: "default",
                   reconnectable: true,
                 },
-                moduleId 
+                moduleId
               );
             }
           }
@@ -368,7 +394,7 @@ const DnDFlow = () => {
             const targetNode = findNodeByLabel(environments, targetLabel);
             const targetEdgeLabel = targetNode?.data?.label;
             if (targetEdgeLabel && targetEdgeLabel !== targetLabel) {
-              removeEdge(edge.id, moduleId); // 👈 pass moduleId
+              removeEdge(edge.id, moduleId); //  pass moduleId
             }
           }
         });
@@ -387,7 +413,7 @@ const DnDFlow = () => {
                   data: { action: node.data.action },
                   reconnectable: true,
                 },
-                moduleId // 👈 pass moduleId
+                moduleId //  pass moduleId
               );
             }
           }
@@ -397,25 +423,19 @@ const DnDFlow = () => {
       setSelectedNodeId(null);
       return;
     }
-    console.log("BRH found:");
+
 
     // Handle backend dependency response
     for (const target of dependencies) {
-      console.log("Target:", target);
+
       const targetNode = findNodeById(environments, target);
-      console.log("Target node:", targetNode);
+
       if (!targetNode) continue;
 
       let id = `${source}->${target}`;
 
       let type = "default";
-      if (moduleId === "User") {
-        console.log("Setting up edges for node:", node);
 
-        console.log("Target node:", targetNode);
-        console.log(id)
-
-      }
       if (targetNode.type === "Action") {
         id = `${target}->${source}`;
         type = "action";
@@ -429,7 +449,7 @@ const DnDFlow = () => {
           type,
           data: type === "action" ? { action: targetNode.data.action } : {},
           reconnectable: true,
-        }, moduleId); // 👈 pass module
+        }, moduleId); //  pass module
       }
     }
 
@@ -680,9 +700,10 @@ const DnDFlow = () => {
   };
 
   const handleDelete = () => {
+    if (!selectedNode) return;
     let message = 'delete ' + selectedNode.id + '';
     send_message_to_server(message);
-    if (!selectedNode) return;
+
     //removeNode(selectedNode.id);
     setSelectedNode(null); // Close modal
     setEditFormData({}); // Reset form
@@ -727,7 +748,16 @@ const DnDFlow = () => {
     setEditFormData({});
   };
 
-
+  const handleFetchAllValues = () => {
+    for (const node of nodes) {
+      send_message_to_server(`${node.id} "${paramInputs}"`);
+    }
+  };
+  const handleFetchValue = () => {
+    console.log("Fetching value for node:", fetchNodeId);
+    send_message_to_server(`${fetchNodeId} "${paramInputs}"`);
+  }
+ 
   const handleConfirm = () => {
     if (!pendingNode) return;
 
@@ -787,7 +817,9 @@ const DnDFlow = () => {
     setSelectedNode(node);
     setEditFormData(node.data);
   };
-
+  const onNodeClick = (_, node) => {
+    setFetchNodeId(node.id);
+  }
 
   // Function to adjust the size of the Module when a node is added
   const adjustModuleSize = (moduleId, nodeWidth, nodeHeight) => {
@@ -959,8 +991,26 @@ const DnDFlow = () => {
 
 
   return (
-    <div style={{ width: "100vw", height: "100vh", display: "flex" }} ref={refs.setReference}>
 
+    <div style={{ width: "100vw", height: "100vh", display: "flex" }} ref={refs.setReference}>
+      <div style={{
+        position: 'absolute',
+        top: '10px',
+        right: '20px',
+        backgroundColor: '#fff',
+        padding: '8px 12px',
+        borderRadius: '6px',
+        boxShadow: '0 1px 6px rgba(0,0,0,0.1)',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '14px',
+        color: '#333',
+        zIndex: 1000,
+        display: 'flex',
+        gap: '12px',
+      }}>
+        <div><strong>Namespace:</strong> {namespace}</div>
+        <div><strong>USID:</strong> {usid}</div>
+      </div>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", borderRight: "2px solid #ddd", padding: "10px" }}>
         <h2 style={{
           textAlign: "center",
@@ -986,6 +1036,7 @@ const DnDFlow = () => {
             onConnectEnd={onConnectEnd}
             onDrop={onDrop}
             onNodeDoubleClick={onNodeDoubleClick}
+            onNodeClick={onNodeClick}
             onDragOver={onDragOver}
             fitView
             style={{
@@ -1003,6 +1054,75 @@ const DnDFlow = () => {
             <Controls />
             <Background />
             <MiniMap nodeColor={nodeColor} nodeStrokeWidth={3} zoomable pannable onNodeClick={handleMinimapNodeClick} />
+            {(currentEnvId !== "root" && findNodeById(environments, currentEnvId).data.params) && (
+              <div style={{
+                position: 'absolute',
+                bottom: '50px',
+                left: '15px',
+                backgroundColor: '#fff',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                boxShadow: '0 1px 6px rgba(0,0,0,0.1)',
+                fontFamily: 'Arial, sans-serif',
+                fontSize: '14px',
+                color: '#333',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                zIndex: 1000,
+                width: '220px',
+              }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>Module {currentEnvId}</div>
+
+               <input
+                  type="text"
+                  placeholder={`${findNodeById(environments, currentEnvId).data.params}`}
+                  value={paramInputs || ""}
+                  onChange={(e) => handleParamChange( e.target.value)}
+                  style={{
+                    padding: "6px",
+                    borderRadius: "4px",
+                    border: "1px solid #ccc",
+                    marginBottom: "8px",
+                    fontSize: "14px",
+                  }}
+                  />
+      
+                <button
+                  onClick={() => handleFetchAllValues(paramInputs)}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "#00bcd4",
+                    color: "white",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    fontSize: "13px"
+                  }}
+                >
+                  Fetch All Node Values
+                </button>
+
+                <button
+                  onClick={() => handleFetchValue(paramInputs)}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: "6px",
+                    border: "none",
+                    background: "#00bcd4",
+                    color: "white",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    fontSize: "13px"
+                  }}
+                >
+                  Fetch Selected Node Value
+                </button>
+              </div>
+            )}
+
+
           </ReactFlow>
           <div style={{ position: 'absolute', top: 140, left: 280, zIndex: 1000 }}>
             <div style={{ fontSize: '14px', color: '#666', display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
