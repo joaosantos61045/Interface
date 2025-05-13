@@ -18,12 +18,17 @@ const useStore = create((set, get) => ({
   },
   currentEnvId: "root", // Current environment ID
   pathStack: ["root"], // Used for breadcrumb navigation later
-  paramInputs: "",
+  paramInputs: {},
 
-  setParamInput: (value) =>
-    set(() => ({
-      paramInputs: value,
-    })),
+setParamInput: (key, value) =>{
+  set((state) => ({
+    paramInputs: {
+      ...state.paramInputs,
+      [key]: value,
+    },
+  }))
+console.log("paramInputs", get().paramInputs);
+},
 
   resetParamInputs: () => set({ paramInputs: {} }),
   activeFilters: new Set([
@@ -256,6 +261,7 @@ const useStore = create((set, get) => ({
         pathStack: [...state.pathStack, moduleId],
       };
     });
+    get().resetParamInputs();
   },
   setEnv: (envId) => {
 
@@ -268,6 +274,7 @@ const useStore = create((set, get) => ({
         pathStack: path.slice(0, index + 1),
       });
       console.log("Setting environment to:", envId);
+      get().resetParamInputs();
     }
 
 

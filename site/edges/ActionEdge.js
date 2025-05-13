@@ -55,7 +55,7 @@ export default function ActionEdge({
   data,
   markerEnd = { type: "arrow", color: "#ff0073" },
 }) {
-
+  let modParam = "";
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
   const { onNodesChange, environments, onEdgesChange, onConnect, currentEnvId, getCurrentEnv,paramInputs} = useStore();
@@ -63,7 +63,7 @@ export default function ActionEdge({
   const [showPrompt, setShowPrompt] = useState(false);
   const [paramValues, setParamValues] = useState({});
   const [paramNames, setParamNames] = useState([]);
-  let modParam = "";
+  
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -96,31 +96,32 @@ export default function ActionEdge({
     return null;
   }
   const onEdgeClick = useCallback(() => {
-    const actionStr = data?.action ?? "";
-    
-    if (currentEnvId != "root" && findNodeById(environments, currentEnvId).data.params) {
-      
-      modParam = `"${paramInputs}"`;
-      console.log("Params:", modParam);
-    }else {
-      modParam ="";
-      console.log("No params");
-    }
-    const params = extractParams(actionStr);
-    if (params.length > 0) {
-      // Open input prompt
-      setParamNames(params);
-      setParamValues(Object.fromEntries(params.map((p) => [p, ""])));
-      setShowPrompt(true);
-    } else {
-      // No params, just fire immediately
-      
-      send_message_to_server(`do ${source} ${modParam}`);
-      setShouldAnimate(true);
-      setAnimationKey((prev) => prev + 1);
-      setTimeout(() => setShouldAnimate(false), 600);
-    }
-  }, [data, source]);
+  const actionStr = data?.action ?? "";
+
+
+  if (currentEnvId !== "root" && findNodeById(environments, currentEnvId)?.data?.params) {
+    // Extract clean param values (no extra quotes)
+    const cleanedParams = Object.values(paramInputs);
+
+    modParam = cleanedParams.join(" ");
+    console.log("Params:", modParam);
+  } else {
+    modParam = "";
+    console.log("No params");
+  }
+
+  const params = extractParams(actionStr);
+  if (params.length > 0) {
+    setParamNames(params);
+    setParamValues(Object.fromEntries(params.map((p) => [p, ""])));
+    setShowPrompt(true);
+  } else {
+    send_message_to_server(`do ${source} ${modParam}`);
+    setShouldAnimate(true);
+    setAnimationKey((prev) => prev + 1);
+    setTimeout(() => setShouldAnimate(false), 600);
+  }
+}, [data, source, paramInputs, currentEnvId, environments]);
 
   const onInputChange = (param, value) => {
     setParamValues((prev) => ({ ...prev, [param]: value }));
@@ -128,13 +129,14 @@ export default function ActionEdge({
 
   const onSubmit = () => {
     if (currentEnvId != "root" && findNodeById(environments, currentEnvId).data.params) {
-      
-      modParam = `"${paramInputs}"`;
+      const cleanedParams = Object.values(paramInputs);
+      modParam = cleanedParams.join(" ");
       console.log("Params:", modParam);
     }else {
       modParam ="";
       console.log("No params");
     }
+    
     const args = paramNames.map((p) => paramValues[p] || "").join(" ");
     send_message_to_server(`do ${source} ${modParam} ${args}`);
     setShowPrompt(false);

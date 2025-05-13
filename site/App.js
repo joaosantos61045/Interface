@@ -55,13 +55,13 @@ const getId = () => {
 
 const DnDFlow = () => {
 
-  const { paramInputs,setParamInput,onNodesChange, environments, onEdgesChange, onConnect, currentEnvId, getCurrentEnv, getEnv, addNode, updateNode, removeNode, addEdge, removeEdge, checkExists, setNodes, setEdges } = useStore();
+  const { paramInputs, setParamInput, onNodesChange, environments, onEdgesChange, onConnect, currentEnvId, getCurrentEnv, getEnv, addNode, updateNode, removeNode, addEdge, removeEdge, checkExists, setNodes, setEdges } = useStore();
   const { nodes, edges } = getCurrentEnv(); // Get nodes and edges of the current environment
   const pathStack = useStore((state) => state.pathStack);
   const setEnv = useStore((state) => state.setEnv);
   const { screenToFlowPosition, setCenter } = useReactFlow();
   const [type] = useDnD();
-const handleParamChange = useStore((state) => state.setParamInput);
+  const handleParamChange = useStore((state) => state.setParamInput);
   const { refs, floatingStyles } = useFloating();
   let usid = localStorage.getItem("usid");
   const namespace = localStorage.getItem("namespace");
@@ -74,12 +74,20 @@ const handleParamChange = useStore((state) => state.setParamInput);
   const [fetchNodeId, setFetchNodeId] = useState(null);
   const { fitView } = useReactFlow();
 
- 
+  const currentNode = findNodeById(environments, currentEnvId);
+  const rawParams = currentNode?.data?.params || null;
+  let parsedParams = {};
+
+  try {
+    parsedParams = typeof rawParams === "string" ? JSON.parse(rawParams) : rawParams;
+  } catch (e) {
+    console.error("Invalid params format:", rawParams);
+  }
   useEffect(() => {
     const interval = setInterval(() => {
 
 
-      
+
 
       //console.log("namespace:", namespace);
 
@@ -193,7 +201,7 @@ const handleParamChange = useStore((state) => state.setParamInput);
       }
 
       const sortedNodes = topologicalSort(nodesToUpdate, dependencies);
-
+      console.log("Sorted nodes:", sortedNodes);
 
       for (const { id, label, value, type, definition, position, moduleName, commands, params } of sortedNodes) {
         function extractModuleHierarchy(id) {
@@ -236,35 +244,70 @@ const handleParamChange = useStore((state) => state.setParamInput);
             }
           }
 
-          const rows = [];
-          const valuePattern = /^table\[(.+)\]$/;
-          const valueMatch = value?.match(valuePattern);
-          if (valueMatch) {
-            try {
-              const parsedRows = JSON.parse(`[${valueMatch[1]}]`.replace(/(\w+):/g, '"$1":'));
-              if (Array.isArray(parsedRows)) rows.push(...parsedRows);
-            } catch (e) {
-              console.warn("Failed to parse table rows from value:", value);
+          const paramTables = {};
+
+          try {
+            const tableText = value?.trim();
+
+            const regex = /\(\s*(\w+):\s*(.+?)\s*\)\s*->\s*(\[[^\]]*\])/g;
+
+
+            let match;
+            let matchedAny = false;
+            
+            while ((match = regex.exec(tableText)) !== null) {
+              matchedAny = true;
+              const paramKey = `${match[1]}:${match[2]}`; // e.g. "usid:1311..."
+              const jsonArray = match[3]
+                .replace(/(\w+):/g, '"$1":') // ensure object keys are quoted
+                .replace(/'/g, '"'); // fix single quotes if any
+
+              try {
+                const parsedRows = JSON.parse(jsonArray);
+                if (Array.isArray(parsedRows)) {
+                  paramTables[paramKey] = parsedRows;
+                }
+              } catch (err) {
+                console.warn("Could not parse rows for param:", paramKey, err);
+              }
             }
+
+            // Fallback: old table format (e.g. table[{...}])
+            if (!matchedAny && tableText?.startsWith("table[")) {
+              const valuePattern = /^table\[(.+)\]$/;
+              const valueMatch = tableText.match(valuePattern);
+              if (valueMatch) {
+                const jsonRows = `[${valueMatch[1]}]`.replace(/(\w+):/g, '"$1":');
+                const parsedRows = JSON.parse(jsonRows);
+                if (Array.isArray(parsedRows)) {
+                  paramTables["Default"] = parsedRows;
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("Failed to parse table:", e);
           }
 
           newNode = {
             id,
             type: "Table",
             position,
-            data: { label, columns, rows }
+            data: {
+              label,
+              columns,
+              paramTables,
+            },
           };
-
-        } else if (nodeType === "Action") {
+        }else if (nodeType === "Action") {
           newNode = {
             id,
             type: "Action",
             position,
-            data: { label, action: definition }
+            data: { label, action: definition, value: value }
           };
 
         } else if (nodeType === "Module") {
-          console.log("Module detected:", label, params);
+
           newNode = {
             id,
             type: "Module",
@@ -335,7 +378,7 @@ const handleParamChange = useStore((state) => state.setParamInput);
       : "root";
 
     if (dependencies.length === 0) {
-      console.log("No dependencies found.");
+
 
       if ((node.type === "Definition" || node.type === "HTML") && node.data?.definition) {
         const referencedLabels = [
@@ -749,15 +792,20 @@ const handleParamChange = useStore((state) => state.setParamInput);
   };
 
   const handleFetchAllValues = () => {
+    const values = Object.values(paramInputs).map(val => `${val}`).join(" ");
+
     for (const node of nodes) {
-      send_message_to_server(`${node.id} "${paramInputs}"`);
+      console.log(`Fetching value for node: ${node.id} with params: ${values}`);
+      send_message_to_server(`${node.id} ${values}`);
     }
   };
   const handleFetchValue = () => {
-    console.log("Fetching value for node:", fetchNodeId);
-    send_message_to_server(`${fetchNodeId} "${paramInputs}"`);
-  }
- 
+    const values = Object.values(paramInputs).map(val => `${val}`).join(" ");
+
+    console.log(`Fetching value for node: ${fetchNodeId} with params: ${values}`);
+    send_message_to_server(`${fetchNodeId} ${values}`);
+  };
+
   const handleConfirm = () => {
     if (!pendingNode) return;
 
@@ -1057,7 +1105,7 @@ const handleParamChange = useStore((state) => state.setParamInput);
             {(currentEnvId !== "root" && findNodeById(environments, currentEnvId).data.params) && (
               <div style={{
                 position: 'absolute',
-                bottom: '50px',
+                bottom: '15px',
                 left: '15px',
                 backgroundColor: '#fff',
                 padding: '10px 12px',
@@ -1074,20 +1122,23 @@ const handleParamChange = useStore((state) => state.setParamInput);
               }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>Module {currentEnvId}</div>
 
-               <input
-                  type="text"
-                  placeholder={`${findNodeById(environments, currentEnvId).data.params}`}
-                  value={paramInputs || ""}
-                  onChange={(e) => handleParamChange( e.target.value)}
-                  style={{
-                    padding: "6px",
-                    borderRadius: "4px",
-                    border: "1px solid #ccc",
-                    marginBottom: "8px",
-                    fontSize: "14px",
-                  }}
+                {Object.entries(parsedParams).map(([paramName, paramType]) => (
+                  <input
+                    key={paramName}
+                    type="text"
+                    placeholder={`Enter ${paramName} (${paramType})`}
+                    value={paramInputs[paramName] || ""}
+                    onChange={(e) => handleParamChange(paramName, e.target.value)}
+                    style={{
+                      padding: "6px",
+                      borderRadius: "4px",
+                      border: "1px solid #ccc",
+                      fontSize: "14px",
+                    }}
                   />
-      
+                ))}
+
+
                 <button
                   onClick={() => handleFetchAllValues(paramInputs)}
                   style={{

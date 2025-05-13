@@ -25,6 +25,9 @@ const ActionNode = ({ id, data, isConnectable }) => {
         <div style={styles.subtext}>
           {data.action || "No Action Defined"}
         </div>
+        <div style={styles.subtext}>
+          {data.value || "No Action Defined"}
+        </div>
       </div>
 
       {/* Connection Handles */}

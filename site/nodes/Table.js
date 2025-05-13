@@ -6,6 +6,8 @@ const TableNode = ({ id, data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
   const isDimmed = !activeFilters.has("Table");
 
+  const tableGroups = data.paramTables || { Default: data.rows || [] };
+  
   return (
     <div
       style={{
@@ -20,28 +22,36 @@ const TableNode = ({ id, data, isConnectable }) => {
           {data.label || "Database Table"}
         </div>
 
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              {data.columns?.map((col, idx) => (
-                <th key={idx} style={styles.th}>
-                  {`${col.name} (${col.type})`}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.rows?.map((row, rowIdx) => (
-              <tr key={rowIdx}>
-                {data.columns.map((col, colIdx) => (
-                  <td key={colIdx} style={styles.td}>
-                    {row[col.name] ?? ""}
-                  </td>
+        {Object.entries(tableGroups).map(([paramKey, rows], idx) => (
+          <div key={idx} style={{ marginTop: idx > 0 ? "16px" : "0" }}>
+            {paramKey !== "Default" && (
+              <div style={styles.subHeader}>Param: {paramKey}</div>
+            )}
+
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  {data.columns?.map((col, idx) => (
+                    <th key={idx} style={styles.th}>
+                      {`${col.name} (${col.type})`}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows?.map((row, rowIdx) => (
+                  <tr key={rowIdx}>
+                    {data.columns.map((col, colIdx) => (
+                      <td key={colIdx} style={styles.td}>
+                        {row[col.name] ?? ""}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+              </tbody>
+            </table>
+          </div>
+        ))}
       </div>
 
       <Handle type="target" position={Position.Left} isConnectable={isConnectable} />
