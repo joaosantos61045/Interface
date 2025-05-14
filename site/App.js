@@ -74,11 +74,12 @@ const DnDFlow = () => {
   const [fetchNodeId, setFetchNodeId] = useState(null);
   const { fitView } = useReactFlow();
 
-  const currentNode = findNodeById(environments, currentEnvId);
+  const currentNode = findNodeByLabel(environments, currentEnvId);
   const rawParams = currentNode?.data?.params || null;
   let parsedParams = {};
 
   try {
+    console.log("rawParams:", rawParams);
     parsedParams = typeof rawParams === "string" ? JSON.parse(rawParams) : rawParams;
   } catch (e) {
     console.error("Invalid params format:", rawParams);
@@ -128,7 +129,7 @@ const DnDFlow = () => {
         for (const [subLabel, subData] of Object.entries(parsedCommands)) {
           const subFullName = subData.name || `${subLabel}@${parentModule}`;
           const [baseLabel, subModuleName] = subFullName.includes("@") ? subFullName.split("@") : [subFullName, null];
-
+          if(baseLabel == "modA")console.log(baseLabel, subData);
           const subNodeDependencies = subData.exp
             ? subData.exp.match(/\b[A-Za-z_]\w*\b/g)?.filter(dep => dep !== subFullName) || []
             : [];
@@ -143,7 +144,8 @@ const DnDFlow = () => {
             definition: subData.keyword === "def" ? subData.exp : undefined,
             moduleName: parentModule,
             position: { x: 0, y: 0 },
-            commands: subData.commands // nested modules
+            commands: subData.commands, // nested modules
+            params: subData.params
           });
 
           // If this node is a module, recurse
@@ -230,7 +232,39 @@ const DnDFlow = () => {
         })();
 
         let newNode;
+        if(label == "modA")console.log(label, value);
+        function parseParamValueOutput(input) {
+          if (!input || typeof input !== "string") return null;
 
+          const result = [];
+
+          // Updated regex:
+          // Match (param:"value") or (param:value) followed by -> output (with or without semicolon)
+          const regex = /\(\s*(\w+):\s*(?:"(.*?)"|([^\s")]+))\s*\)\s*->\s*([^;]+);?/g;
+
+          let match;
+          while ((match = regex.exec(input)) !== null) {
+            const param = match[1];
+            const quotedValue = match[2];
+            const unquotedValue = match[3];
+            const output = match[4];
+
+            result.push({
+              param,
+              value: quotedValue !== undefined ? `"${quotedValue}"` : unquotedValue,
+              output: output.trim() + ';', // always add semicolon to keep consistent
+            });
+          }
+
+          return result.length > 0 ? result : null;
+        }
+
+
+
+
+
+
+        const parsedValue = parseParamValueOutput(value);
         if (nodeType === "Table") {
           const columnPattern = /array\[\{(.+?)\}\]/;
           const match = type.match(columnPattern);
@@ -248,13 +282,10 @@ const DnDFlow = () => {
 
           try {
             const tableText = value?.trim();
-
             const regex = /\(\s*(\w+):\s*(.+?)\s*\)\s*->\s*(\[[^\]]*\])/g;
-
-
             let match;
             let matchedAny = false;
-            
+
             while ((match = regex.exec(tableText)) !== null) {
               matchedAny = true;
               const paramKey = `${match[1]}:${match[2]}`; // e.g. "usid:1311..."
@@ -263,6 +294,7 @@ const DnDFlow = () => {
                 .replace(/'/g, '"'); // fix single quotes if any
 
               try {
+
                 const parsedRows = JSON.parse(jsonArray);
                 if (Array.isArray(parsedRows)) {
                   paramTables[paramKey] = parsedRows;
@@ -298,28 +330,30 @@ const DnDFlow = () => {
               paramTables,
             },
           };
-        }else if (nodeType === "Action") {
+        } else if (nodeType === "Action") {
           newNode = {
             id,
             type: "Action",
             position,
-            data: { label, action: definition, value: value }
+            data: { label, action: definition, value: value, parsedValue }
           };
 
         } else if (nodeType === "Module") {
-
+          
           newNode = {
             id,
             type: "Module",
             position,
             data: { label, value, params }
           };
+          console.log("Module node:", newNode);
+          
         } else {
           newNode = {
             id,
             type: nodeType,
             position,
-            data: { label, value, definition }
+            data: { label, value, definition, parsedValue }
           };
         }
 
@@ -351,10 +385,12 @@ const DnDFlow = () => {
   };
 
   function findNodeById(globalEnvs, nodeId) {
+   
     for (const env of Object.values(globalEnvs)) {
       const found = env.nodes.find((n) => n.id === nodeId);
       if (found) return found;
     }
+    
     return null;
   }
 
@@ -1102,7 +1138,7 @@ const DnDFlow = () => {
             <Controls />
             <Background />
             <MiniMap nodeColor={nodeColor} nodeStrokeWidth={3} zoomable pannable onNodeClick={handleMinimapNodeClick} />
-            {(currentEnvId !== "root" && findNodeById(environments, currentEnvId).data.params) && (
+            {(currentEnvId !== "root" && findNodeByLabel(environments, currentEnvId).data.params) && (
               <div style={{
                 position: 'absolute',
                 bottom: '15px',
@@ -1122,11 +1158,12 @@ const DnDFlow = () => {
               }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>Module {currentEnvId}</div>
 
-                {Object.entries(parsedParams).map(([paramName, paramType]) => (
+                {
+                Object.entries(parsedParams).map(([paramName, paramType]) => (
                   <input
                     key={paramName}
                     type="text"
-                    placeholder={`Enter ${paramName} (${paramType})`}
+                    placeholder={` ${paramName} (${paramType})`}
                     value={paramInputs[paramName] || ""}
                     onChange={(e) => handleParamChange(paramName, e.target.value)}
                     style={{

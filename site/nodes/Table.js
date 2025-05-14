@@ -25,7 +25,7 @@ const TableNode = ({ id, data, isConnectable }) => {
         {Object.entries(tableGroups).map(([paramKey, rows], idx) => (
           <div key={idx} style={{ marginTop: idx > 0 ? "16px" : "0" }}>
             {paramKey !== "Default" && (
-              <div style={styles.subHeader}>Param: {paramKey}</div>
+              <div style={styles.subHeader}> {paramKey}</div>
             )}
 
             <table style={styles.table}>

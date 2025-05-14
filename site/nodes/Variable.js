@@ -21,9 +21,25 @@ const VariableNode = ({ id, data, isConnectable }) => {
       <div style={styles.header}>
         {data.label || "Unnamed Variable"}
       </div>
-      <div style={styles.value}>
-        {data.value || "No Value"}
-      </div>
+
+      {Array.isArray(data.parsedValue) ? (
+        <div style={styles.tableWrapper}>
+          {data.parsedValue.map((item, idx) => (
+            <div key={idx} style={styles.row}>
+              <div style={styles.paramLine}>
+                <span style={styles.paramLabel}>{item.param}:</span> {item.value}
+              </div>
+              <div style={styles.outputLine}>
+                {item.output}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={styles.value}>
+          {data.value || "No Value"}
+        </div>
+      )}
 
       {/* Connection Handles */}
       {!connection.inProgress && (
@@ -80,6 +96,38 @@ const styles = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+  },
+  tableWrapper: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    width: "100%",
+    gap: "12px",
+    marginTop: "8px",
+  },
+  row: {
+    backgroundColor: "#fdf4ff",
+    border: "1px solid #e9d5ff",
+    borderRadius: "8px",
+    padding: "8px 10px",
+    fontSize: "13px",
+    color: "#374151",
+    width: "100%",
+    textAlign: "left",
+  },
+  paramLine: {
+    fontWeight: "600",
+    marginBottom: "4px",
+    color: "#7e22ce",
+  },
+  paramLabel: {
+    fontWeight: "700",
+    color: "#7e22ce",
+  },
+  outputLine: {
+    fontStyle: "italic",
+    color: "#6b7280",
+    whiteSpace: "pre-wrap",
   },
 };
 

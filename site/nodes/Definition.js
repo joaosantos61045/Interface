@@ -23,12 +23,30 @@ const DefinitionNode = ({ id, data, isConnectable }) => {
           <div style={styles.header}>
             {data.label || "Unnamed"}
           </div>
-          <div style={styles.subtext}>
-            {data.definition || "No Definition"}
-          </div>
-          <div style={styles.subtext}>
-            {data.value || "No Value"}
-          </div>
+
+          {Array.isArray(data.parsedValue) ? (
+            <div style={styles.tableWrapper}>
+              {data.parsedValue.map((item, idx) => (
+                <div key={idx} style={styles.row}>
+                  <div style={styles.paramLine}>
+                    <span style={styles.paramLabel}>{item.param}:</span> {item.value}
+                  </div>
+                  <div style={styles.outputLine}>
+                    {item.output}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div style={styles.subtext}>
+                {data.definition || "No Definition"}
+              </div>
+              <div style={styles.subtext}>
+                {data.value || "No Value"}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -62,15 +80,15 @@ const styles = {
   node: {
     width: "140px",
     height: "140px",
-    background: "linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)", 
-    border: "2px solid #13df1d", 
+    background: "linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)",
+    border: "2px solid #13df1d",
     transform: "rotate(45deg)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: "0px 4px 10px rgba(19, 223, 29, 0.3)", 
+    boxShadow: "0px 4px 10px rgba(19, 223, 29, 0.3)",
     position: "relative",
-    borderRadius: "12px", 
+    borderRadius: "12px",
     padding: "12px",
     cursor: "pointer",
   },
@@ -101,6 +119,38 @@ const styles = {
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
     maxWidth: "100%",
+  },
+  tableWrapper: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    width: "100%",
+    gap: "8px",
+    marginTop: "4px",
+  },
+  row: {
+    backgroundColor: "#f0fdf4",
+    border: "1px solid #a7f3d0",
+    borderRadius: "6px",
+    padding: "6px 8px",
+    fontSize: "12px",
+    color: "#065f46",
+    width: "100%",
+    textAlign: "left",
+  },
+  paramLine: {
+    fontWeight: "600",
+    marginBottom: "2px",
+    color: "#059669",
+  },
+  paramLabel: {
+    fontWeight: "700",
+    color: "#059669",
+  },
+  outputLine: {
+    fontStyle: "italic",
+    color: "#6b7280",
+    whiteSpace: "pre-wrap",
   },
 };
 
