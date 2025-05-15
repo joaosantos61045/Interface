@@ -27,7 +27,7 @@ setParamInput: (key, value) =>{
       [key]: value,
     },
   }))
-console.log("paramInputs", get().paramInputs);
+
 },
 
   resetParamInputs: () => set({ paramInputs: {} }),

@@ -4,10 +4,32 @@ import useStore from "../store/store.js";
 
 const ActionNode = ({ id, data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
+  const paramInputs = useStore((state) => state.paramInputs);
   const isDimmed = !activeFilters.has("Action");
+
   const connection = useConnection();
   const isTarget = connection.inProgress && connection.fromNode.id !== id;
 
+  // Determine the module name (used as suffix in paramInputs key: param@module)
+  const moduleName = data.moduleName; // assumes you pass `module` in data like { module: "Ting", ... }
+
+  // Filter parsed values based on paramInputs
+  let filteredParsedValue = Array.isArray(data.parsedValue)
+    ? data.parsedValue.filter((item) => {
+      
+        if (!moduleName) return true; // no module context, show all
+        const inputKey = `${item.param}@${moduleName}`;
+        const expectedValue = paramInputs?.[inputKey];
+        
+        // Show all if paramInputs is empty or if there's no expected value for this param
+        if (!expectedValue) return true;
+
+        return item.value?.includes(expectedValue.replace(/^"|"$/g, ""));
+
+      })
+    : [];
+
+  
   return (
     <div
       style={{
@@ -22,11 +44,9 @@ const ActionNode = ({ id, data, isConnectable }) => {
           {data.label || "Unnamed Action"}
         </div>
 
-
-
-        {Array.isArray(data.parsedValue) ? (
+        {filteredParsedValue.length > 0 ? (
           <div style={styles.tableWrapper}>
-            {data.parsedValue.map((item, idx) => (
+            {filteredParsedValue.map((item, idx) => (
               <div key={idx} style={styles.row}>
                 <div style={styles.paramLine}>
                   <span style={styles.paramLabel}>{item.param}:</span> {item.value}

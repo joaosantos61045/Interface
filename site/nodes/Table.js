@@ -4,10 +4,30 @@ import useStore from "../store/store.js";
 
 const TableNode = ({ id, data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
+  const paramInputs = useStore((state) => state.paramInputs); // grab inputs from store
   const isDimmed = !activeFilters.has("Table");
 
-  const tableGroups = data.paramTables || { Default: data.rows || [] };
-  
+  const moduleName = data.moduleName;
+
+  // Filter paramTables based on matching paramInputs
+  const filteredParamTables = Object.entries(data.paramTables || {}).filter(([key]) => {
+    if (!moduleName || !paramInputs) return true;
+
+    // Find input that matches module
+    const inputEntry = Object.entries(paramInputs).find(([inputKey]) =>
+      inputKey.endsWith(`@${moduleName}`)
+    );
+
+    if (!inputEntry) return true;
+
+    const [, value] = inputEntry;
+    const cleanedValue = value?.replace(/^"|"$/g, "");
+
+    return key.includes(cleanedValue);
+  });
+
+  const displayRows = Object.fromEntries(filteredParamTables);
+
   return (
     <div
       style={{
@@ -18,15 +38,13 @@ const TableNode = ({ id, data, isConnectable }) => {
       }}
     >
       <div style={styles.node}>
-        <div style={styles.header}>
-          {data.label || "Database Table"}
-        </div>
+        <div style={styles.header}>{data.label || "Database Table"}</div>
 
-        {Object.entries(tableGroups).map(([paramKey, rows], idx) => (
+        {Object.entries(displayRows).map(([paramKey, rows], idx) => (
           <div key={idx} style={{ marginTop: idx > 0 ? "16px" : "0" }}>
-            {paramKey !== "Default" && (
-              <div style={styles.subHeader}> {paramKey}</div>
-            )}
+            <div style={styles.subHeader}>
+              {paramKey !== "Default" ? paramKey : null}
+            </div>
 
             <table style={styles.table}>
               <thead>
@@ -66,14 +84,14 @@ const styles = {
     transition: "all 0.3s ease-in-out",
   },
   node: {
-    background: "linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%)", 
-    border: "2px solid #2196F3", 
+    background: "linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%)",
+    border: "2px solid #2196F3",
     borderRadius: "12px",
     padding: "16px",
     minWidth: "200px",
     maxWidth: "400px",
     textAlign: "center",
-    boxShadow: "0px 4px 10px rgba(33, 150, 243, 0.2)", 
+    boxShadow: "0px 4px 10px rgba(33, 150, 243, 0.2)",
     fontFamily: "'Inter', sans-serif",
     display: "flex",
     flexDirection: "column",
@@ -83,11 +101,17 @@ const styles = {
   header: {
     fontWeight: "700",
     fontSize: "18px",
-    color: "#1d4ed8", 
+    color: "#1d4ed8",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
     maxWidth: "100%",
+  },
+  subHeader: {
+    fontWeight: "600",
+    fontSize: "14px",
+    color: "#1e40af",
+    marginBottom: "4px",
   },
   table: {
     width: "100%",
@@ -95,20 +119,20 @@ const styles = {
     marginTop: "10px",
   },
   th: {
-    borderBottom: "2px solid #93c5fd", 
+    borderBottom: "2px solid #93c5fd",
     padding: "8px",
-    backgroundColor: "#dbeafe", 
+    backgroundColor: "#dbeafe",
     textAlign: "center",
     fontSize: "12px",
     fontWeight: "600",
-    color: "#2563eb", 
+    color: "#2563eb",
   },
   td: {
     padding: "8px",
-    borderBottom: "1px solid #e5e7eb", 
+    borderBottom: "1px solid #e5e7eb",
     fontSize: "12px",
     textAlign: "center",
-    color: "#374151", 
+    color: "#374151",
   },
 };
 

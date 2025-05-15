@@ -4,10 +4,25 @@ import useStore from "../store/store.js";
 
 const VariableNode = ({ id, data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
+  const paramInputs = useStore((state) => state.paramInputs);
   const isDimmed = !activeFilters.has("Variable");
 
   const connection = useConnection();
   const isTarget = connection.inProgress && connection.fromNode.id !== id;
+
+  const moduleName = data.moduleName; // or wherever the module context is stored
+
+  const filteredParsedValue = Array.isArray(data.parsedValue)
+    ? data.parsedValue.filter((item) => {
+        if (!moduleName) return true;
+        const inputKey = `${item.param}@${moduleName}`;
+        const expectedValue = paramInputs?.[inputKey];
+
+        if (!expectedValue) return true;
+
+        return item.value?.includes(expectedValue.replace(/^"|"$/g, ""));
+      })
+    : [];
 
   return (
     <div
@@ -24,7 +39,7 @@ const VariableNode = ({ id, data, isConnectable }) => {
 
       {Array.isArray(data.parsedValue) ? (
         <div style={styles.tableWrapper}>
-          {data.parsedValue.map((item, idx) => (
+          {filteredParsedValue.map((item, idx) => (
             <div key={idx} style={styles.row}>
               <div style={styles.paramLine}>
                 <span style={styles.paramLabel}>{item.param}:</span> {item.value}
@@ -41,7 +56,6 @@ const VariableNode = ({ id, data, isConnectable }) => {
         </div>
       )}
 
-      {/* Connection Handles */}
       {!connection.inProgress && (
         <Handle
           className="customHandle"

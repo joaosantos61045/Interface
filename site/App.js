@@ -79,7 +79,7 @@ const DnDFlow = () => {
   let parsedParams = {};
 
   try {
-    console.log("rawParams:", rawParams);
+
     parsedParams = typeof rawParams === "string" ? JSON.parse(rawParams) : rawParams;
   } catch (e) {
     console.error("Invalid params format:", rawParams);
@@ -89,8 +89,8 @@ const DnDFlow = () => {
 
 
 
-
-      //console.log("namespace:", namespace);
+      
+      //console.log("namespace:", paramInputs);
 
 
     }, 5000);
@@ -129,7 +129,7 @@ const DnDFlow = () => {
         for (const [subLabel, subData] of Object.entries(parsedCommands)) {
           const subFullName = subData.name || `${subLabel}@${parentModule}`;
           const [baseLabel, subModuleName] = subFullName.includes("@") ? subFullName.split("@") : [subFullName, null];
-          if(baseLabel == "modA")console.log(baseLabel, subData);
+
           const subNodeDependencies = subData.exp
             ? subData.exp.match(/\b[A-Za-z_]\w*\b/g)?.filter(dep => dep !== subFullName) || []
             : [];
@@ -232,7 +232,7 @@ const DnDFlow = () => {
         })();
 
         let newNode;
-        if(label == "modA")console.log(label, value);
+
         function parseParamValueOutput(input) {
           if (!input || typeof input !== "string") return null;
 
@@ -288,7 +288,7 @@ const DnDFlow = () => {
 
             while ((match = regex.exec(tableText)) !== null) {
               matchedAny = true;
-              const paramKey = `${match[1]}:${match[2]}`; // e.g. "usid:1311..."
+              const paramKey = `${match[2]}`; // e.g. "usid:1311..."
               const jsonArray = match[3]
                 .replace(/(\w+):/g, '"$1":') // ensure object keys are quoted
                 .replace(/'/g, '"'); // fix single quotes if any
@@ -328,6 +328,8 @@ const DnDFlow = () => {
               label,
               columns,
               paramTables,
+              moduleName,
+              parsedValue,
             },
           };
         } else if (nodeType === "Action") {
@@ -335,25 +337,25 @@ const DnDFlow = () => {
             id,
             type: "Action",
             position,
-            data: { label, action: definition, value: value, parsedValue }
+            data: { label, action: definition, value: value, parsedValue, moduleName }
           };
 
         } else if (nodeType === "Module") {
-          
+
           newNode = {
             id,
             type: "Module",
             position,
             data: { label, value, params }
           };
-          console.log("Module node:", newNode);
-          
+
+
         } else {
           newNode = {
             id,
             type: nodeType,
             position,
-            data: { label, value, definition, parsedValue }
+            data: { label, value, definition, parsedValue, moduleName }
           };
         }
 
@@ -385,12 +387,12 @@ const DnDFlow = () => {
   };
 
   function findNodeById(globalEnvs, nodeId) {
-   
+
     for (const env of Object.values(globalEnvs)) {
       const found = env.nodes.find((n) => n.id === nodeId);
       if (found) return found;
     }
-    
+
     return null;
   }
 
@@ -420,12 +422,14 @@ const DnDFlow = () => {
         const referencedLabels = [
           ...new Set(node.data.definition.match(/\b[A-Za-z_]\w*\b/g) || []),
         ].filter((label) => label !== node.data.label); // avoid self-reference
-
+        
         edges.forEach((edge) => {
           if (edge.target === source) {
-            const sourceNode = findNodeById(environments, source);
-            const sourceLabel = sourceNode?.data?.label;
-            if (sourceLabel && !referencedLabels.includes(sourceLabel)) {
+            const fromNode = findNodeById(environments, edge.source);
+            const fromLabel = fromNode?.data?.label;
+
+            // Only remove the edge if it's not actually referenced
+            if (fromLabel && !referencedLabels.includes(fromLabel)) {
               removeEdge(edge.id, moduleId);
             }
           }
@@ -1159,21 +1163,21 @@ const DnDFlow = () => {
                 <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>Module {currentEnvId}</div>
 
                 {
-                Object.entries(parsedParams).map(([paramName, paramType]) => (
-                  <input
-                    key={paramName}
-                    type="text"
-                    placeholder={` ${paramName} (${paramType})`}
-                    value={paramInputs[paramName] || ""}
-                    onChange={(e) => handleParamChange(paramName, e.target.value)}
-                    style={{
-                      padding: "6px",
-                      borderRadius: "4px",
-                      border: "1px solid #ccc",
-                      fontSize: "14px",
-                    }}
-                  />
-                ))}
+                  Object.entries(parsedParams).map(([paramName, paramType]) => (
+                    <input
+                      key={paramName}
+                      type="text"
+                      placeholder={` ${paramName} (${paramType})`}
+                      value={paramInputs[paramName] || ""}
+                      onChange={(e) => handleParamChange(paramName, e.target.value)}
+                      style={{
+                        padding: "6px",
+                        borderRadius: "4px",
+                        border: "1px solid #ccc",
+                        fontSize: "14px",
+                      }}
+                    />
+                  ))}
 
 
                 <button
