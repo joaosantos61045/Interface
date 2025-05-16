@@ -32,7 +32,7 @@ import ModuleNode from './nodes/Module.js';
 import ActionEdge from './edges/ActionEdge.js';
 import useStore from './store/store.js';
 import { /** @type {NodeType} */ NodeType, /** @type {NodeData} */ NodeData } from "./types.d.ts";
-import { send } from "process";
+
 
 const nodeTypes = {
   Variable: VariableNode,
@@ -77,6 +77,20 @@ const DnDFlow = () => {
   const currentNode = findNodeByLabel(environments, currentEnvId);
   const rawParams = currentNode?.data?.params || null;
   let parsedParams = {};
+const layoutRequested = useStore(state => state.layoutRequested);
+const clearLayoutRequest = useStore(state => state.clearLayoutRequest);
+
+useEffect(() => {
+  if (layoutRequested) {
+    const timeout = setTimeout(() => {
+      console.log("yo");
+      fitView()  // or whichever direction you want
+      clearLayoutRequest();
+    }, 10); // delay by 10 milliseconds (you can tweak this)
+
+    return () => clearTimeout(timeout); // cleanup
+  }
+}, [layoutRequested, clearLayoutRequest]);
 
   try {
 
@@ -810,14 +824,14 @@ const DnDFlow = () => {
 
       setPendingNode({ type, position });
 
-      /** @type {Record<NodeType, NodeData>} */
+      
       const defaultData = {
         Variable: { label: "var1", value: 1 },
         Definition: { label: "def1", definition: "", },
         Action: { label: "act", action: "action { var1 :=3}" },
         Table: { label: "tab", columns: [{ name: "", type: "string" }], rows: [] },
-        HTML: { label: "pag", definition: "<p>'Enter HTML here'</p>" },
-        Module: { label: "mod" },
+        HTML: { label: "page", definition: "<p>'Enter HTML here'</p>" },
+        Module: { label: "mod<type param>*" },
       };
 
       setFormData(defaultData[type] || { label: "" });
@@ -1005,7 +1019,7 @@ const DnDFlow = () => {
         addEdge(newEdge);
       // Optionally trigger the pending node form with the new node
       // set the pendingNode to the newNode to show form
-      //setPendingNode(newNode);
+      //setPendingNode(newNode); 
     },
     [setNodes, setEdges, screenToFlowPosition, setPendingNode]
   );

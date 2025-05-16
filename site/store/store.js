@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { addEdge, applyNodeChanges, applyEdgeChanges } from "@xyflow/react";
 import { current } from "@reduxjs/toolkit";
 import { env } from "process";
-
+import Dagre from '@dagrejs/dagre';
 // Helper function to create empty environments (modules, etc.)
 const createEmptyEnv = (id, label = "Module") => ({
   id,
@@ -11,7 +11,40 @@ const createEmptyEnv = (id, label = "Module") => ({
   edges: [],
   children: {},
 });
+const defaultSize = { width: 180, height: 40 };
 
+function applyLayoutToEnv(env) {
+  const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+  g.setGraph({
+    rankdir: 'LR', // or 'TB', whichever you prefer
+    nodesep: 100,
+    ranksep: 100,
+    marginx: 20,
+    marginy: 20,
+  });
+
+  (env.edges || []).forEach((edge) => g.setEdge(edge.source, edge.target));
+
+  (env.nodes || []).forEach((n) =>
+    g.setNode(n.id, {
+      width: n.measured?.width ?? defaultSize.width,
+      height: n.measured?.height ?? defaultSize.height,
+    }),
+  );
+
+  Dagre.layout(g);
+
+  env.nodes = env.nodes.map((n) => {
+    const pos = g.node(n.id);
+    return {
+      ...n,
+      position: {
+        x: pos.x - (n.measured?.width ?? defaultSize.width) / 2,
+        y: pos.y - (n.measured?.height ?? defaultSize.height) / 2,
+      },
+    };
+  });
+}
 const useStore = create((set, get) => ({
   environments: {
     root: createEmptyEnv("root", "Root"), // root environment
@@ -19,6 +52,11 @@ const useStore = create((set, get) => ({
   currentEnvId: "root", // Current environment ID
   pathStack: ["root"], // Used for breadcrumb navigation later
   paramInputs: {},
+  layoutRequested: false,
+
+requestLayout: () => set({ layoutRequested: true }),
+
+clearLayoutRequest: () => set({ layoutRequested: false }),
 
 setParamInput: (key, value) =>{
   set((state) => ({
@@ -29,7 +67,6 @@ setParamInput: (key, value) =>{
   }))
 
 },
-
   resetParamInputs: () => set({ paramInputs: {} }),
   activeFilters: new Set([
     "Variable",
@@ -115,34 +152,29 @@ setParamInput: (key, value) =>{
 
   // Add a new node
   addNode: (node, envId, parentId = null) => {
-    set((state) => {
-      //  Ensure the environment exists
-      if (!state.environments[envId]) {
-        state.environments[envId] = createEmptyEnv(envId);
+  set((state) => {
+    if (!state.environments[envId]) {
+      state.environments[envId] = createEmptyEnv(envId);
+    }
+    const env = state.environments[envId];
+    if (env.nodes.some((n) => n.id === node.id)) return {};
+
+    if (parentId && state.environments[parentId]) {
+      const parentEnv = state.environments[parentId];
+      if (!parentEnv.children[envId]) {
+        parentEnv.children[envId] = state.environments[envId];
       }
+    }
 
-      const env = state.environments[envId];
-      if (env.nodes.some((n) => n.id === node.id)) {
-        return {};
-      }
-      // If this env should be attached as a child of another
-      if (parentId && state.environments[parentId]) {
-        const parentEnv = state.environments[parentId];
-        if (!parentEnv.children[envId]) {
-          parentEnv.children[envId] = state.environments[envId];
-        }
-      }
+    const updatedNodes =
+      node.type === 'Module' ? [node, ...env.nodes] : [...env.nodes, node];
+    env.nodes = updatedNodes.map((n) => (n.id === node.id ? node : n));
 
-      const updatedNodes =
-        node.type === "Module"
-          ? [node, ...env.nodes]
-          : [...env.nodes, node];
+    applyLayoutToEnv(env);
 
-      env.nodes = updatedNodes.map((n) => (n.id === node.id ? node : n));
-
-      return { environments: { ...state.environments } };
-    });
-  },
+    return { environments: { ...state.environments } };
+  });
+},
 
 
 
@@ -178,15 +210,19 @@ setParamInput: (key, value) =>{
 
   // Add a new edge
   addEdge: (edge, envId) => {
-    const envs = get().environments;
-    const env = envs[envId];
-    if (!env) return;
-    if (env.edges.some((n) => n.id === edge.id)) {
-      return {};
-    }
+  set((state) => {
+    const env = state.environments[envId];
+    if (!env) return {};
+
+    if (env.edges.some((e) => e.id === edge.id)) return {};
+
     env.edges = [...(env.edges || []), edge];
-    set({ environments: { ...envs } });
-  },
+
+    applyLayoutToEnv(env);
+
+    return { environments: { ...state.environments } };
+  });
+},
 
   // Remove an edge by ID
   removeEdge: (edgeId, envId) => {
@@ -262,6 +298,7 @@ setParamInput: (key, value) =>{
       };
     });
     get().resetParamInputs();
+    get().requestLayout();
   },
   setEnv: (envId) => {
 
@@ -275,6 +312,7 @@ setParamInput: (key, value) =>{
       });
       console.log("Setting environment to:", envId);
       get().resetParamInputs();
+      get().requestLayout();
     }
 
 

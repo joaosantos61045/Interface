@@ -44,7 +44,7 @@ const Sidebar = () => {
         onMouseEnter={(e) => (e.target.style.backgroundColor = "#4f46e5")}
         onMouseLeave={(e) => (e.target.style.backgroundColor = "#6366f1")}
       >
-        {isSidebarOpen ? "Collapse" : "Open"}
+        {isSidebarOpen ? "X" : "☰"}
       </button>
 
       {isSidebarOpen && (
