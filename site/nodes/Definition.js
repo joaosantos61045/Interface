@@ -9,19 +9,20 @@ const DefinitionNode = ({ id, data, isConnectable }) => {
 
   const connection = useConnection();
   const isTarget = connection.inProgress && connection.fromNode.id !== id;
-
+  const fetchNodeId = useStore((state) => state.fetchNodeId);
+  const selected = id == fetchNodeId
   const moduleName = data.moduleName;
 
   const filteredParsedValue = Array.isArray(data.parsedValue)
     ? data.parsedValue.filter((item) => {
-        if (!moduleName) return true;
-        const inputKey = `${item.param}@${moduleName}`;
-        const expectedValue = paramInputs?.[inputKey];
+      if (!moduleName) return true;
+      const inputKey = `${item.param}@${moduleName}`;
+      const expectedValue = paramInputs?.[inputKey];
 
-        if (!expectedValue) return true;
+      if (!expectedValue) return true;
 
-        return item.value?.includes(expectedValue.replace(/^"|"$/g, ""));
-      })
+      return item.value?.includes(expectedValue.replace(/^"|"$/g, ""));
+    })
     : [];
 
   return (
@@ -33,7 +34,7 @@ const DefinitionNode = ({ id, data, isConnectable }) => {
         pointerEvents: isDimmed ? "none" : "auto",
       }}
     >
-      <div style={styles.node}>
+      <div style={{...styles.node,...(selected ? styles.selected : {})}}>
         <div style={styles.content}>
           <div style={styles.header}>
             {data.label || "Unnamed"}
@@ -85,6 +86,20 @@ const DefinitionNode = ({ id, data, isConnectable }) => {
     </div>
   );
 };
+const glowKeyframes = `
+@keyframes glow-green {
+  0% { box-shadow: 0 0 0px #13df1d }
+  50% { box-shadow: 0 0 12px 4px #13df1d }
+  100% { box-shadow: 0 0 0px #13df1d }
+}
+`;
+
+if (typeof document !== "undefined" && !document.getElementById("glow-green-keyframes")) {
+  const style = document.createElement("style");
+  style.id = "glow-green-keyframes";
+  style.innerHTML = glowKeyframes;
+  document.head.appendChild(style);
+}
 
 const styles = {
   wrapper: {
@@ -106,6 +121,10 @@ const styles = {
     padding: "12px",
     cursor: "pointer",
   },
+  selected: {
+  animation: "glow-green 1.1s ease-in-out infinite",
+  borderRadius: "14px",
+},
   content: {
     transform: "rotate(-45deg)",
     display: "flex",

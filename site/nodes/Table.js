@@ -6,7 +6,8 @@ const TableNode = ({ id, data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
   const paramInputs = useStore((state) => state.paramInputs); // grab inputs from store
   const isDimmed = !activeFilters.has("Table");
-
+  const fetchNodeId = useStore((state) => state.fetchNodeId);
+  const selected = id == fetchNodeId
   const moduleName = data.moduleName;
 
   // Filter paramTables based on matching paramInputs
@@ -32,6 +33,7 @@ const TableNode = ({ id, data, isConnectable }) => {
     <div
       style={{
         ...styles.wrapper,
+        ...(selected ? styles.selected : {}),
         opacity: isDimmed ? 0.4 : 1,
         filter: isDimmed ? "grayscale(100%)" : "none",
         pointerEvents: isDimmed ? "none" : "auto",
@@ -77,7 +79,20 @@ const TableNode = ({ id, data, isConnectable }) => {
     </div>
   );
 };
+const glowKeyframes = `
+@keyframes glow-blue {
+  0% { box-shadow: 0 0 0px #2196F3 }
+  50% { box-shadow: 0 0 12px 4px #2196F3 }
+  100% { box-shadow: 0 0 0px #2196F3 }
+}
+`;
 
+if (typeof document !== "undefined" && !document.getElementById("glow-blue-keyframes")) {
+  const style = document.createElement("style");
+  style.id = "glow-blue-keyframes";
+  style.innerHTML = glowKeyframes;
+  document.head.appendChild(style);
+}
 const styles = {
   wrapper: {
     position: "relative",
@@ -98,6 +113,10 @@ const styles = {
     gap: "8px",
     cursor: "pointer",
   },
+  selected: {
+  animation: "glow-blue 1.1s ease-in-out infinite",
+  borderRadius: "14px",
+},
   header: {
     fontWeight: "700",
     fontSize: "18px",

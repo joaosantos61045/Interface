@@ -9,17 +9,16 @@ const VariableNode = ({ id, data, isConnectable }) => {
 
   const connection = useConnection();
   const isTarget = connection.inProgress && connection.fromNode.id !== id;
-
-  const moduleName = data.moduleName; // or wherever the module context is stored
-
+  const fetchNodeId = useStore((state) => state.fetchNodeId);
+  const selected = id == fetchNodeId
+  const moduleName = data.moduleName;
+  
   const filteredParsedValue = Array.isArray(data.parsedValue)
     ? data.parsedValue.filter((item) => {
         if (!moduleName) return true;
         const inputKey = `${item.param}@${moduleName}`;
         const expectedValue = paramInputs?.[inputKey];
-
         if (!expectedValue) return true;
-
         return item.value?.includes(expectedValue.replace(/^"|"$/g, ""));
       })
     : [];
@@ -28,6 +27,7 @@ const VariableNode = ({ id, data, isConnectable }) => {
     <div
       style={{
         ...styles.node,
+        ...(selected ? styles.selected : {}),
         opacity: isDimmed ? 0.4 : 1,
         filter: isDimmed ? "grayscale(100%)" : "none",
         pointerEvents: isDimmed ? "none" : "auto",
@@ -44,9 +44,7 @@ const VariableNode = ({ id, data, isConnectable }) => {
               <div style={styles.paramLine}>
                 <span style={styles.paramLabel}>{item.param}:</span> {item.value}
               </div>
-              <div style={styles.outputLine}>
-                {item.output}
-              </div>
+              <div style={styles.outputLine}>{item.output}</div>
             </div>
           ))}
         </div>
@@ -77,12 +75,28 @@ const VariableNode = ({ id, data, isConnectable }) => {
   );
 };
 
+const glowKeyframes = `
+@keyframes glow {
+  0% { box-shadow: 0 0 0px #e100ff }
+  50% { box-shadow: 0 0 12px 4px #e100ff }
+  100% { box-shadow: 0 0 0px #e100ff }
+}
+`;
+
+// Inject keyframes (only once)
+if (typeof document !== "undefined" && !document.getElementById("glow-keyframes")) {
+  const style = document.createElement("style");
+  style.id = "glow-keyframes";
+  style.innerHTML = glowKeyframes;
+  document.head.appendChild(style);
+}
+
 const styles = {
   node: {
     padding: "16px 20px",
     border: "2px solid #e100ff",
     borderRadius: "12px",
-    background: "linear-gradient(135deg, #ffffff 0%, #fdf4ff 100%)", 
+    background: "linear-gradient(135deg, #ffffff 0%, #fdf4ff 100%)",
     width: "auto",
     maxWidth: "500px",
     minWidth: "180px",
@@ -95,10 +109,14 @@ const styles = {
     gap: "6px",
     fontFamily: "'Inter', sans-serif",
   },
+  selected: {
+    animation: "glow 1.1s ease-in-out infinite",
+    border: "2px solid #e100ff",
+  },
   header: {
     fontWeight: 700,
     fontSize: "16px",
-    color: "#8b5cf6", 
+    color: "#8b5cf6",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -106,7 +124,7 @@ const styles = {
   value: {
     fontWeight: 500,
     fontSize: "14px",
-    color: "#6b7280", 
+    color: "#6b7280",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",

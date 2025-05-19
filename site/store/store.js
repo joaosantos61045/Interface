@@ -12,7 +12,7 @@ const createEmptyEnv = (id, label = "Module") => ({
   children: {},
 });
 const defaultSize = { width: 180, height: 40 };
-
+let usid = localStorage.getItem("usid");
 function applyLayoutToEnv(env) {
   const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
   g.setGraph({
@@ -53,7 +53,9 @@ const useStore = create((set, get) => ({
   pathStack: ["root"], // Used for breadcrumb navigation later
   paramInputs: {},
   layoutRequested: false,
+  fetchNodeId: null,
 
+  setFetchNodeId: (id) => set({ fetchNodeId: id }),
 requestLayout: () => set({ layoutRequested: true }),
 
 clearLayoutRequest: () => set({ layoutRequested: false }),
@@ -314,8 +316,6 @@ setParamInput: (key, value) =>{
       get().resetParamInputs();
       get().requestLayout();
     }
-
-
   },
 
   // Exit the current module and return to the previous environment

@@ -6,7 +6,8 @@ const HtmlNode = ({ id, data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
   const isDimmed = !activeFilters.has("HTML");
   const [isExpanded, setIsExpanded] = useState(false);
-
+const fetchNodeId = useStore((state) => state.fetchNodeId);
+  const selected = id == fetchNodeId
   const name = id || "UnnamedHTML";
   const pathParts = name.split("@").reverse().map(encodeURIComponent);
   const path = pathParts.join("/");
@@ -35,6 +36,7 @@ const HtmlNode = ({ id, data, isConnectable }) => {
     <div
       style={{
         ...styles.wrapper,
+        ...(selected ? styles.selected : {}),
         opacity: isDimmed ? 0.4 : 1,
         filter: isDimmed ? "grayscale(100%)" : "none",
         pointerEvents: isDimmed ? "none" : "auto",
@@ -75,7 +77,20 @@ const HtmlNode = ({ id, data, isConnectable }) => {
     </div>
   );
 };
+const glowKeyframes = `
+@keyframes glow-html {
+  0% { box-shadow: 0 0 0px rgba(0,0,0,0.4) }
+  50% { box-shadow: 0 0 12px 4px rgba(0,0,0,0.4)}
+  100% { box-shadow: 0 0 0px rgba(0,0,0,0.4) }
+}
+`;
 
+if (typeof document !== "undefined" && !document.getElementById("glow-html-keyframes")) {
+  const style = document.createElement("style");
+  style.id = "glow-html-keyframes";
+  style.innerHTML = glowKeyframes;
+  document.head.appendChild(style);
+}
 const styles = {
   wrapper: {
     position: "relative",
@@ -94,6 +109,10 @@ const styles = {
     overflow: "hidden",
     transition: "height 0.3s ease",
   },
+  selected: {
+  animation: "glow-html 1.1s ease-in-out infinite",
+  borderRadius: "30px ",
+},
   notch: {
     width: "60px",
     height: "8px",

@@ -71,7 +71,8 @@ const DnDFlow = () => {
   const [editFormData, setEditFormData] = useState({});
   const [selectedNode, setSelectedNode] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [fetchNodeId, setFetchNodeId] = useState(null);
+  const fetchNodeId = useStore((state) => state.fetchNodeId);
+const setFetchNodeId = useStore((state) => state.setFetchNodeId);
   const { fitView } = useReactFlow();
 
   const currentNode = findNodeByLabel(environments, currentEnvId);
@@ -83,14 +84,20 @@ const clearLayoutRequest = useStore(state => state.clearLayoutRequest);
 useEffect(() => {
   if (layoutRequested) {
     const timeout = setTimeout(() => {
-      console.log("yo");
+      
       fitView()  // or whichever direction you want
       clearLayoutRequest();
-    }, 10); // delay by 10 milliseconds (you can tweak this)
+    }, 15); // delay by 10 milliseconds (you can tweak this)
 
     return () => clearTimeout(timeout); // cleanup
   }
-}, [layoutRequested, clearLayoutRequest]);
+  if(!parsedParams) return;
+  Object.entries(parsedParams).forEach(([paramName]) => {
+    if (paramName.toLowerCase().includes("usid") && paramInputs[paramName] !== `"${usid}"`) {
+      handleParamChange(paramName, `"${usid}"`);
+    }
+  });
+}, [layoutRequested, clearLayoutRequest,parsedParams,usid,paramInputs]);
 
   try {
 
@@ -104,7 +111,7 @@ useEffect(() => {
 
 
       
-      //console.log("namespace:", paramInputs);
+      console.log("namespace:", paramInputs);
 
 
     }, 5000);
@@ -344,6 +351,7 @@ useEffect(() => {
               paramTables,
               moduleName,
               parsedValue,
+              
             },
           };
         } else if (nodeType === "Action") {
@@ -921,6 +929,7 @@ useEffect(() => {
   };
   const onNodeClick = (_, node) => {
     setFetchNodeId(node.id);
+
   }
 
   // Function to adjust the size of the Module when a node is added
