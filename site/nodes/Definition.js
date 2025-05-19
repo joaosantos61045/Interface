@@ -10,20 +10,29 @@ const DefinitionNode = ({ id, data, isConnectable }) => {
   const connection = useConnection();
   const isTarget = connection.inProgress && connection.fromNode.id !== id;
   const fetchNodeId = useStore((state) => state.fetchNodeId);
-  const selected = id == fetchNodeId
+  const selected = id == fetchNodeId;
   const moduleName = data.moduleName;
 
   const filteredParsedValue = Array.isArray(data.parsedValue)
     ? data.parsedValue.filter((item) => {
-      if (!moduleName) return true;
-      const inputKey = `${item.param}@${moduleName}`;
-      const expectedValue = paramInputs?.[inputKey];
+        if (!moduleName) return true;
+        const inputKey = `${item.param}@${moduleName}`;
+        const expectedValue = paramInputs?.[inputKey];
 
-      if (!expectedValue) return true;
+        if (!expectedValue) return true;
 
-      return item.value?.includes(expectedValue.replace(/^"|"$/g, ""));
-    })
+        return item.value?.includes(expectedValue.replace(/^"|"$/g, ""));
+      })
     : [];
+
+  // Dynamic sizing based on number of rows, plus room for label + padding
+  const baseSize = 140;
+const baseRows = 4;
+const rowHeight = 28;
+const extraHeightForLabel = 36;
+
+const extraRows = Math.max(0, filteredParsedValue.length - baseRows);
+const dynamicHeight = baseSize + extraRows * rowHeight + extraHeightForLabel;
 
   return (
     <div
@@ -34,11 +43,16 @@ const DefinitionNode = ({ id, data, isConnectable }) => {
         pointerEvents: isDimmed ? "none" : "auto",
       }}
     >
-      <div style={{...styles.node,...(selected ? styles.selected : {})}}>
+      <div
+        style={{
+          ...styles.node,
+          ...(selected ? styles.selected : {}),
+          width: `${dynamicHeight}px`,
+          height: `${dynamicHeight}px`,
+        }}
+      >
         <div style={styles.content}>
-          <div style={styles.header}>
-            {data.label || "Unnamed"}
-          </div>
+          <div style={styles.header}>{data.label || "Unnamed"}</div>
 
           {Array.isArray(data.parsedValue) ? (
             <div style={styles.tableWrapper}>
@@ -47,20 +61,14 @@ const DefinitionNode = ({ id, data, isConnectable }) => {
                   <div style={styles.paramLine}>
                     <span style={styles.paramLabel}>{item.param}:</span> {item.value}
                   </div>
-                  <div style={styles.outputLine}>
-                    {item.output}
-                  </div>
+                  <div style={styles.outputLine}>{item.output}</div>
                 </div>
               ))}
             </div>
           ) : (
             <>
-              <div style={styles.subtext}>
-                {data.definition || "No Definition"}
-              </div>
-              <div style={styles.subtext}>
-                {data.value || "No Value"}
-              </div>
+              <div style={styles.subtext}>{data.definition || "No Definition"}</div>
+              <div style={styles.subtext}>{data.value || "No Value"}</div>
             </>
           )}
         </div>
@@ -86,6 +94,7 @@ const DefinitionNode = ({ id, data, isConnectable }) => {
     </div>
   );
 };
+
 const glowKeyframes = `
 @keyframes glow-green {
   0% { box-shadow: 0 0 0px #13df1d }
@@ -107,7 +116,7 @@ const styles = {
     transition: "all 0.3s ease-in-out",
   },
   node: {
-    width: "140px",
+    width: "140px", // default overridden dynamically
     height: "140px",
     background: "linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)",
     border: "2px solid #13df1d",
@@ -118,13 +127,15 @@ const styles = {
     boxShadow: "0px 4px 10px rgba(19, 223, 29, 0.3)",
     position: "relative",
     borderRadius: "12px",
-    padding: "12px",
+    padding: "1.25rem",
     cursor: "pointer",
+    boxSizing: "border-box",
+    overflow: "hidden", // allow content to fit inside
   },
   selected: {
-  animation: "glow-green 1.1s ease-in-out infinite",
-  borderRadius: "14px",
-},
+    animation: "glow-green 1.1s ease-in-out infinite",
+    borderRadius: "14px",
+  },
   content: {
     transform: "rotate(-45deg)",
     display: "flex",
@@ -132,34 +143,33 @@ const styles = {
     alignItems: "center",
     textAlign: "center",
     fontFamily: "'Inter', sans-serif",
-    gap: "4px",
+    gap: "6px",
     width: "100%",
   },
   header: {
     fontWeight: 700,
     fontSize: "16px",
     color: "#059669",
+    whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
     maxWidth: "100%",
   },
   subtext: {
     fontWeight: 500,
     fontSize: "13px",
     color: "#6b7280",
+    whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
     maxWidth: "100%",
   },
   tableWrapper: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-start",
-    width: "100%",
-    gap: "8px",
-    marginTop: "4px",
+     maxHeight: "140px",  // adjust height to fit your design
+  overflowY: "auto",
+  width: "100%",
+  marginTop: "4px",
+  paddingRight: "6px", 
   },
   row: {
     backgroundColor: "#f0fdf4",
@@ -170,6 +180,7 @@ const styles = {
     color: "#065f46",
     width: "100%",
     textAlign: "left",
+    whiteSpace: "normal",
   },
   paramLine: {
     fontWeight: "600",

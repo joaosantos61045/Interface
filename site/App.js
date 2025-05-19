@@ -111,7 +111,7 @@ useEffect(() => {
 
 
       
-      console.log("namespace:", paramInputs);
+     // console.log("namespace:", paramInputs);
 
 
     }, 5000);
