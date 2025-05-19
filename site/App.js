@@ -66,38 +66,46 @@ const DnDFlow = () => {
   let usid = localStorage.getItem("usid");
   const namespace = localStorage.getItem("namespace");
   // Local states for node and form management
+  const varNodes = nodes
+    .filter((n) => n.type === "Variable" || n.type === "Table")
+    .map((n) => ({
+      id: n.id,
+      label: n.data?.label,
+      type: n.type,
+      columns: n.data?.columns || [], // Only applicable to Table nodes
+    }));
   const [pendingNode, setPendingNode] = useState(null);
   const [formData, setFormData] = useState({});
   const [editFormData, setEditFormData] = useState({});
   const [selectedNode, setSelectedNode] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const fetchNodeId = useStore((state) => state.fetchNodeId);
-const setFetchNodeId = useStore((state) => state.setFetchNodeId);
+  const setFetchNodeId = useStore((state) => state.setFetchNodeId);
   const { fitView } = useReactFlow();
 
   const currentNode = findNodeByLabel(environments, currentEnvId);
   const rawParams = currentNode?.data?.params || null;
   let parsedParams = {};
-const layoutRequested = useStore(state => state.layoutRequested);
-const clearLayoutRequest = useStore(state => state.clearLayoutRequest);
+  const layoutRequested = useStore(state => state.layoutRequested);
+  const clearLayoutRequest = useStore(state => state.clearLayoutRequest);
 
-useEffect(() => {
-  if (layoutRequested) {
-    const timeout = setTimeout(() => {
-      
-      fitView()  // or whichever direction you want
-      clearLayoutRequest();
-    }, 15); // delay by 10 milliseconds (you can tweak this)
+  useEffect(() => {
+    if (layoutRequested) {
+      const timeout = setTimeout(() => {
 
-    return () => clearTimeout(timeout); // cleanup
-  }
-  if(!parsedParams) return;
-  Object.entries(parsedParams).forEach(([paramName]) => {
-    if (paramName.toLowerCase().includes("usid") && paramInputs[paramName] !== `"${usid}"`) {
-      handleParamChange(paramName, `"${usid}"`);
+        fitView()  // or whichever direction you want
+        clearLayoutRequest();
+      }, 15); // delay by 10 milliseconds (you can tweak this)
+
+      return () => clearTimeout(timeout); // cleanup
     }
-  });
-}, [layoutRequested, clearLayoutRequest,parsedParams,usid,paramInputs]);
+    if (!parsedParams) return;
+    Object.entries(parsedParams).forEach(([paramName]) => {
+      if (paramName.toLowerCase().includes("usid") && paramInputs[paramName] !== `"${usid}"`) {
+        handleParamChange(paramName, `"${usid}"`);
+      }
+    });
+  }, [layoutRequested, clearLayoutRequest, parsedParams, usid, paramInputs]);
 
   try {
 
@@ -110,8 +118,8 @@ useEffect(() => {
 
 
 
-      
-     // console.log("namespace:", paramInputs);
+
+      // console.log("namespace:", paramInputs);
 
 
     }, 5000);
@@ -224,7 +232,7 @@ useEffect(() => {
       }
 
       const sortedNodes = topologicalSort(nodesToUpdate, dependencies);
-      
+
 
       for (const { id, label, value, type, definition, position, moduleName, commands, params } of sortedNodes) {
         function extractModuleHierarchy(id) {
@@ -336,6 +344,7 @@ useEffect(() => {
                   paramTables["Default"] = parsedRows;
                 }
               }
+
             }
           } catch (e) {
             console.warn("Failed to parse table:", e);
@@ -351,9 +360,10 @@ useEffect(() => {
               paramTables,
               moduleName,
               parsedValue,
-              
+
             },
           };
+          console.log(newNode)
         } else if (nodeType === "Action") {
           newNode = {
             id,
@@ -444,7 +454,7 @@ useEffect(() => {
         const referencedLabels = [
           ...new Set(node.data.definition.match(/\b[A-Za-z_]\w*\b/g) || []),
         ].filter((label) => label !== node.data.label); // avoid self-reference
-        
+
         edges.forEach((edge) => {
           if (edge.target === source) {
             const fromNode = findNodeById(environments, edge.source);
@@ -741,7 +751,7 @@ useEffect(() => {
     [nodes, edges, setEdges]
   );
 
- 
+
 
   const onDragOver = useCallback((event) => {
 
@@ -817,11 +827,18 @@ useEffect(() => {
 
       setPendingNode({ type, position });
 
-      
+
       const defaultData = {
         Variable: { label: "var1", value: 1 },
         Definition: { label: "def1", definition: "", },
-        Action: { label: "act", action: "action { var1 :=3}" },
+        Action: {
+          label: "act",
+          actionType: "Assign",
+          targetNodeId: "",
+          values: {},     // For Insert/Update
+          condition: "",
+          // action: "action { var1 :=3}"  // For Update/Delete
+        },
         Table: { label: "tab", columns: [{ name: "", type: "string" }], rows: [] },
         HTML: { label: "page", definition: "<p>'Enter HTML here'</p>" },
         Module: { label: "mod<type param>*" },
@@ -842,14 +859,14 @@ useEffect(() => {
     const values = Object.values(paramInputs).map(val => `${val}`).join(" ");
 
     for (const node of nodes) {
-      
+
       send_message_to_server(`${node.id} ${values}`);
     }
   };
   const handleFetchValue = () => {
     const values = Object.values(paramInputs).map(val => `${val}`).join(" ");
 
-    
+
     send_message_to_server(`${fetchNodeId} ${values}`);
   };
 
@@ -864,6 +881,7 @@ useEffect(() => {
       position: pendingNode.position,
       data: { ...formData },
     };
+    console.log(newNode)
 
     let message = '';
 
@@ -885,6 +903,40 @@ useEffect(() => {
         message = `table ${formData.label} { ${formattedColumns} }`;
         break;
       case 'Action':
+        if (formData.actionType == "Assign") {
+          message = `def ${formData.label} = action { ${formData.targetNodeId} := ${formData.expression}} `
+
+        } else if (formData.actionType == "Insert") {
+          const formattedValues = Object.entries(formData.values || {})
+            .map(([key, val]) => {
+              let trimmed = String(val).trim();
+
+              // Unwrap double quotes if present (e.g., ""a"" → "a")
+              if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+                trimmed = trimmed.slice(1, -1);
+              }
+
+              const isNumeric = !isNaN(trimmed) && trimmed !== '';
+              const isBoolean = trimmed === "true" || trimmed === "false";
+
+              // Only wrap in quotes if not number or boolean
+              const finalValue = isNumeric || isBoolean ? trimmed : `"${trimmed}"`;
+
+              return `${key}: ${finalValue}`;
+            })
+            .join(", ");
+
+          message = `def ${formData.label} = action { insert {${formattedValues}} into ${formData.targetNodeId}} `
+          console.log(message)
+        } else if (formData.actionType == "Update") {
+          message = `def ${formData.label} = action { update a in ${formData.targetNodeId} with {${formData.values}} where ${formData.condition} } `
+        } else if (formData.actionType == "Delete") {
+          message = `def ${formData.label} = action { delete a in ${formData.targetNodeId} where ${formData.condition}} `
+        } else {
+
+          message = `def ${formData.label} = action{${formData.targetNodeId} :=[]}`;
+        }
+        console.log(message)
         message = `def ${formData.label} = ${formData.action}`;
         break;
       case 'Module':
@@ -899,6 +951,7 @@ useEffect(() => {
       ? message
       : wrapInNestedModules(message);
 
+    return;
     console.log("Sending message to server:", nestedMessage);
     send_message_to_server(nestedMessage);
 
@@ -913,14 +966,14 @@ useEffect(() => {
     setEditFormData(node.data);
   };
   const onNodeClick = (_, node) => {
-    
+
     setFetchNodeId(node.id);
 
   }
-  const onPaneClick = (_,event) =>{
+  const onPaneClick = (_, event) => {
     setFetchNodeId(null)
   }
- 
+
   const onConnectEnd = useCallback(
     (event, connectionState) => {
       if (connectionState.isValid || connectionState.fromHandle.type === 'target') {
@@ -976,22 +1029,22 @@ useEffect(() => {
 
       let message = '';
       if (newNodeType === 'Variable') {
-       
+
         message = `var ${newNodeData.label} = ${newNodeData.value}`;
-        
+
         send_message_to_server(message);
       } else if (newNodeType === 'Definition') {
-        
+
         message = `def ${newNodeData.label} = ${newNodeData.definition}`;
-       
+
         send_message_to_server(message);
       }
       // Update nodes and edges
       addNode(newNode, currentEnvId);
-      
+
       if (fromNodeType === 'Action')
         addEdge(newEdge);
-      
+
     },
     [setNodes, setEdges, screenToFlowPosition, setPendingNode]
   );
@@ -1003,7 +1056,7 @@ useEffect(() => {
     });
   };
   const handleDeleteColumn = (index) => {
-    
+
     const updatedColumns = formData.columns.filter((_, i) => i !== index);
     setFormData({ ...formData, columns: updatedColumns });
   };
@@ -1103,7 +1156,7 @@ useEffect(() => {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodesDelete={onNodesDelete}
-            
+
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             onConnect={onConnect}
@@ -1296,97 +1349,235 @@ useEffect(() => {
           <div style={styles.configPanel}>
             <h3>Configure {pendingNode.type} Node</h3>
 
-            {pendingNode && (
-              <div style={styles.configPanel}>
-                <h3>Configure {pendingNode.type} Node</h3>
+            {pendingNode.type === "Table" ? (
+              <>
+                {/* Table Name Input */}
+                <label style={{ display: "block", marginBottom: "10px" }}>
+                  Table Name:
+                  <input
+                    value={formData.label || ""}
+                    onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+                    style={styles.input}
+                    required
+                  />
+                </label>
 
-                {pendingNode.type === "Table" ? (
-                  <>
-                    {/* Table Name Input */}
-                    <label style={{ display: "block", marginBottom: "10px" }}>
-                      Table Name:
-                      <input
-                        value={formData.label || ""}
-                        onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-                        style={styles.input}
-                        required />
-                    </label>
-
-                    <h4>Columns:</h4>
-
-                    {formData.columns.map((col, index) => (
-                      <div key={index} style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
-                        {/* Column Name Input */}
-                        <input
-                          placeholder="Column Name"
-                          value={col.name || ""}
-                          onChange={(e) => handleColumnChange(index, "name", e.target.value)}
-                          style={styles.input}
-                        />
-
-                        {/* Column Type Dropdown */}
-                        <select
-                          value={col.type || "string"}
-                          onChange={(e) => handleColumnChange(index, "type", e.target.value)}
-                          style={styles.input}
-                        >
-                          <option value="string">String</option>
-                          <option value="number">Number</option>
-                          <option value="boolean">Boolean</option>
-                        </select>
-
-                        {/* Delete Column Button */}
-                        <button onClick={() => handleDeleteColumn(index)} style={styles.deleteButton}>
-                          ✖
-                        </button>
-                      </div>
-                    ))}
-
-                    {/* Add Column Button */}
-                    <button onClick={handleAddColumn} style={styles.button}>
-                      + Add Column
+                <h4>Columns:</h4>
+                {formData.columns.map((col, index) => (
+                  <div key={index} style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+                    <input
+                      placeholder="Column Name"
+                      value={col.name || ""}
+                      onChange={(e) => handleColumnChange(index, "name", e.target.value)}
+                      style={styles.input}
+                    />
+                    <select
+                      value={col.type || "string"}
+                      onChange={(e) => handleColumnChange(index, "type", e.target.value)}
+                      style={styles.input}
+                    >
+                      <option value="string">String</option>
+                      <option value="number">Number</option>
+                      <option value="boolean">Boolean</option>
+                    </select>
+                    <button onClick={() => handleDeleteColumn(index)} style={styles.deleteButton}>
+                      ✖
                     </button>
-                  </>
-                ) : (
-                  // Generic Form for Other Node Types
-                  Object.keys(formData).map((key) => (
-                    <label key={key} style={{ display: "block", marginBottom: "10px" }}>
-                      {key.charAt(0).toUpperCase() + key.slice(1)}:
-                      <textarea
-                        value={formData[key]}
-                        onChange={(e) => {
-                          setFormData({ ...formData, [key]: e.target.value });
-                          e.target.style.height = "auto";
-                          e.target.style.height = `${e.target.scrollHeight}px`;
-                        }}
-                        style={{
-                          ...styles.input,
-                          minHeight: "40px",
-                          resize: "none",
-                          overflow: "hidden",
-                        }}
-                      />
-                    </label>
-                  ))
+                  </div>
+                ))}
+                <button onClick={handleAddColumn} style={styles.button}>
+                  + Add Column
+                </button>
+              </>
+            ) : pendingNode.type === "Action" ? (
+              <>
+                <label style={{ display: "block", marginBottom: "10px" }}>
+                  Action Name:
+                  <input
+                    value={formData.label || ""}
+                    onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+                    style={styles.input}
+                    required
+                  />
+                </label>
+                {/* Target Node Dropdown */}
+                <label style={{ display: "block", marginBottom: "10px" }}>
+                  Target Node:
+                  <select
+                    value={formData.targetNodeId || ""}
+                    onChange={(e) => {
+                      const newTargetId = e.target.value;
+                      const targetType = varNodes.find((n) => n.id === newTargetId)?.type;
+                      const target = varNodes.find((n) => n.id === newTargetId);
+                      let newActionType = formData.actionType;
 
+                      if (targetType === "Variable" && newActionType !== "Assign") {
+                        newActionType = "Assign";
+                      } else if (targetType === "Table" && newActionType === "Assign") {
+                        newActionType = "Insert";
+                      }
+
+                      setFormData({
+                        ...formData,
+                        targetNodeId: target.label,
+                        actionType: newActionType,
+                        values: {},
+                        condition: "",
+                        expression: "",
+                      });
+                    }}
+                    style={styles.input}
+                  >
+                    <option value="">-- Select Target --</option>
+                    {varNodes.map((node) => (
+                      <option key={node.id} value={node.id}>
+                        {node.label} ({node.type})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Action Type Dropdown */}
+                {formData.targetNodeId && (
+                  <label style={{ display: "block", marginBottom: "10px" }}>
+                    Action Type:
+                    <select
+                      value={formData.actionType}
+                      onChange={(e) =>
+                        setFormData({ ...formData, actionType: e.target.value })
+                      }
+                      style={styles.input}
+                    >
+                      {(() => {
+                        const targetType = varNodes.find(n => n.id === formData.targetNodeId)?.type;
+                        if (targetType === "Variable") {
+                          return <option value="Assign">Assign</option>;
+                        }
+                        if (targetType === "Table") {
+                          return ["Insert", "Update", "Delete", "Clear"].map((type) => (
+                            <option key={type} value={type}>{type}</option>
+                          ));
+                        }
+                        return null;
+                      })()}
+                    </select>
+                  </label>
                 )}
 
-                {/* Cancel & Confirm Buttons */}
-                <div style={styles.buttonContainer}>
-                  <button onClick={() => setPendingNode(null)} style={styles.cancel_button}>
-                    Cancel
-                  </button>
-                  <button onClick={handleConfirm} style={styles.button}>
-                    Confirm
-                  </button>
-                </div>
-              </div>
+                {/* Additional Inputs Based on Action Type */}
+                {(() => {
+                  const targetNode = varNodes.find((n) => n.id === formData.targetNodeId);
+                  const isTable = targetNode?.type === "Table";
+                  const columns = targetNode?.columns || [];
+
+                  switch (formData.actionType) {
+                    case "Insert":
+                    case "Update":
+                      return (
+                        <>
+                          <h4>Values:</h4>
+                          {columns.map((col, idx) => (
+                            <label key={idx} style={{ display: "block", marginBottom: "10px" }}>
+                              {col.name}:
+                              <input
+                                value={formData.values?.[col.name] || ""}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    values: {
+                                      ...formData.values,
+                                      [col.name]: e.target.value,
+                                    },
+                                  })
+                                }
+                                style={styles.input}
+                              />
+                            </label>
+                          ))}
+                          {formData.actionType === "Update" && (
+                            <label style={{ display: "block", marginBottom: "10px" }}>
+                              Condition:
+                              <input
+                                value={formData.condition || ""}
+                                onChange={(e) =>
+                                  setFormData({ ...formData, condition: e.target.value })
+                                }
+                                style={styles.input}
+                              />
+                            </label>
+                          )}
+                        </>
+                      );
+                    case "Delete":
+                      return (
+                        <label style={{ display: "block", marginBottom: "10px" }}>
+                          Condition:
+                          <input
+                            value={formData.condition || ""}
+                            onChange={(e) =>
+                              setFormData({ ...formData, condition: e.target.value })
+                            }
+                            placeholder=""
+                            style={styles.input}
+                          />
+                        </label>
+                      );
+                    case "Clear":
+                      return <p>This action will clear all rows in the target table.</p>;
+                    case "Assign":
+                      return (
+                        <label style={{ display: "block", marginBottom: "10px" }}>
+                          Expression:
+                          <input
+                            value={formData.expression || ""}
+                            placeholder="Changes to make (Example: variable +1)"
+                            onChange={(e) =>
+                              setFormData({ ...formData, expression: e.target.value })
+                            }
+                            style={styles.input}
+                          />
+                        </label>
+                      );
+                    default:
+                      return null;
+                  }
+                })()}
+              </>
+            ) : (
+              // Default form fallback
+              Object.keys(formData).map((key) => (
+                <label key={key} style={{ display: "block", marginBottom: "10px" }}>
+                  {key.charAt(0).toUpperCase() + key.slice(1)}:
+                  <textarea
+                    value={formData[key]}
+                    onChange={(e) => {
+                      setFormData({ ...formData, [key]: e.target.value });
+                      e.target.style.height = "auto";
+                      e.target.style.height = `${e.target.scrollHeight}px`;
+                    }}
+                    style={{
+                      ...styles.input,
+                      minHeight: "40px",
+                      resize: "none",
+                      overflow: "hidden",
+                    }}
+                  />
+                </label>
+              ))
             )}
 
-
-
+            {/* Confirm / Cancel Buttons */}
+            <div style={styles.buttonContainer}>
+              <button onClick={() => setPendingNode(null)} style={styles.cancel_button}>
+                Cancel
+              </button>
+              <button onClick={handleConfirm} style={styles.button}>
+                Confirm
+              </button>
+            </div>
           </div>
         )}
+
 
 
         {selectedNode && (
@@ -1667,7 +1858,7 @@ const App = () => {
   useEffect(() => {
 
     const run = async () => {
-      
+
       await init();
       await main();
     };

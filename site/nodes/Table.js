@@ -42,12 +42,48 @@ const TableNode = ({ id, data, isConnectable }) => {
       <div style={styles.node}>
         <div style={styles.header}>{data.label || "Database Table"}</div>
 
-        {Object.entries(displayRows).map(([paramKey, rows], idx) => (
-          <div key={idx} style={{ marginTop: idx > 0 ? "16px" : "0" }}>
-            <div style={styles.subHeader}>
-              {paramKey !== "Default" ? paramKey : null}
-            </div>
+        {Object.keys(displayRows).length > 0 ? (
+          Object.entries(displayRows).map(([paramKey, rows], idx) => (
+            <div key={idx} style={{ marginTop: idx > 0 ? "16px" : "0" }}>
+              <div style={styles.subHeader}>
+                {paramKey !== "Default" ? paramKey : null}
+              </div>
 
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    {data.columns?.map((col, idx) => (
+                      <th key={idx} style={styles.th}>
+                        {`${col.name} (${col.type})`}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows && rows.length > 0 ? (
+                    rows.map((row, rowIdx) => (
+                      <tr key={rowIdx}>
+                        {data.columns.map((col, colIdx) => (
+                          <td key={colIdx} style={styles.td}>
+                            {row[col.name] ?? ""}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      {data.columns.map((_, colIdx) => (
+                        <td key={colIdx} style={styles.td}></td>
+                      ))}
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ))
+        ) : (
+          // Fallback if no paramTables match, but we still want to show columns
+          <div>
             <table style={styles.table}>
               <thead>
                 <tr>
@@ -59,19 +95,16 @@ const TableNode = ({ id, data, isConnectable }) => {
                 </tr>
               </thead>
               <tbody>
-                {rows?.map((row, rowIdx) => (
-                  <tr key={rowIdx}>
-                    {data.columns.map((col, colIdx) => (
-                      <td key={colIdx} style={styles.td}>
-                        {row[col.name] ?? ""}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                <tr>
+                  {data.columns?.map((_, colIdx) => (
+                    <td key={colIdx} style={styles.td}></td>
+                  ))}
+                </tr>
               </tbody>
             </table>
           </div>
-        ))}
+        )}
+
       </div>
 
       <Handle type="target" position={Position.Left} isConnectable={isConnectable} />
@@ -114,9 +147,9 @@ const styles = {
     cursor: "pointer",
   },
   selected: {
-  animation: "glow-blue 1.1s ease-in-out infinite",
-  borderRadius: "14px",
-},
+    animation: "glow-blue 1.1s ease-in-out infinite",
+    borderRadius: "14px",
+  },
   header: {
     fontWeight: "700",
     fontSize: "18px",
