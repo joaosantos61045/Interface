@@ -132,7 +132,7 @@ useEffect(() => {
       }
 
       localStorage.setItem("usid", usid);
-      console.log("usid", usid);
+      console.log("New usid set: ", usid);
     }
 
   }
@@ -224,7 +224,7 @@ useEffect(() => {
       }
 
       const sortedNodes = topologicalSort(nodesToUpdate, dependencies);
-      console.log("Sorted nodes:", sortedNodes);
+      
 
       for (const { id, label, value, type, definition, position, moduleName, commands, params } of sortedNodes) {
         function extractModuleHierarchy(id) {
@@ -741,22 +741,7 @@ useEffect(() => {
     [nodes, edges, setEdges]
   );
 
-  const onBeforeDelete = useCallback(
-    ({ nodes: nodesToDelete }) => {
-      // Check if any node has edges (incoming or outgoing)
-      const hasEdges = nodesToDelete.some((node) =>
-        edges.some((edge) => edge.source === node.id || edge.target === node.id)
-      );
-
-      if (hasEdges) {
-        console.warn("Cannot delete nodes that have edges.");
-        //  return false; // Prevent deletion
-      }
-
-      return true; // Allow deletion if no edges exist
-    },
-    [edges]
-  );
+ 
 
   const onDragOver = useCallback((event) => {
 
@@ -857,14 +842,14 @@ useEffect(() => {
     const values = Object.values(paramInputs).map(val => `${val}`).join(" ");
 
     for (const node of nodes) {
-      console.log(`Fetching value for node: ${node.id} with params: ${values}`);
+      
       send_message_to_server(`${node.id} ${values}`);
     }
   };
   const handleFetchValue = () => {
     const values = Object.values(paramInputs).map(val => `${val}`).join(" ");
 
-    console.log(`Fetching value for node: ${fetchNodeId} with params: ${values}`);
+    
     send_message_to_server(`${fetchNodeId} ${values}`);
   };
 
@@ -928,34 +913,14 @@ useEffect(() => {
     setEditFormData(node.data);
   };
   const onNodeClick = (_, node) => {
+    
     setFetchNodeId(node.id);
 
   }
-
-  // Function to adjust the size of the Module when a node is added
-  const adjustModuleSize = (moduleId, nodeWidth, nodeHeight) => {
-    // Find the module by its ID
-    const moduleNode = nodes.find(n => n.id === moduleId);
-
-    if (moduleNode) {
-      const padding = 20; // Extra padding to add around nodes inside the module
-      let newWidth = moduleNode.width || 0;
-      let newHeight = moduleNode.height || 0;
-
-      // Increase width if necessary
-      if (nodeWidth > newWidth) {
-        newWidth = nodeWidth + padding;
-      }
-
-      // Increase height if necessary
-      if (nodeHeight > newHeight) {
-        newHeight = nodeHeight + padding;
-      }
-      // Update the module node with the new size
-      console.log("Updating module node size:", moduleNode.id, newWidth, newHeight);
-      updateNode(moduleNode.id, { width: newWidth, height: newHeight });
-    }
-  };
+  const onPaneClick = (_,event) =>{
+    setFetchNodeId(null)
+  }
+ 
   const onConnectEnd = useCallback(
     (event, connectionState) => {
       if (connectionState.isValid || connectionState.fromHandle.type === 'target') {
@@ -1011,24 +976,22 @@ useEffect(() => {
 
       let message = '';
       if (newNodeType === 'Variable') {
-        //message = `var ${newNodeData.label} = ${newNodeData.value};${newNode.position.x}/${newNode.position.y}`;
+       
         message = `var ${newNodeData.label} = ${newNodeData.value}`;
-        console.log("Sending message to server:", message);
+        
         send_message_to_server(message);
       } else if (newNodeType === 'Definition') {
-        //message = `def ${newNodeData.label} = ${newNodeData.definition};${newNode.position.x}/${newNode.position.y}`;
+        
         message = `def ${newNodeData.label} = ${newNodeData.definition}`;
-        console.log("Sending message to server:", message);
+       
         send_message_to_server(message);
       }
       // Update nodes and edges
       addNode(newNode, currentEnvId);
-      console.log("Adding edge", newEdge)
+      
       if (fromNodeType === 'Action')
         addEdge(newEdge);
-      // Optionally trigger the pending node form with the new node
-      // set the pendingNode to the newNode to show form
-      //setPendingNode(newNode); 
+      
     },
     [setNodes, setEdges, screenToFlowPosition, setPendingNode]
   );
@@ -1040,7 +1003,7 @@ useEffect(() => {
     });
   };
   const handleDeleteColumn = (index) => {
-    console.log(formData.columns)
+    
     const updatedColumns = formData.columns.filter((_, i) => i !== index);
     setFormData({ ...formData, columns: updatedColumns });
   };
@@ -1140,7 +1103,7 @@ useEffect(() => {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodesDelete={onNodesDelete}
-            onBeforeDelete={onBeforeDelete}
+            
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             onConnect={onConnect}
@@ -1149,6 +1112,7 @@ useEffect(() => {
             onNodeDoubleClick={onNodeDoubleClick}
             onNodeClick={onNodeClick}
             onDragOver={onDragOver}
+            onPaneClick={onPaneClick}
             fitView
             style={{
               backgroundColor: "#F7F9FB",
@@ -1703,7 +1667,7 @@ const App = () => {
   useEffect(() => {
 
     const run = async () => {
-      console.log("Initializing...");
+      
       await init();
       await main();
     };
