@@ -3,7 +3,6 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   getBezierPath,
-  useReactFlow,
 } from "@xyflow/react";
 import { send_message_to_server } from "../../pkg/meerkat_remote_console_V2";
 import useStore from "../store/store.js";
@@ -29,12 +28,14 @@ const buttonEdgeButtonStyle = {
   justifyContent: "center",
   boxShadow: "0 0 6px rgba(255, 0, 115, 0.5)",
   transition: "all 0.3s ease",
+  transform: "scale(1)",
 };
 
 const buttonEdgeButtonHoverStyle = {
   backgroundColor: "#ffe6f0",
   transform: "scale(1.1)",
-  boxShadow: "0 0 10px rgba(255, 0, 115, 0.7)",
+  boxShadow: "none",
+  // removed boxShadow here to avoid persistent circle glow
 };
 
 const checkmarkStyle = {
@@ -58,12 +59,20 @@ export default function ActionEdge({
   let modParam = "";
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
-  const { onNodesChange, environments, onEdgesChange, onConnect, currentEnvId, getCurrentEnv,paramInputs} = useStore();
+  const {
+    onNodesChange,
+    environments,
+    onEdgesChange,
+    onConnect,
+    currentEnvId,
+    getCurrentEnv,
+    paramInputs,
+  } = useStore();
   const { nodes, edges } = getCurrentEnv();
   const [showPrompt, setShowPrompt] = useState(false);
   const [paramValues, setParamValues] = useState({});
   const [paramNames, setParamNames] = useState([]);
-  
+
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -96,47 +105,51 @@ export default function ActionEdge({
     return null;
   }
   const onEdgeClick = useCallback(() => {
-  const actionStr = data?.action ?? "";
+    const actionStr = data?.action ?? "";
 
+    if (
+      currentEnvId !== "root" &&
+      findNodeById(environments, currentEnvId)?.data?.params
+    ) {
+      const cleanedParams = Object.values(paramInputs);
 
-  if (currentEnvId !== "root" && findNodeById(environments, currentEnvId)?.data?.params) {
-    // Extract clean param values (no extra quotes)
-    const cleanedParams = Object.values(paramInputs);
+      modParam = cleanedParams.join(" ");
+      console.log("Params:", modParam);
+    } else {
+      modParam = "";
+      console.log("No params");
+    }
 
-    modParam = cleanedParams.join(" ");
-    console.log("Params:", modParam);
-  } else {
-    modParam = "";
-    console.log("No params");
-  }
-
-  const params = extractParams(actionStr);
-  if (params.length > 0) {
-    setParamNames(params);
-    setParamValues(Object.fromEntries(params.map((p) => [p, ""])));
-    setShowPrompt(true);
-  } else {
-    send_message_to_server(`do ${source} ${modParam}`);
-    setShouldAnimate(true);
-    setAnimationKey((prev) => prev + 1);
-    setTimeout(() => setShouldAnimate(false), 600);
-  }
-}, [data, source, paramInputs, currentEnvId, environments]);
+    const params = extractParams(actionStr);
+    if (params.length > 0) {
+      setParamNames(params);
+      setParamValues(Object.fromEntries(params.map((p) => [p, ""])));
+      setShowPrompt(true);
+    } else {
+      send_message_to_server(`do ${source} ${modParam}`);
+      setShouldAnimate(true);
+      setAnimationKey((prev) => prev + 1);
+      setTimeout(() => setShouldAnimate(false), 600);
+    }
+  }, [data, source, paramInputs, currentEnvId, environments]);
 
   const onInputChange = (param, value) => {
     setParamValues((prev) => ({ ...prev, [param]: value }));
   };
 
   const onSubmit = () => {
-    if (currentEnvId != "root" && findNodeById(environments, currentEnvId).data.params) {
+    if (
+      currentEnvId != "root" &&
+      findNodeById(environments, currentEnvId).data.params
+    ) {
       const cleanedParams = Object.values(paramInputs);
       modParam = cleanedParams.join(" ");
       console.log("Params:", modParam);
-    }else {
-      modParam ="";
+    } else {
+      modParam = "";
       console.log("No params");
     }
-    
+
     const args = paramNames.map((p) => paramValues[p] || "").join(" ");
     send_message_to_server(`do ${source} ${modParam} ${args}`);
     setShowPrompt(false);
@@ -163,7 +176,9 @@ export default function ActionEdge({
       />
 
       {shouldAnimate && (
-        <svg style={{ position: "absolute", overflow: "visible", pointerEvents: "none" }}>
+        <svg
+          style={{ position: "absolute", overflow: "visible", pointerEvents: "none" }}
+        >
           <defs>
             <path id={pathId} d={edgePath} />
           </defs>
@@ -172,7 +187,13 @@ export default function ActionEdge({
               <mpath href={`#${pathId}`} />
             </animateMotion>
           </circle>
-          <circle r="14" fill="none" stroke="#ff0073" strokeWidth="2" opacity="0.5">
+          <circle
+            r="14"
+            fill="none"
+            stroke="#ff0073"
+            strokeWidth="2"
+            opacity="0.5"
+          >
             <animateMotion dur="0.6s" repeatCount="1">
               <mpath href={`#${pathId}`} />
             </animateMotion>
@@ -250,8 +271,17 @@ export default function ActionEdge({
             <button
               style={buttonEdgeButtonStyle}
               onClick={onEdgeClick}
-              onMouseOver={(e) => Object.assign(e.target.style, buttonEdgeButtonHoverStyle)}
-              onMouseOut={(e) => Object.assign(e.target.style, buttonEdgeButtonStyle)}
+              onMouseOver={(e) => {
+                const btn = e.currentTarget;
+                Object.assign(btn.style, {
+                  ...buttonEdgeButtonHoverStyle,
+                  boxShadow: "none", // remove circle glow on hover
+                });
+              }}
+              onMouseOut={(e) => {
+                const btn = e.currentTarget;
+                Object.assign(btn.style, buttonEdgeButtonStyle);
+              }}
             >
               <span style={checkmarkStyle}>{">"}</span>
             </button>
