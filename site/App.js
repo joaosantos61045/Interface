@@ -66,7 +66,7 @@ const DnDFlow = () => {
   let usid = localStorage.getItem("usid");
   const namespace = localStorage.getItem("namespace");
   // Local states for node and form management
-  const varNodes = nodes
+  let varNodes = nodes
     .filter((n) => n.type === "Variable" || n.type === "Table")
     .map((n) => ({
       id: n.id,
@@ -107,6 +107,30 @@ const DnDFlow = () => {
     });
   }, [layoutRequested, clearLayoutRequest, parsedParams, usid, paramInputs]);
 
+  useEffect(() => {
+    if (!editFormData?.targetNodeId) return;
+
+    const target = varNodes.find((n) => n.id === editFormData.targetNodeId);
+    const targetType = target?.type;
+
+    let newActionType = editFormData.actionType;
+
+    if (targetType === "Variable" && newActionType !== "Assign") {
+      newActionType = "Assign";
+    } else if (targetType === "Table" && !["Insert", "Update", "Delete", "Clear"].includes(newActionType)) {
+      newActionType = "Insert";
+    }
+
+    if (newActionType !== editFormData.actionType) {
+      setEditFormData((prev) => ({
+        ...prev,
+        actionType: newActionType,
+        values: {},
+        condition: "",
+        expression: "",
+      }));
+    }
+  }, [editFormData.targetNodeId]);
   try {
 
     parsedParams = typeof rawParams === "string" ? JSON.parse(rawParams) : rawParams;
@@ -119,7 +143,7 @@ const DnDFlow = () => {
 
 
 
-      // console.log("namespace:", paramInputs);
+      // console.log("namespace:", varNodes);
 
 
     }, 5000);
@@ -363,7 +387,7 @@ const DnDFlow = () => {
 
             },
           };
-          console.log(newNode)
+
         } else if (nodeType === "Action") {
           newNode = {
             id,
@@ -788,9 +812,47 @@ const DnDFlow = () => {
 
       message = `table ${editFormData.label} { ${formattedColumns} }`;
     } else if (selectedNode.type === 'Action') {
-      message = `def ${editFormData.label} = ${editFormData.action}`;
-    }
+      const paramNames = [];
+      const formattedValues = Object.entries(editFormData.values || {})
+        .map(([key, val]) => {
+          let trimmed = String(val).trim();
 
+          // If surrounded by double-double quotes, unwrap to single quoted
+          if (trimmed.startsWith('""') && trimmed.endsWith('""')) {
+            trimmed = `"${trimmed.slice(2, -2)}"`;
+          }
+
+          // Track parameters if they start with "in"
+          if (trimmed.startsWith("in")) {
+            paramNames.push(trimmed);
+          }
+
+          return `${key}: ${trimmed}`;
+        })
+        .join(", ");
+
+
+      // Compose the message with parameters before `=`
+      const paramList = paramNames.join(" ");
+
+      if (editFormData.actionType == "Assign") {
+        message = `def ${editFormData.label} = action { ${editFormData.targetNodeLabel} := ${editFormData.expression}} `
+
+      } else if (editFormData.actionType == "Insert") {
+        message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { insert {${formattedValues}} into ${editFormData.targetNodeLabel}}`;
+      } else if (editFormData.actionType == "Update") {
+        message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { update a in ${editFormData.targetNodeLabel} with {${formattedValues}} where ${editFormData.condition} } `
+      } else if (editFormData.actionType == "Delete") {
+        message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { delete a in ${editFormData.targetNodeLabel} where ${editFormData.condition}} `
+      } else {
+
+        message = `def ${editFormData.label} = action{${editFormData.targetNodeLabel} :=[]}`;
+      }
+      console.log(message)
+
+      //message = `def ${editFormData.label} = ${editFormData.action}`;
+    }
+    return;
     // Wrap in nested modules if not in root
     const wrappedMessage = wrapInNestedModules(message);
     send_message_to_server(wrappedMessage);
@@ -832,7 +894,7 @@ const DnDFlow = () => {
         Variable: { label: "var1", value: 1 },
         Definition: { label: "def1", definition: "", },
         Action: {
-          label: "act",
+          label: "",
           actionType: "Assign",
           targetNodeId: "",
           values: {},     // For Insert/Update
@@ -903,41 +965,44 @@ const DnDFlow = () => {
         message = `table ${formData.label} { ${formattedColumns} }`;
         break;
       case 'Action':
+        const paramNames = [];
+        const formattedValues = Object.entries(formData.values || {})
+          .map(([key, val]) => {
+            let trimmed = String(val).trim();
+
+            // If surrounded by double-double quotes, unwrap to single quoted
+            if (trimmed.startsWith('""') && trimmed.endsWith('""')) {
+              trimmed = `"${trimmed.slice(2, -2)}"`;
+            }
+
+            // Track parameters if they start with "in"
+            if (trimmed.startsWith("in")) {
+              paramNames.push(trimmed);
+            }
+
+            return `${key}: ${trimmed}`;
+          })
+          .join(", ");
+
+
+        // Compose the message with parameters before `=`
+        const paramList = paramNames.join(" ");
+
         if (formData.actionType == "Assign") {
-          message = `def ${formData.label} = action { ${formData.targetNodeId} := ${formData.expression}} `
+          message = `def ${formData.label} = action { ${formData.targetNodeLabel} := ${formData.expression}} `
 
         } else if (formData.actionType == "Insert") {
-          const formattedValues = Object.entries(formData.values || {})
-            .map(([key, val]) => {
-              let trimmed = String(val).trim();
-
-              // Unwrap double quotes if present (e.g., ""a"" → "a")
-              if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-                trimmed = trimmed.slice(1, -1);
-              }
-
-              const isNumeric = !isNaN(trimmed) && trimmed !== '';
-              const isBoolean = trimmed === "true" || trimmed === "false";
-
-              // Only wrap in quotes if not number or boolean
-              const finalValue = isNumeric || isBoolean ? trimmed : `"${trimmed}"`;
-
-              return `${key}: ${finalValue}`;
-            })
-            .join(", ");
-
-          message = `def ${formData.label} = action { insert {${formattedValues}} into ${formData.targetNodeId}} `
-          console.log(message)
+          message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { insert {${formattedValues}} into ${formData.targetNodeLabel}}`;
         } else if (formData.actionType == "Update") {
-          message = `def ${formData.label} = action { update a in ${formData.targetNodeId} with {${formData.values}} where ${formData.condition} } `
+          message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { update a in ${formData.targetNodeLabel} with {${formattedValues}} where ${formData.condition} } `
         } else if (formData.actionType == "Delete") {
-          message = `def ${formData.label} = action { delete a in ${formData.targetNodeId} where ${formData.condition}} `
+          message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { delete a in ${formData.targetNodeLabel} where ${formData.condition}} `
         } else {
 
-          message = `def ${formData.label} = action{${formData.targetNodeId} :=[]}`;
+          message = `def ${formData.label} = action{${formData.targetNodeLabel} :=[]}`;
         }
         console.log(message)
-        message = `def ${formData.label} = ${formData.action}`;
+        // message = `def ${formData.label} = ${formData.action}`;
         break;
       case 'Module':
         message = `module ${formData.label} {}`;
@@ -951,8 +1016,7 @@ const DnDFlow = () => {
       ? message
       : wrapInNestedModules(message);
 
-    return;
-    console.log("Sending message to server:", nestedMessage);
+
     send_message_to_server(nestedMessage);
 
     setPendingNode(null);
@@ -1396,6 +1460,7 @@ const DnDFlow = () => {
                   <input
                     value={formData.label || ""}
                     onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+                    placeholder="Name your Action"
                     style={styles.input}
                     required
                   />
@@ -1407,8 +1472,11 @@ const DnDFlow = () => {
                     value={formData.targetNodeId || ""}
                     onChange={(e) => {
                       const newTargetId = e.target.value;
+
                       const targetType = varNodes.find((n) => n.id === newTargetId)?.type;
+
                       const target = varNodes.find((n) => n.id === newTargetId);
+
                       let newActionType = formData.actionType;
 
                       if (targetType === "Variable" && newActionType !== "Assign") {
@@ -1419,7 +1487,8 @@ const DnDFlow = () => {
 
                       setFormData({
                         ...formData,
-                        targetNodeId: target.label,
+                        targetNodeId: newTargetId,
+                        targetNodeLabel: target.label,
                         actionType: newActionType,
                         values: {},
                         condition: "",
@@ -1449,7 +1518,9 @@ const DnDFlow = () => {
                       style={styles.input}
                     >
                       {(() => {
+
                         const targetType = varNodes.find(n => n.id === formData.targetNodeId)?.type;
+
                         if (targetType === "Variable") {
                           return <option value="Assign">Assign</option>;
                         }
@@ -1466,7 +1537,9 @@ const DnDFlow = () => {
 
                 {/* Additional Inputs Based on Action Type */}
                 {(() => {
+
                   const targetNode = varNodes.find((n) => n.id === formData.targetNodeId);
+
                   const isTable = targetNode?.type === "Table";
                   const columns = targetNode?.columns || [];
 
@@ -1490,6 +1563,8 @@ const DnDFlow = () => {
                                     },
                                   })
                                 }
+                                placeholder='to use params, start with in (e.g. inParam)'
+
                                 style={styles.input}
                               />
                             </label>
@@ -1643,9 +1718,156 @@ const DnDFlow = () => {
                     + Add Column
                   </button>
                 </>
+              ) : selectedNode.type === "Action" ? (
+                <>
+                  {/* Action Name */}
+                  <label style={styles.label}>
+                    Action Name:
+                    <input
+                      value={editFormData.label || ""}
+                      onChange={(e) =>
+                        setEditFormData({ ...editFormData, label: e.target.value })
+                      }
+                      placeholder="Name your Action"
+                      style={styles.input}
+                    />
+                  </label>
+
+                  {/* Target Node Dropdown */}
+                  <label style={styles.label}>
+                    Target Node:
+                    <select
+                      value={editFormData.targetNodeId || ""}
+                      onChange={(e) => {
+                        const newTargetId = e.target.value;
+                        const target = varNodes.find((n) => n.id === newTargetId);
+
+                        setEditFormData((prev) => ({
+                          ...prev,
+                          targetNodeId: newTargetId,
+                          targetNodeLabel: target?.label,
+                        }));
+                      }}
+                      style={styles.input}
+                    >
+                      <option value="">-- Select Target --</option>
+                      {varNodes.map((node) => (
+                        <option key={node.id} value={node.id}>
+                          {node.label} ({node.type})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  {/* Action Type Dropdown */}
+                  {editFormData.targetNodeId && (
+                    <label style={styles.label}>
+                      Action Type:
+                      <select
+                        value={editFormData.actionType}
+                        onChange={(e) =>
+                          setEditFormData({ ...editFormData, actionType: e.target.value })
+                        }
+                        style={styles.input}
+                      >
+                        {(() => {
+                          const targetType = varNodes.find(n => n.id === editFormData.targetNodeId)?.type;
+
+                          if (targetType === "Variable") {
+                            return <option value="Assign">Assign</option>;
+                          }
+                          if (targetType === "Table") {
+                            return ["Insert", "Update", "Delete", "Clear"].map((type) => (
+                              <option key={type} value={type}>{type}</option>
+                            ));
+                          }
+                          return null;
+                        })()}
+                      </select>
+                    </label>
+                  )}
+
+                  {/* Values / Condition / Expression Based on Action Type */}
+                  {(() => {
+                    const targetNode = varNodes.find((n) => n.id === editFormData.targetNodeId);
+                    const columns = targetNode?.columns || [];
+
+                    switch (editFormData.actionType) {
+                      case "Insert":
+                      case "Update":
+                        return (
+                          <>
+                            <h4>Values:</h4>
+                            {columns.map((col, idx) => (
+                              <label key={idx} style={styles.label}>
+                                {col.name}:
+                                <input
+                                  value={editFormData.values?.[col.name] || ""}
+                                  onChange={(e) =>
+                                    setEditFormData({
+                                      ...editFormData,
+                                      values: {
+                                        ...editFormData.values,
+                                        [col.name]: e.target.value,
+                                      },
+                                    })
+                                  }
+                                  placeholder='To use params, start with "in" (e.g. inParam)'
+                                  style={styles.input}
+                                />
+                              </label>
+                            ))}
+                            {editFormData.actionType === "Update" && (
+                              <label style={styles.label}>
+                                Condition:
+                                <input
+                                  value={editFormData.condition || ""}
+                                  onChange={(e) =>
+                                    setEditFormData({ ...editFormData, condition: e.target.value })
+                                  }
+                                  style={styles.input}
+                                />
+                              </label>
+                            )}
+                          </>
+                        );
+                      case "Delete":
+                        return (
+                          <label style={styles.label}>
+                            Condition:
+                            <input
+                              value={editFormData.condition || ""}
+                              onChange={(e) =>
+                                setEditFormData({ ...editFormData, condition: e.target.value })
+                              }
+                              style={styles.input}
+                            />
+                          </label>
+                        );
+                      case "Clear":
+                        return <p>This action will clear all rows in the target table.</p>;
+                      case "Assign":
+                        return (
+                          <label style={styles.label}>
+                            Expression:
+                            <input
+                              value={editFormData.expression || ""}
+                              placeholder="Changes to make (e.g. variable + 1)"
+                              onChange={(e) =>
+                                setEditFormData({ ...editFormData, expression: e.target.value })
+                              }
+                              style={styles.input}
+                            />
+                          </label>
+                        );
+                      default:
+                        return null;
+                    }
+                  })()}
+                </>
               ) : (
                 <>
-                  {/* NEW: Buttons for Nodes That Point to This Node */}
+                  {/* Related Nodes for Definition */}
                   {selectedNode.type == "Definition" && <div style={{ marginBottom: "10px" }}>
                     <h4>Related Nodes:</h4>
                     {edges
@@ -1667,8 +1889,6 @@ const DnDFlow = () => {
                           >
                             {sourceNode.data.label}
                           </button>
-
-
                         ) : null;
                       })}
                   </div>}
@@ -1676,10 +1896,12 @@ const DnDFlow = () => {
                   {/* Generic Editing for Other Node Types */}
                   {["label", "definition", "action", "content", "value"]
                     .filter((key) => {
-                      // Hide 'value' field if it's a Definition or Html node
                       if (
                         (key === "value" &&
-                          (selectedNode.type === "Definition" || selectedNode.type === "HTML" || selectedNode.type === "Action")) || selectedNode.type === "Action" && key === "definition"
+                          (selectedNode.type === "Definition" ||
+                            selectedNode.type === "HTML" ||
+                            selectedNode.type === "Action")) ||
+                        (selectedNode.type === "Action" && key === "definition")
                       ) {
                         return false;
                       }
@@ -1696,8 +1918,8 @@ const DnDFlow = () => {
                               ...editFormData,
                               [key]: e.target.value,
                             });
-                            e.target.style.height = "auto"; // Reset height
-                            e.target.style.height = `${e.target.scrollHeight}px`; // Expand dynamically
+                            e.target.style.height = "auto";
+                            e.target.style.height = `${e.target.scrollHeight}px`;
                           }}
                           style={{
                             ...styles.input,
@@ -1708,7 +1930,6 @@ const DnDFlow = () => {
                         />
                       </label>
                     ))}
-
                 </>
               )}
 
@@ -1727,6 +1948,7 @@ const DnDFlow = () => {
             </div>
           </div>
         )}
+
 
 
 
