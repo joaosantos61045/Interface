@@ -257,7 +257,7 @@ const DnDFlow = () => {
 
       const sortedNodes = topologicalSort(nodesToUpdate, dependencies);
 
-
+      console.log(sortedNodes)
       for (const { id, label, value, type, definition, position, moduleName, commands, params } of sortedNodes) {
         function extractModuleHierarchy(id) {
           const parts = id.split("@");
@@ -278,9 +278,10 @@ const DnDFlow = () => {
         const nodeType = (() => {
           if (type === "html") return "HTML";
           if (type === "module") return "Module";
+          if (type?.startsWith("array[{") || value?.startsWith("table")) return "Table";
           if (type?.includes("action")) return "Action";
           if (definition) return "Definition";
-          if (type?.startsWith("array[{") || value?.startsWith("table")) return "Table";
+
           return "Variable";
         })();
 
@@ -331,6 +332,7 @@ const DnDFlow = () => {
             }
           }
 
+
           const paramTables = {};
 
           try {
@@ -358,6 +360,7 @@ const DnDFlow = () => {
             }
 
             // Fallback: old table format (e.g. table[{...}])
+
             if (!matchedAny && tableText?.startsWith("table[")) {
               const valuePattern = /^table\[(.+)\]$/;
               const valueMatch = tableText.match(valuePattern);
@@ -369,6 +372,24 @@ const DnDFlow = () => {
                 }
               }
 
+            } else if (!matchedAny && tableText?.startsWith("[")) {
+              try {
+                // Preprocess to quote keys and stringify any non-JSON-safe values
+                const jsonSafeText = tableText
+                  // Quote all unquoted object keys
+                  .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3')
+                  // Stringify any value that looks like a function or complex expression (e.g., contains `=>` or `{}`)
+                  .replace(/:\s*((\([^)]*\)\s*=>\s*)?action\s*{[^}]*})/g, (match, val) => {
+                    return `: "${val.replace(/"/g, '\\"')}"`;
+                  });
+
+                const parsed = JSON.parse(jsonSafeText);
+                if (Array.isArray(parsed)) {
+                  paramTables["Default"] = parsed;
+                }
+              } catch (err) {
+                console.error("Failed to parse raw array-like table:", err);
+              }
             }
           } catch (e) {
             console.warn("Failed to parse table:", e);
@@ -789,40 +810,59 @@ const DnDFlow = () => {
     return modules.reduce((msg, mod) => `@${mod} { ${msg} }`, message);
   };
 
-  const handleSave = () => {
-    if (!selectedNode) return;
+ const handleSave = () => {
+  if (!selectedNode) return;
 
-    let message = '';
+  let message = '';
 
-    if (selectedNode.type === 'Variable') {
+  switch (selectedNode.type) {
+    case 'Variable':
       message = `var ${editFormData.label} = ${editFormData.value}`;
-    } else if (selectedNode.type === 'Definition' || selectedNode.type === 'HTML') {
-      message = `def ${editFormData.label} = ${editFormData.definition}`;
-    } else if (selectedNode.type === 'Table') {
-      const { columns } = editFormData;
+      break;
 
+    case 'Definition':
+      if (editFormData.definitionType === "Expression") {
+        message = `def ${editFormData.label} = ${editFormData.expression}`;
+      } else if (editFormData.definitionType === "Size") {
+        message = `def ${editFormData.label} = foreach(x in ${editFormData.targetNodeLabel} with y = 0) y + 1`;
+      } else if (editFormData.definitionType === "Mapping") {
+        const mappingEntries = (editFormData.mappings || []).map((pair) => {
+          const isColumn = varNodes
+            .find((n) => n.id === editFormData.targetNodeId)
+            ?.columns?.some((col) => col.name === pair.column);
+
+          const mappedValue = isColumn ? `r.${pair.column}` : pair.column;
+          return `${pair.alias}: ${mappedValue}`;
+        });
+
+        message = `def ${editFormData.label} = map( r in ${editFormData.targetNodeLabel}) { ${mappingEntries.join(", ")} }`;
+      }
+      break;
+
+    case 'HTML':
+      message = `def ${editFormData.label} = ${editFormData.definition}`;
+      break;
+
+    case 'Table':
+      const { columns } = editFormData;
       if (!columns || columns.length === 0) {
         alert("Table name or columns missing.");
         return;
       }
-
-      const formattedColumns = columns
-        .map(col => `${col.name}:${col.type}`)
-        .join(", ");
-
+      const formattedColumns = columns.map(col => `${col.name}:${col.type}`).join(", ");
       message = `table ${editFormData.label} { ${formattedColumns} }`;
-    } else if (selectedNode.type === 'Action') {
+      break;
+
+    case 'Action':
       const paramNames = [];
       const formattedValues = Object.entries(editFormData.values || {})
         .map(([key, val]) => {
           let trimmed = String(val).trim();
 
-          // If surrounded by double-double quotes, unwrap to single quoted
           if (trimmed.startsWith('""') && trimmed.endsWith('""')) {
             trimmed = `"${trimmed.slice(2, -2)}"`;
           }
 
-          // Track parameters if they start with "in"
           if (trimmed.startsWith("in")) {
             paramNames.push(trimmed);
           }
@@ -831,35 +871,50 @@ const DnDFlow = () => {
         })
         .join(", ");
 
+      let condition = editFormData.condition || "";
 
-      // Compose the message with parameters before `=`
+      if (condition) {
+        const matches = condition.match(/\bin\w+\b/g);
+        if (matches) paramNames.push(...matches);
+
+        const targetLabelRegex = new RegExp(`\\b${editFormData.targetNodeLabel}\\b`, "g");
+        condition = condition.replace(targetLabelRegex, "a");
+      }
+
       const paramList = paramNames.join(" ");
 
-      if (editFormData.actionType == "Assign") {
-        message = `def ${editFormData.label} = action { ${editFormData.targetNodeLabel} := ${editFormData.expression}} `
-
-      } else if (editFormData.actionType == "Insert") {
+      if (editFormData.actionType === "Assign") {
+        message = `def ${editFormData.label} = action { ${editFormData.targetNodeLabel} := ${editFormData.expression}}`;
+      } else if (editFormData.actionType === "Insert") {
         message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { insert {${formattedValues}} into ${editFormData.targetNodeLabel}}`;
-      } else if (editFormData.actionType == "Update") {
-        message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { update a in ${editFormData.targetNodeLabel} with {${formattedValues}} where ${editFormData.condition} } `
-      } else if (editFormData.actionType == "Delete") {
-        message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { delete a in ${editFormData.targetNodeLabel} where ${editFormData.condition}} `
+      } else if (editFormData.actionType === "Update") {
+        message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { update a in ${editFormData.targetNodeLabel} with {${formattedValues}} where ${condition} }`;
+      } else if (editFormData.actionType === "Delete") {
+        message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { delete a in ${editFormData.targetNodeLabel} where ${condition}}`;
       } else {
-
-        message = `def ${editFormData.label} = action{${editFormData.targetNodeLabel} :=[]}`;
+        message = `def ${editFormData.label} = action { ${editFormData.targetNodeLabel} := [] }`;
       }
-      console.log(message)
+      break;
 
-      //message = `def ${editFormData.label} = ${editFormData.action}`;
-    }
-    return;
-    // Wrap in nested modules if not in root
-    const wrappedMessage = wrapInNestedModules(message);
-    send_message_to_server(wrappedMessage);
+    case 'Module':
+      message = `module ${editFormData.label} {}`;
+      break;
 
-    setSelectedNode(null);
-    setEditFormData({});
-  };
+    default:
+      console.warn("Unsupported node type:", selectedNode.type);
+      return;
+  }
+
+  const wrappedMessage = currentEnvId === 'root'
+    ? message
+    : wrapInNestedModules(message);
+
+  send_message_to_server(wrappedMessage);
+
+  setSelectedNode(null);
+  setEditFormData({});
+};
+
 
   const handleDelete = () => {
     if (!selectedNode) return;
@@ -952,6 +1007,27 @@ const DnDFlow = () => {
         message = `var ${formData.label} = ${formData.value}`;
         break;
       case 'Definition':
+        console.log(formData)
+        if (formData.definitionType == "Expression") {
+          message = `def ${formData.label} = ${formData.definition}`;
+        } else if (formData.definitionType == "Size") {
+          message = `def ${formData.label} = foreach(x in ${formData.targetNodeLabel} with y = 0) y + 1`;
+        } else if (formData.definitionType == "Mapping") {
+          console
+          const mappingEntries = (formData.mappings || []).map((pair) => {
+            const isColumn = varNodes
+              .find((n) => n.id === formData.targetNodeId)
+              ?.columns?.some((col) => col.name === pair.column);
+
+            const mappedValue = isColumn ? `r.${pair.column}` : pair.column;
+            return `${pair.alias}: ${mappedValue}`;
+          });
+
+          message = `def ${formData.label} = map( r in ${formData.targetNodeLabel}) { ${mappingEntries.join(", ")}}`;
+        }
+        console.log(message)
+
+        break;
       case 'HTML':
         message = `def ${formData.label} = ${formData.definition}`;
         break;
@@ -984,25 +1060,37 @@ const DnDFlow = () => {
           })
           .join(", ");
 
+        let condition = formData.condition || "";
 
-        // Compose the message with parameters before `=`
+        // Extract params from condition
+        if (condition) {
+
+          const matches = condition.match(/\bin\w+\b/g);
+          if (matches) paramNames.push(...matches);
+
+          // Replace targetNodeLabel with alias 'a' in the condition
+          const targetLabelRegex = new RegExp(`\\b${formData.targetNodeLabel}\\b`, "g");
+          condition = condition.replace(targetLabelRegex, "a");
+        }
+
         const paramList = paramNames.join(" ");
 
-        if (formData.actionType == "Assign") {
-          message = `def ${formData.label} = action { ${formData.targetNodeLabel} := ${formData.expression}} `
+        if (formData.actionType === "Assign") {
+          message = `def ${formData.label} = action { ${formData.targetNodeLabel} := ${formData.expression}}`;
 
-        } else if (formData.actionType == "Insert") {
+        } else if (formData.actionType === "Insert") {
           message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { insert {${formattedValues}} into ${formData.targetNodeLabel}}`;
-        } else if (formData.actionType == "Update") {
-          message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { update a in ${formData.targetNodeLabel} with {${formattedValues}} where ${formData.condition} } `
-        } else if (formData.actionType == "Delete") {
-          message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { delete a in ${formData.targetNodeLabel} where ${formData.condition}} `
-        } else {
 
-          message = `def ${formData.label} = action{${formData.targetNodeLabel} :=[]}`;
+        } else if (formData.actionType === "Update") {
+          message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { update a in ${formData.targetNodeLabel} with {${formattedValues}} where ${condition} }`;
+
+        } else if (formData.actionType === "Delete") {
+          message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { delete a in ${formData.targetNodeLabel} where ${condition}}`;
+
+        } else {
+          message = `def ${formData.label} = action { ${formData.targetNodeLabel} := [] }`;
         }
         console.log(message)
-        // message = `def ${formData.label} = ${formData.action}`;
         break;
       case 'Module':
         message = `module ${formData.label} {}`;
@@ -1513,7 +1601,7 @@ const DnDFlow = () => {
                     <select
                       value={formData.actionType}
                       onChange={(e) =>
-                        setFormData({ ...formData, actionType: e.target.value })
+                        setFormData({ ...formData, actionType: e.target.value,values :{} })
                       }
                       style={styles.input}
                     >
@@ -1563,7 +1651,7 @@ const DnDFlow = () => {
                                     },
                                   })
                                 }
-                                placeholder='to use params, start with in (e.g. inParam)'
+                                placeholder='To use params, start with in (e.g. inParam)'
 
                                 style={styles.input}
                               />
@@ -1571,12 +1659,13 @@ const DnDFlow = () => {
                           ))}
                           {formData.actionType === "Update" && (
                             <label style={{ display: "block", marginBottom: "10px" }}>
-                              Condition:
+                              <h4>Condition:</h4>
                               <input
                                 value={formData.condition || ""}
                                 onChange={(e) =>
                                   setFormData({ ...formData, condition: e.target.value })
                                 }
+                                placeholder="Condition to update table entries"
                                 style={styles.input}
                               />
                             </label>
@@ -1586,13 +1675,13 @@ const DnDFlow = () => {
                     case "Delete":
                       return (
                         <label style={{ display: "block", marginBottom: "10px" }}>
-                          Condition:
+                          <h4>Condition:</h4>
                           <input
                             value={formData.condition || ""}
                             onChange={(e) =>
                               setFormData({ ...formData, condition: e.target.value })
                             }
-                            placeholder=""
+                            placeholder="Condition to delete table entries"
                             style={styles.input}
                           />
                         </label>
@@ -1617,6 +1706,174 @@ const DnDFlow = () => {
                       return null;
                   }
                 })()}
+              </>
+            ) : pendingNode.type === "Definition" ? (
+              <>
+
+                <label style={{ display: "block", marginBottom: "10px" }}>
+                  Definition Name:
+                  <input
+                    value={formData.label || ""}
+                    onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+                    placeholder="Name your Definition"
+                    style={styles.input}
+                    required
+                  />
+                </label>
+                <label style={{ display: "block", marginBottom: "10px" }}>
+                  Definition Type:
+                  <select
+                    value={formData.definitionType || "Default"}
+                    onChange={(e) => setFormData({ ...formData, definitionType: e.target.value })}
+                    style={styles.input}
+                  >
+                    <option value= "Default">--Select Type--</option>
+                    <option value="Expression">Expression</option>
+                    <option value="Size">Size</option>
+                    <option value="Mapping">Mapping</option>
+                  </select>
+                </label>
+
+                {/* Expression */}
+                {formData.definitionType === "Expression" && (
+                  <label style={{ display: "block", marginBottom: "10px" }}>
+                    Expression:
+                    <input
+                      value={formData.expression || ""}
+                      onChange={(e) => setFormData({ ...formData, expression: e.target.value })}
+                      placeholder="Write an expression"
+                      style={styles.input}
+                    />
+                  </label>
+                )}
+
+                {/* Size */}
+                {formData.definitionType === "Size" && (
+                  <label style={{ display: "block", marginBottom: "10px" }}>
+                    Target:
+                    <select
+                      value={formData.targetNodeId || ""}
+                      onChange={(e) => {
+                        const newTarget = varNodes.find((n) => n.id === e.target.value);
+                        setFormData({
+                          ...formData,
+                          targetNodeId: e.target.value,
+                          targetNodeLabel: newTarget?.label,
+                        });
+                      }}
+                      style={styles.input}
+                    >
+                      <option value="">-- Select Target --</option>
+                      {varNodes.map((node) => (
+                        <option key={node.id} value={node.id}>
+                          {node.label} ({node.type})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                {/* Mapping */}
+                {formData.definitionType === "Mapping" && (
+                  <>
+                    <label style={{ display: "block", marginBottom: "10px" }}>
+                      Target:
+                      <select
+                        value={formData.targetNodeId || ""}
+                        onChange={(e) => {
+                          const target = varNodes.find((n) => n.id === e.target.value);
+                          setFormData({
+                            ...formData,
+                            targetNodeId: e.target.value,
+                            targetNodeLabel: target?.label,
+                            mappings: [], // Reset mappings on target change
+                          });
+                        }}
+                        style={styles.input}
+                      >
+                        <option value="">-- Select Target --</option>
+                        {varNodes.map((node) => (
+                          <option key={node.id} value={node.id}>
+                            {node.label} ({node.type})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {/* Mapping entries */}
+                    {formData.mappings?.map((pair, idx) => (
+                      <div
+                        key={idx}
+                        style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}
+                      >
+                        <input
+                          placeholder="Alias (e.g. x)"
+                          value={pair.alias || ""}
+                          onChange={(e) => {
+                            const updated = [...formData.mappings];
+                            updated[idx].alias = e.target.value;
+                            setFormData({ ...formData, mappings: updated });
+                          }}
+                          style={styles.input}
+                        />
+                        <select
+                          value={pair.column || ""}
+                          onChange={(e) => {
+                            const updated = [...formData.mappings];
+                            updated[idx].column = e.target.value;
+                            setFormData({ ...formData, mappings: updated });
+                          }}
+                          style={styles.input}
+                        >
+                          <option value="">-- Select Column or Expression --</option>
+
+                          <optgroup label="Attributes">
+                            {varNodes
+                              .find((n) => n.id === formData.targetNodeId)
+                              ?.columns?.map((col) => (
+                                <option key={col.name} value={col.name}>
+                                  {col.name}
+                                </option>
+                              ))}
+                          </optgroup>
+
+                          <optgroup label="Expressions">
+                            {nodes
+                              .filter((n) => n.id !== formData.targetNodeId)
+                              .map((node) => (
+                                <option key={node.id} value={node.data.label}>
+                                  {node.data.label} ({node.type})
+                                </option>
+                              ))}
+                          </optgroup>
+                        </select>
+                        <button
+                          onClick={() => {
+                            const updated = [...formData.mappings];
+                            updated.splice(idx, 1);
+                            setFormData({ ...formData, mappings: updated });
+                          }}
+                          style={styles.deleteButton}
+                        >
+                          ✖
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* Add new mapping */}
+                    <button
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          mappings: [...(formData.mappings || []), { alias: "", column: "" }],
+                        })
+                      }
+                      style={styles.button}
+                    >
+                      + Add Mapping
+                    </button>
+                  </>
+                )}
               </>
             ) : (
               // Default form fallback
@@ -1766,7 +2023,7 @@ const DnDFlow = () => {
                       <select
                         value={editFormData.actionType}
                         onChange={(e) =>
-                          setEditFormData({ ...editFormData, actionType: e.target.value })
+                          setEditFormData({ ...editFormData, actionType: e.target.value,values :{} })
                         }
                         style={styles.input}
                       >
@@ -1819,12 +2076,13 @@ const DnDFlow = () => {
                             ))}
                             {editFormData.actionType === "Update" && (
                               <label style={styles.label}>
-                                Condition:
+                                <h4>Condition:</h4>
                                 <input
                                   value={editFormData.condition || ""}
                                   onChange={(e) =>
                                     setEditFormData({ ...editFormData, condition: e.target.value })
                                   }
+                                  placeholder="Condition to update table entries"
                                   style={styles.input}
                                 />
                               </label>
@@ -1834,12 +2092,13 @@ const DnDFlow = () => {
                       case "Delete":
                         return (
                           <label style={styles.label}>
-                            Condition:
+                            <h4>Condition:</h4>
                             <input
                               value={editFormData.condition || ""}
                               onChange={(e) =>
                                 setEditFormData({ ...editFormData, condition: e.target.value })
                               }
+                              placeholder="Condition to delete table entries"
                               style={styles.input}
                             />
                           </label>
@@ -1865,33 +2124,176 @@ const DnDFlow = () => {
                     }
                   })()}
                 </>
+              ) : selectedNode.type === "Definition" ? (
+                <>
+                  <label style={{ display: "block", marginBottom: "10px" }}>
+                    Definition Name:
+                    <input
+                      value={editFormData.label || ""}
+                      onChange={(e) => setEditFormData({ ...editFormData, label: e.target.value })}
+                      placeholder="Name your Definition"
+                      style={styles.input}
+                      required
+                    />
+                  </label>
+                  <label style={{ display: "block", marginBottom: "10px" }}>
+                    Definition Type:
+                    <select
+                      value={editFormData.definitionType || "Default"}
+                      onChange={(e) => setEditFormData({ ...editFormData, definitionType: e.target.value })}
+                      style={styles.input}
+                    >
+                      <option value= "Default">--Select Type--</option>
+                      <option value="Expression">Expression</option>
+                      <option value="Size">Size</option>
+                      <option value="Mapping">Mapping</option>
+                    </select>
+                  </label>
+
+                  {/* Expression */}
+                  {editFormData.definitionType === "Expression" && (
+                    <label style={{ display: "block", marginBottom: "10px" }}>
+                      Expression:
+                      <input
+                        value={editFormData.expression || ""}
+                        onChange={(e) => setEditFormData({ ...editFormData, expression: e.target.value })}
+                        placeholder="Write an expression"
+                        style={styles.input}
+                      />
+                    </label>
+                  )}
+
+                  {/* Size */}
+                  {editFormData.definitionType === "Size" && (
+                    <label style={{ display: "block", marginBottom: "10px" }}>
+                      Target:
+                      <select
+                        value={editFormData.targetNodeId || ""}
+                        onChange={(e) => {
+                          const newTarget = varNodes.find((n) => n.id === e.target.value);
+                          setEditFormData({
+                            ...editFormData,
+                            targetNodeId: e.target.value,
+                            targetNodeLabel: newTarget?.label,
+                          });
+                        }}
+                        style={styles.input}
+                      >
+                        <option value="">-- Select Target --</option>
+                        {varNodes.map((node) => (
+                          <option key={node.id} value={node.id}>
+                            {node.label} ({node.type})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  {/* Mapping */}
+                  {editFormData.definitionType === "Mapping" && (
+                    <>
+                      <label style={{ display: "block", marginBottom: "10px" }}>
+                        Target:
+                        <select
+                          value={editFormData.targetNodeId || ""}
+                          onChange={(e) => {
+                            const target = varNodes.find((n) => n.id === e.target.value);
+                            setEditFormData({
+                              ...editFormData,
+                              targetNodeId: e.target.value,
+                              targetNodeLabel: target?.label,
+                              mappings: [], // Reset mappings on target change
+                            });
+                          }}
+                          style={styles.input}
+                        >
+                          <option value="">-- Select Target --</option>
+                          {varNodes.map((node) => (
+                            <option key={node.id} value={node.id}>
+                              {node.label} ({node.type})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      {/* Mapping entries */}
+                      {editFormData.mappings?.map((pair, idx) => (
+                        <div
+                          key={idx}
+                          style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}
+                        >
+                          <input
+                            placeholder="Alias (e.g. x)"
+                            value={pair.alias || ""}
+                            onChange={(e) => {
+                              const updated = [...editFormData.mappings];
+                              updated[idx].alias = e.target.value;
+                              setEditFormData({ ...editFormData, mappings: updated });
+                            }}
+                            style={styles.input}
+                          />
+                          <select
+                            value={pair.column || ""}
+                            onChange={(e) => {
+                              const updated = [...editFormData.mappings];
+                              updated[idx].column = e.target.value;
+                              setEditFormData({ ...editFormData, mappings: updated });
+                            }}
+                            style={styles.input}
+                          >
+                            <option value="">-- Select Column or Expression --</option>
+
+                            <optgroup label="Attributes">
+                              {varNodes
+                                .find((n) => n.id === editFormData.targetNodeId)
+                                ?.columns?.map((col) => (
+                                  <option key={col.name} value={col.name}>
+                                    {col.name}
+                                  </option>
+                                ))}
+                            </optgroup>
+
+                            <optgroup label="Expressions">
+                              {nodes
+                                .filter((n) => n.id !== editFormData.targetNodeId)
+                                .map((node) => (
+                                  <option key={node.id} value={node.data.label}>
+                                    {node.data.label} ({node.type})
+                                  </option>
+                                ))}
+                            </optgroup>
+                          </select>
+                          <button
+                            onClick={() => {
+                              const updated = [...editFormData.mappings];
+                              updated.splice(idx, 1);
+                              setEditFormData({ ...editFormData, mappings: updated });
+                            }}
+                            style={styles.deleteButton}
+                          >
+                            ✖
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Add new mapping */}
+                      <button
+                        onClick={() =>
+                          setEditFormData({
+                            ...editFormData,
+                            mappings: [...(editFormData.mappings || []), { alias: "", column: "" }],
+                          })
+                        }
+                        style={styles.button}
+                      >
+                        + Add Mapping
+                      </button>
+                    </>
+                  )}
+                </>
               ) : (
                 <>
-                  {/* Related Nodes for Definition */}
-                  {selectedNode.type == "Definition" && <div style={{ marginBottom: "10px" }}>
-                    <h4>Related Nodes:</h4>
-                    {edges
-                      .filter((edge) => edge.target === selectedNode.id)
-                      .map((edge) => {
-                        const sourceNode = nodes.find((node) => node.id === edge.source);
-                        return sourceNode ? (
-                          <button
-                            key={sourceNode.id}
-                            onClick={() => {
-                              setEditFormData((prev) => ({
-                                ...prev,
-                                definition: prev.definition
-                                  ? `${prev.definition} ${sourceNode.data.label}`
-                                  : sourceNode.data.label,
-                              }));
-                            }}
-                            style={{ ...styles.button, margin: "5px" }}
-                          >
-                            {sourceNode.data.label}
-                          </button>
-                        ) : null;
-                      })}
-                  </div>}
+
 
                   {/* Generic Editing for Other Node Types */}
                   {["label", "definition", "action", "content", "value"]
