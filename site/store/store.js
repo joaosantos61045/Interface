@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { addEdge, applyNodeChanges, applyEdgeChanges } from "@xyflow/react";
 import { current } from "@reduxjs/toolkit";
 import { env } from "process";
+import init, { main, get_env, send_message_to_server, fetch_dependencies, get_usid } from "../../pkg/meerkat_remote_console_V2.js";
 import Dagre from '@dagrejs/dagre';
 // Helper function to create empty environments (modules, etc.)
 const createEmptyEnv = (id, label = "Module") => ({
@@ -56,19 +57,19 @@ const useStore = create((set, get) => ({
   fetchNodeId: null,
 
   setFetchNodeId: (id) => set({ fetchNodeId: id }),
-requestLayout: () => set({ layoutRequested: true }),
+  requestLayout: () => set({ layoutRequested: true }),
 
-clearLayoutRequest: () => set({ layoutRequested: false }),
+  clearLayoutRequest: () => set({ layoutRequested: false }),
 
-setParamInput: (key, value) =>{
-  set((state) => ({
-    paramInputs: {
-      ...state.paramInputs,
-      [key]: value,
-    },
-  }))
+  setParamInput: (key, value) => {
+    set((state) => ({
+      paramInputs: {
+        ...state.paramInputs,
+        [key]: value,
+      },
+    }))
 
-},
+  },
   resetParamInputs: () => set({ paramInputs: {} }),
   activeFilters: new Set([
     "Variable",
@@ -149,34 +150,137 @@ setParamInput: (key, value) =>{
       markerEnd: { type: "arrow", color: "rgb(85, 86, 87)" },
     };
 
+
+    if (targetNode.type === "HTML") {
+      console.log(targetNode.data);
+
+      let existingHtml = targetNode.data.definition || "";
+
+      // Utility to inject new HTML after </h3>) instead of </h3>
+      const insertAfterTitle = (htmlToInsert) => {
+        const closingH3Index = existingHtml.indexOf("</h3>");
+        const closingParenIndex = existingHtml.indexOf(")", closingH3Index);
+
+        if (closingH3Index !== -1 && closingParenIndex !== -1) {
+          // Insert after </h3>) — including that closing paren
+          return (
+            existingHtml.slice(0, closingParenIndex + 1) +
+            htmlToInsert +
+            existingHtml.slice(closingParenIndex + 1)
+          );
+        } else {
+          return existingHtml + htmlToInsert;
+        }
+      };
+
+      let newHtmlFragment = "";
+
+      switch (sourceNode.type) {
+        case "Variable": {
+          const varLabel = sourceNode.data.label || "val";
+
+          newHtmlFragment = `
+        <div class="single-value" id="${varLabel}">
+          <label>"${varLabel}"</label>
+          <div>${varLabel}</div>
+        </div>`;
+          break;
+        }
+
+        case "Action": {
+          const actionCode = (sourceNode.data.action || "").trim();
+          const actionLabel = sourceNode.data.label || "action";
+
+          const allParams = [...actionCode.matchAll(/\(\s*([^)]+?)\s*\)\s*=>/g)]
+            .map(match => match[1].trim())
+            .join(" ")
+            .split(/\s+/)
+            .filter(Boolean);
+
+          if (allParams.length === 0) {
+            newHtmlFragment = `
+          <form>
+            <button doaction=(${actionLabel})>
+              "${actionLabel}"
+            </button>
+          </form>`;
+          } else {
+            const inputsHtml = allParams.map(name => `<input id="${name}" />`).join("\n");
+            const doactionParams = allParams.map(name => `#${name}`).join(" ");
+            newHtmlFragment = `
+                              <form>
+                                ${inputsHtml}
+                                <button doaction=(${actionLabel} ${doactionParams})>
+                                  "${actionLabel}"
+                                </button>
+                              </form>`;
+          }
+          break;
+        }
+
+        case "Definition": {
+          const defHtml = sourceNode.data.value || "";
+          newHtmlFragment = `<div class="definition-block">${defHtml}</div>`;
+          break;
+        }
+
+        case "Table": {
+          const tableLabel = sourceNode.data.label || "Table";
+          newHtmlFragment = `
+        <div class="table-placeholder">
+          <strong>${tableLabel}</strong>: Table rendering not yet implemented.
+        </div>`;
+          break;
+        }
+      }
+
+      // If not initialized, start with basic layout
+      if (!existingHtml.includes("template1")) {
+        existingHtml = `<div class="template1" id="page" data-template="page-28">
+      (<h3 class="main-title">("page")</h3>)
+    </div>`;
+      }
+
+      const updatedHtml = insertAfterTitle(newHtmlFragment);
+
+      //targetNode.data.value = updatedHtml;
+
+      console.log(`def ${targetNode.data.label}=${updatedHtml}`);
+      send_message_to_server(`def ${targetNode.data.label}=${updatedHtml}`);
+    }
+
+
+
+
+
     get().setEdges(addEdge(newEdge, edges));
   },
 
   // Add a new node
   addNode: (node, envId, parentId = null) => {
-  set((state) => {
-    if (!state.environments[envId]) {
-      state.environments[envId] = createEmptyEnv(envId);
-    }
-    const env = state.environments[envId];
-    if (env.nodes.some((n) => n.id === node.id)) return {};
-
-    if (parentId && state.environments[parentId]) {
-      const parentEnv = state.environments[parentId];
-      if (!parentEnv.children[envId]) {
-        parentEnv.children[envId] = state.environments[envId];
+    set((state) => {
+      if (!state.environments[envId]) {
+        state.environments[envId] = createEmptyEnv(envId);
       }
-    }
+      const env = state.environments[envId];
+      if (env.nodes.some((n) => n.id === node.id)) return {};
 
-    const updatedNodes =
-      node.type === 'Module' ? [node, ...env.nodes] : [...env.nodes, node];
-    env.nodes = updatedNodes.map((n) => (n.id === node.id ? node : n));
+      if (parentId && state.environments[parentId]) {
+        const parentEnv = state.environments[parentId];
+        if (!parentEnv.children[envId]) {
+          parentEnv.children[envId] = state.environments[envId];
+        }
+      }
 
-    applyLayoutToEnv(env);
+      const updatedNodes =
+        node.type === 'Module' ? [node, ...env.nodes] : [...env.nodes, node];
+      env.nodes = updatedNodes.map((n) => (n.id === node.id ? node : n));
 
-    return { environments: { ...state.environments } };
-  });
-},
+      applyLayoutToEnv(env);
+
+      return { environments: { ...state.environments } };
+    });
+  },
 
 
 
@@ -212,19 +316,19 @@ setParamInput: (key, value) =>{
 
   // Add a new edge
   addEdge: (edge, envId) => {
-  set((state) => {
-    const env = state.environments[envId];
-    if (!env) return {};
+    set((state) => {
+      const env = state.environments[envId];
+      if (!env) return {};
 
-    if (env.edges.some((e) => e.id === edge.id)) return {};
+      if (env.edges.some((e) => e.id === edge.id)) return {};
 
-    env.edges = [...(env.edges || []), edge];
+      env.edges = [...(env.edges || []), edge];
 
-    applyLayoutToEnv(env);
+      applyLayoutToEnv(env);
 
-    return { environments: { ...state.environments } };
-  });
-},
+      return { environments: { ...state.environments } };
+    });
+  },
 
   // Remove an edge by ID
   removeEdge: (edgeId, envId) => {

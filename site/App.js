@@ -65,6 +65,8 @@ const DnDFlow = () => {
   const { refs, floatingStyles } = useFloating();
   let usid = localStorage.getItem("usid");
   const namespace = localStorage.getItem("namespace");
+  const [selectedTab, setSelectedTab] = useState("Basic");
+
   // Local states for node and form management
   let varNodes = nodes
     .filter((n) => n.type === "Variable" || n.type === "Table")
@@ -143,7 +145,7 @@ const DnDFlow = () => {
 
 
 
-      // console.log("namespace:", varNodes);
+     // console.log("namespace:", nodes);
 
 
     }, 5000);
@@ -365,6 +367,7 @@ const DnDFlow = () => {
               const valuePattern = /^table\[(.+)\]$/;
               const valueMatch = tableText.match(valuePattern);
               if (valueMatch) {
+                
                 const jsonRows = `[${valueMatch[1]}]`.replace(/(\w+):/g, '"$1":');
                 const parsedRows = JSON.parse(jsonRows);
                 if (Array.isArray(parsedRows)) {
@@ -810,110 +813,118 @@ const DnDFlow = () => {
     return modules.reduce((msg, mod) => `@${mod} { ${msg} }`, message);
   };
 
- const handleSave = () => {
-  if (!selectedNode) return;
+  const handleSave = () => {
+    if (!selectedNode) return;
 
-  let message = '';
+    let message = '';
 
-  switch (selectedNode.type) {
-    case 'Variable':
-      message = `var ${editFormData.label} = ${editFormData.value}`;
-      break;
+    switch (selectedNode.type) {
+      case 'Variable':
+        message = `var ${editFormData.label} = ${editFormData.value}`;
+        break;
 
-    case 'Definition':
-      if (editFormData.definitionType === "Expression") {
-        message = `def ${editFormData.label} = ${editFormData.expression}`;
-      } else if (editFormData.definitionType === "Size") {
-        message = `def ${editFormData.label} = foreach(x in ${editFormData.targetNodeLabel} with y = 0) y + 1`;
-      } else if (editFormData.definitionType === "Mapping") {
-        const mappingEntries = (editFormData.mappings || []).map((pair) => {
-          const isColumn = varNodes
-            .find((n) => n.id === editFormData.targetNodeId)
-            ?.columns?.some((col) => col.name === pair.column);
+      case 'Definition':
+        if (editFormData.definitionType === "Expression") {
+          message = `def ${editFormData.label} = ${editFormData.definition}`;
+        } else if (editFormData.definitionType === "Size") {
+          message = `def ${editFormData.label} = foreach(x in ${editFormData.targetNodeLabel} with y = 0) y + 1`;
+        } else if (editFormData.definitionType === "Mapping") {
+          const mappingEntries = (editFormData.mappings || []).map((pair) => {
+            const isColumn = varNodes
+              .find((n) => n.id === editFormData.targetNodeId)
+              ?.columns?.some((col) => col.name === pair.column);
 
-          const mappedValue = isColumn ? `r.${pair.column}` : pair.column;
-          return `${pair.alias}: ${mappedValue}`;
-        });
+            const mappedValue = isColumn ? `r.${pair.column}` : pair.column;
+            return `${pair.alias}: ${mappedValue}`;
+          });
 
-        message = `def ${editFormData.label} = map( r in ${editFormData.targetNodeLabel}) { ${mappingEntries.join(", ")} }`;
-      }
-      break;
+          message = `def ${editFormData.label} = map( r in ${editFormData.targetNodeLabel}) { ${mappingEntries.join(", ")} }`;
+        }
+        break;
 
-    case 'HTML':
-      message = `def ${editFormData.label} = ${editFormData.definition}`;
-      break;
+      case 'HTML':
+        message = `def ${editFormData.label} = ${editFormData.definition}`;
+        break;
 
-    case 'Table':
-      const { columns } = editFormData;
-      if (!columns || columns.length === 0) {
-        alert("Table name or columns missing.");
+      case 'Table':
+        const { columns } = editFormData;
+        if (!columns || columns.length === 0) {
+          alert("Table name or columns missing.");
+          return;
+        }
+        const formattedColumns = columns.map(col => `${col.name}:${col.type}`).join(", ");
+        message = `table ${editFormData.label} { ${formattedColumns} }`;
+        break;
+
+      case 'Action':
+        if (selectedTab == "Advanced") {
+          send_message_to_server(`def ${editFormData.label} = ${editFormData.action} `)
+          setSelectedNode(null);
+          setEditFormData({});
+          setSelectedTab("Basic");
+          return;
+        }
+        const paramNames = [];
+        const formattedValues = Object.entries(editFormData.values || {})
+          .map(([key, val]) => {
+            let trimmed = String(val).trim();
+
+            if (trimmed.startsWith('""') && trimmed.endsWith('""')) {
+              trimmed = `"${trimmed.slice(2, -2)}"`;
+            }
+
+            if (trimmed.startsWith("in")) {
+              paramNames.push(trimmed);
+            }
+
+            return `${key}: ${trimmed}`;
+          })
+          .join(", ");
+
+        let condition = editFormData.condition || "";
+
+        if (condition) {
+          const matches = condition.match(/\bin\w+\b/g);
+          if (matches) paramNames.push(...matches);
+
+          const targetLabelRegex = new RegExp(`\\b${editFormData.targetNodeLabel}\\b`, "g");
+          condition = condition.replace(targetLabelRegex, "a");
+        }
+
+        const paramList = paramNames.join(" ");
+
+        if (editFormData.actionType === "Assign") {
+          message = `def ${editFormData.label} = action { ${editFormData.targetNodeLabel} := ${editFormData.expression}}`;
+        } else if (editFormData.actionType === "Insert") {
+          message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { insert {${formattedValues}} into ${editFormData.targetNodeLabel}}`;
+        } else if (editFormData.actionType === "Update") {
+          message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { update a in ${editFormData.targetNodeLabel} with {${formattedValues}} where ${condition} }`;
+        } else if (editFormData.actionType === "Delete") {
+          message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { delete a in ${editFormData.targetNodeLabel} where ${condition}}`;
+        } else {
+          message = `def ${editFormData.label} = action { ${editFormData.targetNodeLabel} := [] }`;
+        }
+        break;
+
+      case 'Module':
+        message = `module ${editFormData.label} {}`;
+        break;
+
+      default:
+        console.warn("Unsupported node type:", selectedNode.type);
         return;
-      }
-      const formattedColumns = columns.map(col => `${col.name}:${col.type}`).join(", ");
-      message = `table ${editFormData.label} { ${formattedColumns} }`;
-      break;
+    }
 
-    case 'Action':
-      const paramNames = [];
-      const formattedValues = Object.entries(editFormData.values || {})
-        .map(([key, val]) => {
-          let trimmed = String(val).trim();
+    const wrappedMessage = currentEnvId === 'root'
+      ? message
+      : wrapInNestedModules(message);
 
-          if (trimmed.startsWith('""') && trimmed.endsWith('""')) {
-            trimmed = `"${trimmed.slice(2, -2)}"`;
-          }
+    send_message_to_server(wrappedMessage);
 
-          if (trimmed.startsWith("in")) {
-            paramNames.push(trimmed);
-          }
-
-          return `${key}: ${trimmed}`;
-        })
-        .join(", ");
-
-      let condition = editFormData.condition || "";
-
-      if (condition) {
-        const matches = condition.match(/\bin\w+\b/g);
-        if (matches) paramNames.push(...matches);
-
-        const targetLabelRegex = new RegExp(`\\b${editFormData.targetNodeLabel}\\b`, "g");
-        condition = condition.replace(targetLabelRegex, "a");
-      }
-
-      const paramList = paramNames.join(" ");
-
-      if (editFormData.actionType === "Assign") {
-        message = `def ${editFormData.label} = action { ${editFormData.targetNodeLabel} := ${editFormData.expression}}`;
-      } else if (editFormData.actionType === "Insert") {
-        message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { insert {${formattedValues}} into ${editFormData.targetNodeLabel}}`;
-      } else if (editFormData.actionType === "Update") {
-        message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { update a in ${editFormData.targetNodeLabel} with {${formattedValues}} where ${condition} }`;
-      } else if (editFormData.actionType === "Delete") {
-        message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { delete a in ${editFormData.targetNodeLabel} where ${condition}}`;
-      } else {
-        message = `def ${editFormData.label} = action { ${editFormData.targetNodeLabel} := [] }`;
-      }
-      break;
-
-    case 'Module':
-      message = `module ${editFormData.label} {}`;
-      break;
-
-    default:
-      console.warn("Unsupported node type:", selectedNode.type);
-      return;
-  }
-
-  const wrappedMessage = currentEnvId === 'root'
-    ? message
-    : wrapInNestedModules(message);
-
-  send_message_to_server(wrappedMessage);
-
-  setSelectedNode(null);
-  setEditFormData({});
-};
+    setSelectedNode(null);
+    setEditFormData({});
+    
+  };
 
 
   const handleDelete = () => {
@@ -924,6 +935,7 @@ const DnDFlow = () => {
     //removeNode(selectedNode.id);
     setSelectedNode(null); // Close modal
     setEditFormData({}); // Reset form
+    setSelectedTab("Basic")
   };
 
 
@@ -950,11 +962,11 @@ const DnDFlow = () => {
         Definition: { label: "def1", definition: "", },
         Action: {
           label: "",
-          actionType: "Assign",
+          actionType: "",
           targetNodeId: "",
           values: {},     // For Insert/Update
           condition: "",
-          // action: "action { var1 :=3}"  // For Update/Delete
+          // For Update/Delete
         },
         Table: { label: "tab", columns: [{ name: "", type: "string" }], rows: [] },
         HTML: { label: "page", definition: "<p>'Enter HTML here'</p>" },
@@ -970,6 +982,7 @@ const DnDFlow = () => {
   const handleEditCancel = () => {
     setSelectedNode(null);
     setEditFormData({});
+    setSelectedTab("Basic")
   };
 
   const handleFetchAllValues = () => {
@@ -1029,7 +1042,9 @@ const DnDFlow = () => {
 
         break;
       case 'HTML':
-        message = `def ${formData.label} = ${formData.definition}`;
+        // message = `def ${formData.label} = ${formData.definition}`;
+
+        message = `def ${formData.label} = <div class="template1" id="${formData.label}"><h3 class="main-title">"${formData.label}"</h3></div>`;
         break;
       case 'Table':
         const { columns } = newNode.data;
@@ -1041,6 +1056,13 @@ const DnDFlow = () => {
         message = `table ${formData.label} { ${formattedColumns} }`;
         break;
       case 'Action':
+        if (selectedTab == "Advanced") {
+          send_message_to_server(`def ${formData.label} = ${formData.action} `)
+          setPendingNode(null);
+          setFormData({});
+          setSelectedTab("Basic")
+          return;
+        }
         const paramNames = [];
         const formattedValues = Object.entries(formData.values || {})
           .map(([key, val]) => {
@@ -1104,7 +1126,7 @@ const DnDFlow = () => {
       ? message
       : wrapInNestedModules(message);
 
-
+    console.log(message)
     send_message_to_server(nestedMessage);
 
     setPendingNode(null);
@@ -1500,6 +1522,8 @@ const DnDFlow = () => {
         {pendingNode && (
           <div style={styles.configPanel}>
             <h3>Configure {pendingNode.type} Node</h3>
+            {/* Tab Navigation */}
+
 
             {pendingNode.type === "Table" ? (
               <>
@@ -1543,121 +1567,180 @@ const DnDFlow = () => {
               </>
             ) : pendingNode.type === "Action" ? (
               <>
-                <label style={{ display: "block", marginBottom: "10px" }}>
-                  Action Name:
-                  <input
-                    value={formData.label || ""}
-                    onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-                    placeholder="Name your Action"
-                    style={styles.input}
-                    required
-                  />
-                </label>
-                {/* Target Node Dropdown */}
-                <label style={{ display: "block", marginBottom: "10px" }}>
-                  Target Node:
-                  <select
-                    value={formData.targetNodeId || ""}
-                    onChange={(e) => {
-                      const newTargetId = e.target.value;
+                <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+                  {["Basic", "Advanced"].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setSelectedTab(tab)}
+                      style={{
+                        padding: "5px 10px",
+                        borderTop: "none",
+                        borderLeft: "none",
+                        borderRight: "none",
+                        borderBottom: selectedTab === tab ? "2px solid black" : "1px solid transparent",
+                        fontWeight: selectedTab === tab ? "bold" : "normal",
+                        backgroundColor: "transparent", // safer than "none"
+                        color: "#000", // ensure text is visible
+                        cursor: "pointer",
+                        outline: "none",
+                      }}
 
-                      const targetType = varNodes.find((n) => n.id === newTargetId)?.type;
-
-                      const target = varNodes.find((n) => n.id === newTargetId);
-
-                      let newActionType = formData.actionType;
-
-                      if (targetType === "Variable" && newActionType !== "Assign") {
-                        newActionType = "Assign";
-                      } else if (targetType === "Table" && newActionType === "Assign") {
-                        newActionType = "Insert";
-                      }
-
-                      setFormData({
-                        ...formData,
-                        targetNodeId: newTargetId,
-                        targetNodeLabel: target.label,
-                        actionType: newActionType,
-                        values: {},
-                        condition: "",
-                        expression: "",
-                      });
-                    }}
-                    style={styles.input}
-                  >
-                    <option value="">-- Select Target --</option>
-                    {varNodes.map((node) => (
-                      <option key={node.id} value={node.id}>
-                        {node.label} ({node.type})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                {/* Action Type Dropdown */}
-                {formData.targetNodeId && (
-                  <label style={{ display: "block", marginBottom: "10px" }}>
-                    Action Type:
-                    <select
-                      value={formData.actionType}
-                      onChange={(e) =>
-                        setFormData({ ...formData, actionType: e.target.value,values :{} })
-                      }
-                      style={styles.input}
                     >
-                      {(() => {
-
-                        const targetType = varNodes.find(n => n.id === formData.targetNodeId)?.type;
-
-                        if (targetType === "Variable") {
-                          return <option value="Assign">Assign</option>;
-                        }
-                        if (targetType === "Table") {
-                          return ["Insert", "Update", "Delete", "Clear"].map((type) => (
-                            <option key={type} value={type}>{type}</option>
-                          ));
-                        }
-                        return null;
-                      })()}
-                    </select>
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+                <label style={{ display: "block", marginBottom: "10px" }}>
+                    Action Name:
+                    <input
+                      value={formData.label || ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, label: e.target.value })
+                      }
+                      placeholder="Name your Action"
+                      style={styles.input}
+                    />
                   </label>
+                {selectedTab === "Advanced" && (
+                  <>
+                  Definition:
+                    <textarea
+                      value={formData.action || ""}
+                      onChange={(e) => {
+                        setFormData({ ...formData, action: e.target.value });
+
+                        // Auto-grow the textarea
+                        e.target.style.height = "auto";
+                        e.target.style.height = `${e.target.scrollHeight}px`;
+                      }}
+                      placeholder="Define your Action"
+                      style={{
+                        ...styles.input,
+                        resize: "none",       // prevent manual resizing
+                        overflow: "hidden",   // hide scrollbars
+                        minHeight: "40px",    // starting height
+                      }}
+                      required
+                    />
+                  </>
                 )}
 
-                {/* Additional Inputs Based on Action Type */}
-                {(() => {
+                {selectedTab === "Basic" && (
+                  <>
+                    {/* Target Node Dropdown */}
+                    <label style={{ display: "block", marginBottom: "10px" }}>
+                      Target Node:
+                      <select
+                        value={formData.targetNodeId || ""}
+                        onChange={(e) => {
+                          const newTargetId = e.target.value;
+                          const target = varNodes.find((n) => n.id === newTargetId);
+                          const targetType = target?.type;
 
-                  const targetNode = varNodes.find((n) => n.id === formData.targetNodeId);
+                          let newActionType = formData.actionType;
+                          if (targetType === "Variable" && newActionType !== "Assign") {
+                            newActionType = "Assign";
 
-                  const isTable = targetNode?.type === "Table";
-                  const columns = targetNode?.columns || [];
+                          } else if (targetType === "Table") {
+                            newActionType = "Insert";
+                          }
 
-                  switch (formData.actionType) {
-                    case "Insert":
-                    case "Update":
-                      return (
-                        <>
-                          <h4>Values:</h4>
-                          {columns.map((col, idx) => (
-                            <label key={idx} style={{ display: "block", marginBottom: "10px" }}>
-                              {col.name}:
-                              <input
-                                value={formData.values?.[col.name] || ""}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    values: {
-                                      ...formData.values,
-                                      [col.name]: e.target.value,
-                                    },
-                                  })
-                                }
-                                placeholder='To use params, start with in (e.g. inParam)'
+                          setFormData({
+                            ...formData,
+                            targetNodeId: newTargetId,
+                            targetNodeLabel: target?.label,
+                            actionType: newActionType,
+                            values: {},
+                            condition: "",
+                            expression: "",
+                          });
+                        }}
+                        style={styles.input}
+                      >
+                        <option value="">-- Select Target --</option>
+                        {varNodes.map((node) => (
+                          <option key={node.id} value={node.id}>
+                            {node.label} ({node.type})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
-                                style={styles.input}
-                              />
-                            </label>
-                          ))}
-                          {formData.actionType === "Update" && (
+                    {/* Action Type Dropdown */}
+                    {formData.targetNodeId && (
+                      <label style={{ display: "block", marginBottom: "10px" }}>
+                        Action Type:
+                        <select
+                          value={formData.actionType}
+                          onChange={(e) =>
+                            setFormData({ ...formData, actionType: e.target.value, values: {} })
+                          }
+                          style={styles.input}
+                        >
+                          {(() => {
+                            const targetType = varNodes.find(n => n.id === formData.targetNodeId)?.type;
+                            if (targetType === "Variable") {
+                              return <option value="Assign">Assign</option>;
+                            }
+                            if (targetType === "Table") {
+                              return ["Insert", "Update", "Delete", "Clear"].map((type) => (
+                                <option key={type} value={type}>{type}</option>
+                              ));
+                            }
+                            return null;
+                          })()}
+                        </select>
+                      </label>
+                    )}
+
+                    {/* Additional Fields */}
+                    {(() => {
+                      const targetNode = varNodes.find((n) => n.id === formData.targetNodeId);
+                      const isTable = targetNode?.type === "Table";
+                      const columns = targetNode?.columns || [];
+
+                      switch (formData.actionType) {
+                        case "Insert":
+                        case "Update":
+                          return (
+                            <>
+                              <h4>Values:</h4>
+                              {columns.map((col, idx) => (
+                                <label key={idx} style={{ display: "block", marginBottom: "10px" }}>
+                                  {col.name}:
+                                  <input
+                                    value={formData.values?.[col.name] || ""}
+                                    onChange={(e) =>
+                                      setFormData({
+                                        ...formData,
+                                        values: {
+                                          ...formData.values,
+                                          [col.name]: e.target.value,
+                                        },
+                                      })
+                                    }
+                                    placeholder="To use params, start with in (e.g. inParam)"
+                                    style={styles.input}
+                                  />
+                                </label>
+                              ))}
+                              {formData.actionType === "Update" && (
+                                <label style={{ display: "block", marginBottom: "10px" }}>
+                                  <h4>Condition:</h4>
+                                  <input
+                                    value={formData.condition || ""}
+                                    onChange={(e) =>
+                                      setFormData({ ...formData, condition: e.target.value })
+                                    }
+                                    placeholder="Condition to update table entries"
+                                    style={styles.input}
+                                  />
+                                </label>
+                              )}
+                            </>
+                          );
+                        case "Delete":
+                          return (
                             <label style={{ display: "block", marginBottom: "10px" }}>
                               <h4>Condition:</h4>
                               <input
@@ -1665,48 +1748,35 @@ const DnDFlow = () => {
                                 onChange={(e) =>
                                   setFormData({ ...formData, condition: e.target.value })
                                 }
-                                placeholder="Condition to update table entries"
+                                placeholder="Condition to delete table entries"
                                 style={styles.input}
                               />
                             </label>
-                          )}
-                        </>
-                      );
-                    case "Delete":
-                      return (
-                        <label style={{ display: "block", marginBottom: "10px" }}>
-                          <h4>Condition:</h4>
-                          <input
-                            value={formData.condition || ""}
-                            onChange={(e) =>
-                              setFormData({ ...formData, condition: e.target.value })
-                            }
-                            placeholder="Condition to delete table entries"
-                            style={styles.input}
-                          />
-                        </label>
-                      );
-                    case "Clear":
-                      return <p>This action will clear all rows in the target table.</p>;
-                    case "Assign":
-                      return (
-                        <label style={{ display: "block", marginBottom: "10px" }}>
-                          Expression:
-                          <input
-                            value={formData.expression || ""}
-                            placeholder="Changes to make (Example: variable +1)"
-                            onChange={(e) =>
-                              setFormData({ ...formData, expression: e.target.value })
-                            }
-                            style={styles.input}
-                          />
-                        </label>
-                      );
-                    default:
-                      return null;
-                  }
-                })()}
+                          );
+                        case "Clear":
+                          return <p>This action will clear all rows in the target table.</p>;
+                        case "Assign":
+                          return (
+                            <label style={{ display: "block", marginBottom: "10px" }}>
+                              Expression:
+                              <input
+                                value={formData.expression || ""}
+                                placeholder="Changes to make (e.g. varName +1)"
+                                onChange={(e) =>
+                                  setFormData({ ...formData, expression: e.target.value })
+                                }
+                                style={styles.input}
+                              />
+                            </label>
+                          );
+                        default:
+                          return null;
+                      }
+                    })()}
+                  </>
+                )}
               </>
+
             ) : pendingNode.type === "Definition" ? (
               <>
 
@@ -1727,7 +1797,7 @@ const DnDFlow = () => {
                     onChange={(e) => setFormData({ ...formData, definitionType: e.target.value })}
                     style={styles.input}
                   >
-                    <option value= "Default">--Select Type--</option>
+                    <option value="Default">--Select Type--</option>
                     <option value="Expression">Expression</option>
                     <option value="Size">Size</option>
                     <option value="Mapping">Mapping</option>
@@ -1900,7 +1970,9 @@ const DnDFlow = () => {
 
             {/* Confirm / Cancel Buttons */}
             <div style={styles.buttonContainer}>
-              <button onClick={() => setPendingNode(null)} style={styles.cancel_button}>
+              <button onClick={() =>{ setPendingNode(null)
+                setSelectedTab("Basic")
+              }} style={styles.cancel_button}>
                 Cancel
               </button>
               <button onClick={handleConfirm} style={styles.button}>
@@ -1977,8 +2049,33 @@ const DnDFlow = () => {
                 </>
               ) : selectedNode.type === "Action" ? (
                 <>
+                  <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+                    {["Basic", "Advanced"].map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setSelectedTab(tab)}
+                        style={{
+                          padding: "5px 10px",
+                          borderTop: "none",
+                          borderLeft: "none",
+                          borderRight: "none",
+                          borderBottom: selectedTab === tab ? "2px solid black" : "1px solid transparent",
+                          fontWeight: selectedTab === tab ? "bold" : "normal",
+                          backgroundColor: "transparent", // safer than "none"
+                          color: "#000", // ensure text is visible
+                          cursor: "pointer",
+                          outline: "none",
+                        }}
+
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+                  
                   {/* Action Name */}
-                  <label style={styles.label}>
+                  
+                  <label style={{ display: "block", marginBottom: "10px" }}>
                     Action Name:
                     <input
                       value={editFormData.label || ""}
@@ -1989,7 +2086,31 @@ const DnDFlow = () => {
                       style={styles.input}
                     />
                   </label>
+                  {selectedTab === "Advanced" && (
+                    <>
+                    Definition:
+                      <textarea
+                        value={editFormData.action || ""}
+                        onChange={(e) => {
+                          setEditFormData({ ...editFormData, action: e.target.value });
 
+                          // Auto-grow the textarea
+                          e.target.style.height = "auto";
+                          e.target.style.height = `${e.target.scrollHeight}px`;
+                        }}
+                        placeholder="Define your Action"
+                        style={{
+                          ...styles.input,
+                          resize: "none",       // prevent manual resizing
+                          overflow: "hidden",   // hide scrollbars
+                          minHeight: "40px",    // starting height
+                        }}
+                        required
+                      />
+                    </>
+                  )}
+                   {selectedTab === "Basic" && (
+                    <>
                   {/* Target Node Dropdown */}
                   <label style={styles.label}>
                     Target Node:
@@ -2023,7 +2144,7 @@ const DnDFlow = () => {
                       <select
                         value={editFormData.actionType}
                         onChange={(e) =>
-                          setEditFormData({ ...editFormData, actionType: e.target.value,values :{} })
+                          setEditFormData({ ...editFormData, actionType: e.target.value, values: {} })
                         }
                         style={styles.input}
                       >
@@ -2034,7 +2155,7 @@ const DnDFlow = () => {
                             return <option value="Assign">Assign</option>;
                           }
                           if (targetType === "Table") {
-                            return ["Insert", "Update", "Delete", "Clear"].map((type) => (
+                            return ["Manual", "Insert", "Update", "Delete", "Clear"].map((type) => (
                               <option key={type} value={type}>{type}</option>
                             ));
                           }
@@ -2123,9 +2244,36 @@ const DnDFlow = () => {
                         return null;
                     }
                   })()}
+                </>)}
                 </>
               ) : selectedNode.type === "Definition" ? (
                 <>
+                  <div style={{ marginBottom: "10px" }}>
+                    <h4>Related Nodes:</h4>
+                    {edges
+                      .filter((edge) => edge.target === selectedNode.id)
+                      .map((edge) => {
+                        const sourceNode = nodes.find((node) => node.id === edge.source);
+                        return sourceNode ? (
+                          <button
+                            key={sourceNode.id}
+                            onClick={() => {
+                              setEditFormData((prev) => ({
+                                ...prev,
+                                definition: prev.definition
+                                  ? `${prev.definition} ${sourceNode.data.label}`
+                                  : sourceNode.data.label,
+                              }));
+                            }}
+                            style={{ ...styles.button, margin: "5px" }}
+                          >
+                            {sourceNode.data.label}
+                          </button>
+
+
+                        ) : null;
+                      })}
+                  </div>
                   <label style={{ display: "block", marginBottom: "10px" }}>
                     Definition Name:
                     <input
@@ -2143,7 +2291,7 @@ const DnDFlow = () => {
                       onChange={(e) => setEditFormData({ ...editFormData, definitionType: e.target.value })}
                       style={styles.input}
                     >
-                      <option value= "Default">--Select Type--</option>
+                      <option value="Default">--Select Type--</option>
                       <option value="Expression">Expression</option>
                       <option value="Size">Size</option>
                       <option value="Mapping">Mapping</option>
@@ -2155,8 +2303,8 @@ const DnDFlow = () => {
                     <label style={{ display: "block", marginBottom: "10px" }}>
                       Expression:
                       <input
-                        value={editFormData.expression || ""}
-                        onChange={(e) => setEditFormData({ ...editFormData, expression: e.target.value })}
+                        value={editFormData.definition || ""}
+                        onChange={(e) => setEditFormData({ ...editFormData, definition: e.target.value })}
                         placeholder="Write an expression"
                         style={styles.input}
                       />
