@@ -301,7 +301,7 @@ const DnDFlow = () => {
           while ((match = blockRegex.exec(input)) !== null) {
             const paramsString = match[1]; // inside parentheses
             const output = match[2].trim() + ";";
-            
+
             const params = {};
 
             // Split paramsString by commas to get individual pairs
@@ -322,7 +322,7 @@ const DnDFlow = () => {
               output,
             });
           }
-         
+
           return result.length > 0 ? result : null;
         }
 
@@ -377,34 +377,48 @@ const DnDFlow = () => {
             // Fallback: old table format (e.g. table[{...}])
 
             if (!matchedAny && tableText?.startsWith("table[")) {
-              const valuePattern = /^table\[(.+)\]$/;
+              const valuePattern = /^table\[(.+)\]$/s; // `s` allows dot to match newlines
               const valueMatch = tableText.match(valuePattern);
-              if (valueMatch) {
 
-                const jsonRows = `[${valueMatch[1]}]`.replace(/(\w+):/g, '"$1":');
-                const parsedRows = JSON.parse(jsonRows);
-                if (Array.isArray(parsedRows)) {
-                  paramTables["Default"] = parsedRows;
+              if (valueMatch) {
+                try {
+                  let rawContent = valueMatch[1];
+
+                  // Transform to JSON-safe text
+                  const jsonSafeText = `[${rawContent
+                    .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3')                      // quote keys
+                    .replace(/""([^"]*?)""/g, (_, val) => `"${val}"`)                  // fix double-double quotes
+                    .replace(/:\s*(\([^)]*\)\s*=>\s*action\s*{[^}]*})/g, (_, expr) => {
+                      return `: "${expr.replace(/"/g, '\\"')}"`;                      // stringify action functions
+                    })}]`;
+
+
+
+                  const parsedRows = JSON.parse(jsonSafeText);
+                  if (Array.isArray(parsedRows)) {
+                    paramTables["Default"] = parsedRows;
+                  }
+                } catch (err) {
+                  console.warn("Failed to parse table[] rows:", err);
                 }
               }
-
             } else if (!matchedAny && tableText?.startsWith("[")) {
               try {
-                // Preprocess to quote keys and stringify any non-JSON-safe values
+                // Preprocess to fix broken JSON-like input
                 const jsonSafeText = tableText
-                  // Quote all unquoted object keys
-                  .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3')
-                  // Stringify any value that looks like a function or complex expression (e.g., contains `=>` or `{}`)
-                  .replace(/:\s*((\([^)]*\)\s*=>\s*)?action\s*{[^}]*})/g, (match, val) => {
-                    return `: "${val.replace(/"/g, '\\"')}"`;
+                  .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3')                      // quote keys
+                  .replace(/""([^"]*)""/g, (_, val) => `"${val}"`)                   // fix double-double quoted strings
+                  .replace(/:\s*(\([^)]*\)\s*=>\s*action\s*{[^}]*})/g, (_, expr) => {
+                    return `: "${expr.replace(/"/g, '\\"')}"`;                       // stringify action functions
                   });
+
 
                 const parsed = JSON.parse(jsonSafeText);
                 if (Array.isArray(parsed)) {
                   paramTables["Default"] = parsed;
                 }
               } catch (err) {
-                console.error("Failed to parse raw array-like table:", err);
+                console.warn("Failed to parse raw array-like table:", err);
               }
             }
           } catch (e) {
@@ -570,7 +584,7 @@ const DnDFlow = () => {
             const targetNode = findNodeByLabel(environments, targetLabel);
             const targetEdgeLabel = targetNode?.data?.label;
             if (targetEdgeLabel && targetEdgeLabel !== targetLabel) {
-              removeEdge(edge.id, moduleId); //  pass moduleId
+              removeEdge(edge.id, moduleId);
             }
           }
         });
@@ -578,23 +592,36 @@ const DnDFlow = () => {
         if (targetLabel) {
           const targetNode = findNodeByLabel(environments, targetLabel);
           if (targetNode) {
-            const edgeId = `${source}->${targetNode.id}`;
+            let edgeId = `${source}->${targetNode.id}`;
+            let edgeType = "action";
+            let edgeData = { action: node.data.action };
+
+            // If this action node already has an "action" edge, use "default"
+            const alreadyHasActionEdge = edges.some(
+              (e) => e.source === source && e.type === "action"
+            );
+            if (alreadyHasActionEdge) {
+              edgeType = "default";
+              edgeData = {};
+            }
+
             if (!edges.find((e) => e.id === edgeId)) {
               addEdge(
                 {
                   id: edgeId,
                   source,
                   target: targetNode.id,
-                  type: "action",
-                  data: { action: node.data.action },
+                  type: edgeType,
+                  data: edgeData,
                   reconnectable: true,
                 },
-                moduleId //  pass moduleId
+                moduleId
               );
             }
           }
         }
       }
+
 
       setSelectedNodeId(null);
       return;
@@ -611,17 +638,25 @@ const DnDFlow = () => {
       let id = `${source}->${target}`;
 
       let type = "default";
-
+      let targetIn = target;
+      let sourceIn = source;
       if (targetNode.type === "Action") {
         id = `${target}->${source}`;
         type = "action";
+        if (edges.find((e) => e.source === target && e.type === "action")) {
+          type = "default"
+
+          console.log(source, target)
+        }
+        targetIn = source;
+        sourceIn = target;
       }
 
       if (!edges.find((e) => e.id === id)) {
         addEdge({
           id,
-          source: type === "action" ? target : source,
-          target: type === "action" ? source : target,
+          source: sourceIn,
+          target: targetIn,
           type,
           data: type === "action" ? { action: targetNode.data.action } : {},
           reconnectable: true,

@@ -9,7 +9,7 @@ const TableNode = ({ id, data, isConnectable }) => {
   const fetchNodeId = useStore((state) => state.fetchNodeId);
   const selected = id == fetchNodeId;
   const moduleName = data.moduleName;
-
+ 
   // FILTER + PARSE parsedValue if present
   let filteredParsedValue = [];
  
@@ -96,7 +96,7 @@ const TableNode = ({ id, data, isConnectable }) => {
                       <tr key={rowIdx}>
                         {data.columns.map((col, colIdx) => (
                           <td key={colIdx} style={styles.td}>
-                            {row[col.name] ?? ""}
+                            {row[col.name]+"" ?? ""}
                           </td>
                         ))}
                       </tr>
