@@ -15,20 +15,24 @@ const ActionNode = ({ id, data, isConnectable }) => {
   const moduleName = data.moduleName; // assumes you pass `module` in data like { module: "Ting", ... }
 
   // Filter parsed values based on paramInputs
-  let filteredParsedValue = Array.isArray(data.parsedValue)
-    ? data.parsedValue.filter((item) => {
-      
-        if (!moduleName) return true; // no module context, show all
-        const inputKey = `${item.param}@${moduleName}`;
-        const expectedValue = paramInputs?.[inputKey];
-        
-        // Show all if paramInputs is empty or if there's no expected value for this param
+  const filteredParsedValue = Array.isArray(data.parsedValue)
+  ? data.parsedValue.filter((item) => {
+      if (!moduleName || !paramInputs || Object.keys(paramInputs).length === 0) return true;
+
+      return Object.entries(paramInputs).every(([key, expectedValue]) => {
+        // Ignore this filter if the input is empty
         if (!expectedValue) return true;
 
-        return item.value?.includes(expectedValue.replace(/^"|"$/g, ""));
+        const [param, module] = key.split("@");
+        if (module !== moduleName) return true;
 
-      })
-    : [];
+        const actualValue = item.params?.[param];
+        if (!actualValue) return false;
+
+        return actualValue.includes(expectedValue); // loose, substring match
+      });
+    })
+  : [];
 
   
   return (
@@ -49,15 +53,17 @@ const ActionNode = ({ id, data, isConnectable }) => {
         {filteredParsedValue.length > 0 ? (
           <div style={styles.tableWrapper}>
             {filteredParsedValue.map((item, idx) => (
-              <div key={idx} style={styles.row}>
-                <div style={styles.paramLine}>
-                  <span style={styles.paramLabel}>{item.param}:</span> {item.value}
-                </div>
-                <div style={styles.outputLine}>
-                  {item.output}
-                </div>
+            <div key={idx} style={styles.row}>
+              <div style={styles.paramLine}>
+                {Object.entries(item.params).map(([param, value]) => (
+                  <span key={param} style={{ marginRight: 8 }}>
+                    <span style={styles.paramLabel}>{param}:</span> {value}
+                  </span>
+                ))}
               </div>
-            ))}
+              <div style={styles.outputLine}>{item.output}</div>
+            </div>
+          ))}
           </div>
         ) : (
           <div style={styles.subtext}>

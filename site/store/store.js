@@ -68,7 +68,7 @@ const useStore = create((set, get) => ({
         [key]: value,
       },
     }))
-
+    
   },
   resetParamInputs: () => set({ paramInputs: {} }),
   activeFilters: new Set([
@@ -199,39 +199,58 @@ const useStore = create((set, get) => ({
 
           if (allParams.length === 0) {
             newHtmlFragment = `
-          <form>
-            <button doaction=(${actionLabel})>
-              "${actionLabel}"
-            </button>
-          </form>`;
+      <form>
+        <button doaction=(${actionLabel})>
+          "${actionLabel}"
+        </button>
+      </form>`;
           } else {
-            const inputsHtml = allParams.map(name => `<input id="${name}" />`).join("\n");
+            const inputsHtml = allParams.map(name => {
+              const isNumeric = /(^|[^a-zA-Z])id([^a-zA-Z]|$)/i.test(name); // matches "id", "userId", etc.
+              const typeAttr = isNumeric ? ` type="number"` : ``;
+              return `<input id="${name}"${typeAttr} />`;
+            }).join("\n");
+
             const doactionParams = allParams.map(name => `#${name}`).join(" ");
             newHtmlFragment = `
-                              <form>
-                                ${inputsHtml}
-                                <button doaction=(${actionLabel} ${doactionParams})>
-                                  "${actionLabel}"
-                                </button>
-                              </form>`;
+      <form>
+        ${inputsHtml}
+        <button doaction=(${actionLabel} ${doactionParams})>
+          "${actionLabel}"
+        </button>
+      </form>`;
           }
           break;
         }
 
+
         case "Definition": {
-          const defHtml = sourceNode.data.value || "";
-          newHtmlFragment = `<div class="definition-block">${defHtml}</div>`;
+          const defHtml = sourceNode.data.label || "";
+          newHtmlFragment = `<div class="definition-block" id="${defHtml}">
+          <label>"${defHtml}"</label>
+          <div>${defHtml}</div>
+        </div>`;
           break;
         }
 
         case "Table": {
           const tableLabel = sourceNode.data.label || "Table";
+          const columns = sourceNode.data.columns || [];
+
+          const eFields = columns.map(col => `(e.${col.name})`).join("  ");
+
+
           newHtmlFragment = `
-        <div class="table-placeholder">
-          <strong>${tableLabel}</strong>: Table rendering not yet implemented.
-        </div>`;
+    <ul>
+      (map(e in ${tableLabel})
+        <li>
+          ${eFields}
+        </li>)
+    </ul>`;
           break;
         }
+
+
       }
 
       // If not initialized, start with basic layout

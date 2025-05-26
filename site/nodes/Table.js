@@ -4,30 +4,59 @@ import useStore from "../store/store.js";
 
 const TableNode = ({ id, data, isConnectable }) => {
   const activeFilters = useStore((state) => state.activeFilters);
-  const paramInputs = useStore((state) => state.paramInputs); // grab inputs from store
+  const paramInputs = useStore((state) => state.paramInputs);
   const isDimmed = !activeFilters.has("Table");
   const fetchNodeId = useStore((state) => state.fetchNodeId);
-  const selected = id == fetchNodeId
+  const selected = id == fetchNodeId;
   const moduleName = data.moduleName;
 
-  // Filter paramTables based on matching paramInputs
-  const filteredParamTables = Object.entries(data.paramTables || {}).filter(([key]) => {
-    if (!moduleName || !paramInputs) return true;
+  // FILTER + PARSE parsedValue if present
+  let filteredParsedValue = [];
+ 
+  if (Array.isArray(data.parsedValue) && data.parsedValue.length > 0) {
+  filteredParsedValue = data.parsedValue
+    .filter((item) => {
+      if (!moduleName || !paramInputs || Object.keys(paramInputs).length === 0) return true;
+      return Object.entries(paramInputs).every(([key, expectedValue]) => {
+        if (!expectedValue) return true;
+        const [param, module] = key.split("@");
+        if (module !== moduleName) return true;
+        return item.params?.[param]?.includes(expectedValue);
+      });
+    })
+    .map((item) => {
+      let parsedOutput = [];
+      
+      try {
+        // Clean up the trailing junk before eval:
+        // Remove trailing semicolons, ellipsis, and closing braces after the main array/object
+        const cleanedOutput = item.output
+          .replace(/;\s*$/, '')      // remove trailing semicolon
+          .replace(/\.\.\..*$/, '')  // remove trailing "..." and anything after
+          .trim();
 
-    // Find input that matches module
-    const inputEntry = Object.entries(paramInputs).find(([inputKey]) =>
-      inputKey.endsWith(`@${moduleName}`)
-    );
+        // Use Function to parse the cleaned JS literal safely
+        parsedOutput = (new Function("return " + cleanedOutput))();
+      } catch (err) {
+        console.warn("Failed to parse output in TableNode:", item.output, err);
+      }
+      return {
+        ...item,
+        output: parsedOutput,
+      };
+    });
+}
 
-    if (!inputEntry) return true;
 
-    const [, value] = inputEntry;
-    const cleanedValue = value?.replace(/^"|"$/g, "");
-
-    return key.includes(cleanedValue);
-  });
-
-  const displayRows = Object.fromEntries(filteredParamTables);
+  // FALLBACK: If no parsedValue, use paramTables.Default if available
+  if (filteredParsedValue.length === 0 && data.paramTables && data.paramTables.Default) {
+    filteredParsedValue = [
+      {
+        params: {}, // no params for default fallback
+        output: data.paramTables.Default,
+      },
+    ];
+  }
 
   return (
     <div
@@ -42,26 +71,28 @@ const TableNode = ({ id, data, isConnectable }) => {
       <div style={styles.node}>
         <div style={styles.header}>{data.label || "Database Table"}</div>
 
-        {Object.keys(displayRows).length > 0 ? (
-          Object.entries(displayRows).map(([paramKey, rows], idx) => (
+        {filteredParsedValue.length > 0 ? (
+          filteredParsedValue.map((entry, idx) => (
             <div key={idx} style={{ marginTop: idx > 0 ? "16px" : "0" }}>
               <div style={styles.subHeader}>
-                {paramKey !== "Default" ? paramKey : null}
+                {Object.entries(entry.params || {})
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(", ")}
               </div>
 
               <table style={styles.table}>
                 <thead>
                   <tr>
-                    {data.columns?.map((col, idx) => (
-                      <th key={idx} style={styles.th}>
+                    {data.columns?.map((col, colIdx) => (
+                      <th key={colIdx} style={styles.th}>
                         {`${col.name} (${col.type})`}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {rows && rows.length > 0 ? (
-                    rows.map((row, rowIdx) => (
+                  {Array.isArray(entry.output) && entry.output.length > 0 ? (
+                    entry.output.map((row, rowIdx) => (
                       <tr key={rowIdx}>
                         {data.columns.map((col, colIdx) => (
                           <td key={colIdx} style={styles.td}>
@@ -82,7 +113,6 @@ const TableNode = ({ id, data, isConnectable }) => {
             </div>
           ))
         ) : (
-          // Fallback if no paramTables match, but we still want to show columns
           <div>
             <table style={styles.table}>
               <thead>
@@ -104,7 +134,6 @@ const TableNode = ({ id, data, isConnectable }) => {
             </table>
           </div>
         )}
-
       </div>
 
       <Handle type="target" position={Position.Left} isConnectable={isConnectable} />
@@ -112,6 +141,7 @@ const TableNode = ({ id, data, isConnectable }) => {
     </div>
   );
 };
+
 const glowKeyframes = `
 @keyframes glow-blue {
   0% { box-shadow: 0 0 0px #2196F3 }
@@ -126,6 +156,7 @@ if (typeof document !== "undefined" && !document.getElementById("glow-blue-keyfr
   style.innerHTML = glowKeyframes;
   document.head.appendChild(style);
 }
+
 const styles = {
   wrapper: {
     position: "relative",

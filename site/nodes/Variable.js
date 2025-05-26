@@ -12,16 +12,29 @@ const VariableNode = ({ id, data, isConnectable }) => {
   const fetchNodeId = useStore((state) => state.fetchNodeId);
   const selected = id == fetchNodeId
   const moduleName = data.moduleName;
-  
+
   const filteredParsedValue = Array.isArray(data.parsedValue)
-    ? data.parsedValue.filter((item) => {
-        if (!moduleName) return true;
-        const inputKey = `${item.param}@${moduleName}`;
-        const expectedValue = paramInputs?.[inputKey];
+  ? data.parsedValue.filter((item) => {
+      if (!moduleName || !paramInputs || Object.keys(paramInputs).length === 0) return true;
+
+      return Object.entries(paramInputs).every(([key, expectedValue]) => {
+        // Ignore this filter if the input is empty
         if (!expectedValue) return true;
-        return item.value?.includes(expectedValue.replace(/^"|"$/g, ""));
-      })
-    : [];
+
+        const [param, module] = key.split("@");
+        if (module !== moduleName) return true;
+
+        const actualValue = item.params?.[param];
+        if (!actualValue) return false;
+
+        return actualValue.includes(expectedValue); // loose, substring match
+      });
+    })
+  : [];
+
+
+
+
 
   return (
     <div
@@ -37,16 +50,21 @@ const VariableNode = ({ id, data, isConnectable }) => {
         {data.label || "Unnamed Variable"}
       </div>
 
-      {Array.isArray(data.parsedValue) ? (
+      {Array.isArray(data.parsedValue) && filteredParsedValue.length>0 ? (
         <div style={styles.tableWrapper}>
           {filteredParsedValue.map((item, idx) => (
             <div key={idx} style={styles.row}>
               <div style={styles.paramLine}>
-                <span style={styles.paramLabel}>{item.param}:</span> {item.value}
+                {Object.entries(item.params).map(([param, value]) => (
+                  <span key={param} style={{ marginRight: 8 }}>
+                    <span style={styles.paramLabel}>{param}:</span> {value}
+                  </span>
+                ))}
               </div>
               <div style={styles.outputLine}>{item.output}</div>
             </div>
           ))}
+
         </div>
       ) : (
         <div style={styles.value}>

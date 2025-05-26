@@ -145,7 +145,7 @@ const DnDFlow = () => {
 
 
 
-     // console.log("namespace:", nodes);
+      // console.log("namespace:", nodes);
 
 
     }, 5000);
@@ -294,26 +294,39 @@ const DnDFlow = () => {
 
           const result = [];
 
-          // Updated regex:
-          // Match (param:"value") or (param:value) followed by -> output (with or without semicolon)
-          const regex = /\(\s*(\w+):\s*(?:"(.*?)"|([^\s")]+))\s*\)\s*->\s*([^;]+);?/g;
+          // Match each group: '( ... ) -> output;'
+          const blockRegex = /\(([^)]+)\)\s*->\s*([^;]+);?/g;
 
           let match;
-          while ((match = regex.exec(input)) !== null) {
-            const param = match[1];
-            const quotedValue = match[2];
-            const unquotedValue = match[3];
-            const output = match[4];
+          while ((match = blockRegex.exec(input)) !== null) {
+            const paramsString = match[1]; // inside parentheses
+            const output = match[2].trim() + ";";
+            
+            const params = {};
+
+            // Split paramsString by commas to get individual pairs
+            const pairs = paramsString.split(",").map(s => s.trim());
+
+            pairs.forEach(pair => {
+              const colonIndex = pair.indexOf(":");
+              if (colonIndex === -1) return; // skip invalid pair
+
+              const param = pair.slice(0, colonIndex).trim();
+              let value = pair.slice(colonIndex + 1).trim();
+
+              params[param] = value;
+            });
 
             result.push({
-              param,
-              value: quotedValue !== undefined ? `"${quotedValue}"` : unquotedValue,
-              output: output.trim() + ';', // always add semicolon to keep consistent
+              params,
+              output,
             });
           }
-
+         
           return result.length > 0 ? result : null;
         }
+
+
 
 
 
@@ -367,7 +380,7 @@ const DnDFlow = () => {
               const valuePattern = /^table\[(.+)\]$/;
               const valueMatch = tableText.match(valuePattern);
               if (valueMatch) {
-                
+
                 const jsonRows = `[${valueMatch[1]}]`.replace(/(\w+):/g, '"$1":');
                 const parsedRows = JSON.parse(jsonRows);
                 if (Array.isArray(parsedRows)) {
@@ -923,7 +936,7 @@ const DnDFlow = () => {
 
     setSelectedNode(null);
     setEditFormData({});
-    
+
   };
 
 
@@ -969,7 +982,7 @@ const DnDFlow = () => {
           // For Update/Delete
         },
         Table: { label: "tab", columns: [{ name: "", type: "string" }], rows: [] },
-        HTML: { label: "page", definition: "<p>'Enter HTML here'</p>" },
+        HTML: { label: "page" },
         Module: { label: "mod<type param>*" },
       };
 
@@ -1591,19 +1604,19 @@ const DnDFlow = () => {
                   ))}
                 </div>
                 <label style={{ display: "block", marginBottom: "10px" }}>
-                    Action Name:
-                    <input
-                      value={formData.label || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, label: e.target.value })
-                      }
-                      placeholder="Name your Action"
-                      style={styles.input}
-                    />
-                  </label>
+                  Action Name:
+                  <input
+                    value={formData.label || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, label: e.target.value })
+                    }
+                    placeholder="Name your Action"
+                    style={styles.input}
+                  />
+                </label>
                 {selectedTab === "Advanced" && (
                   <>
-                  Definition:
+                    Definition:
                     <textarea
                       value={formData.action || ""}
                       onChange={(e) => {
@@ -1970,7 +1983,8 @@ const DnDFlow = () => {
 
             {/* Confirm / Cancel Buttons */}
             <div style={styles.buttonContainer}>
-              <button onClick={() =>{ setPendingNode(null)
+              <button onClick={() => {
+                setPendingNode(null)
                 setSelectedTab("Basic")
               }} style={styles.cancel_button}>
                 Cancel
@@ -2072,9 +2086,9 @@ const DnDFlow = () => {
                       </button>
                     ))}
                   </div>
-                  
+
                   {/* Action Name */}
-                  
+
                   <label style={{ display: "block", marginBottom: "10px" }}>
                     Action Name:
                     <input
@@ -2088,7 +2102,7 @@ const DnDFlow = () => {
                   </label>
                   {selectedTab === "Advanced" && (
                     <>
-                    Definition:
+                      Definition:
                       <textarea
                         value={editFormData.action || ""}
                         onChange={(e) => {
@@ -2109,93 +2123,109 @@ const DnDFlow = () => {
                       />
                     </>
                   )}
-                   {selectedTab === "Basic" && (
+                  {selectedTab === "Basic" && (
                     <>
-                  {/* Target Node Dropdown */}
-                  <label style={styles.label}>
-                    Target Node:
-                    <select
-                      value={editFormData.targetNodeId || ""}
-                      onChange={(e) => {
-                        const newTargetId = e.target.value;
-                        const target = varNodes.find((n) => n.id === newTargetId);
+                      {/* Target Node Dropdown */}
+                      <label style={styles.label}>
+                        Target Node:
+                        <select
+                          value={editFormData.targetNodeId || ""}
+                          onChange={(e) => {
+                            const newTargetId = e.target.value;
+                            const target = varNodes.find((n) => n.id === newTargetId);
 
-                        setEditFormData((prev) => ({
-                          ...prev,
-                          targetNodeId: newTargetId,
-                          targetNodeLabel: target?.label,
-                        }));
-                      }}
-                      style={styles.input}
-                    >
-                      <option value="">-- Select Target --</option>
-                      {varNodes.map((node) => (
-                        <option key={node.id} value={node.id}>
-                          {node.label} ({node.type})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                            setEditFormData((prev) => ({
+                              ...prev,
+                              targetNodeId: newTargetId,
+                              targetNodeLabel: target?.label,
+                            }));
+                          }}
+                          style={styles.input}
+                        >
+                          <option value="">-- Select Target --</option>
+                          {varNodes.map((node) => (
+                            <option key={node.id} value={node.id}>
+                              {node.label} ({node.type})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
 
-                  {/* Action Type Dropdown */}
-                  {editFormData.targetNodeId && (
-                    <label style={styles.label}>
-                      Action Type:
-                      <select
-                        value={editFormData.actionType}
-                        onChange={(e) =>
-                          setEditFormData({ ...editFormData, actionType: e.target.value, values: {} })
-                        }
-                        style={styles.input}
-                      >
-                        {(() => {
-                          const targetType = varNodes.find(n => n.id === editFormData.targetNodeId)?.type;
+                      {/* Action Type Dropdown */}
+                      {editFormData.targetNodeId && (
+                        <label style={styles.label}>
+                          Action Type:
+                          <select
+                            value={editFormData.actionType}
+                            onChange={(e) =>
+                              setEditFormData({ ...editFormData, actionType: e.target.value, values: {} })
+                            }
+                            style={styles.input}
+                          >
+                            {(() => {
+                              const targetType = varNodes.find(n => n.id === editFormData.targetNodeId)?.type;
 
-                          if (targetType === "Variable") {
-                            return <option value="Assign">Assign</option>;
-                          }
-                          if (targetType === "Table") {
-                            return ["Manual", "Insert", "Update", "Delete", "Clear"].map((type) => (
-                              <option key={type} value={type}>{type}</option>
-                            ));
-                          }
-                          return null;
-                        })()}
-                      </select>
-                    </label>
-                  )}
+                              if (targetType === "Variable") {
+                                return <option value="Assign">Assign</option>;
+                              }
+                              if (targetType === "Table") {
+                                return ["Manual", "Insert", "Update", "Delete", "Clear"].map((type) => (
+                                  <option key={type} value={type}>{type}</option>
+                                ));
+                              }
+                              return null;
+                            })()}
+                          </select>
+                        </label>
+                      )}
 
-                  {/* Values / Condition / Expression Based on Action Type */}
-                  {(() => {
-                    const targetNode = varNodes.find((n) => n.id === editFormData.targetNodeId);
-                    const columns = targetNode?.columns || [];
+                      {/* Values / Condition / Expression Based on Action Type */}
+                      {(() => {
+                        const targetNode = varNodes.find((n) => n.id === editFormData.targetNodeId);
+                        const columns = targetNode?.columns || [];
 
-                    switch (editFormData.actionType) {
-                      case "Insert":
-                      case "Update":
-                        return (
-                          <>
-                            <h4>Values:</h4>
-                            {columns.map((col, idx) => (
-                              <label key={idx} style={styles.label}>
-                                {col.name}:
-                                <input
-                                  value={editFormData.values?.[col.name] || ""}
-                                  onChange={(e) =>
-                                    setEditFormData({
-                                      ...editFormData,
-                                      values: {
-                                        ...editFormData.values,
-                                        [col.name]: e.target.value,
-                                      },
-                                    })
-                                  }
-                                  placeholder='To use params, start with "in" (e.g. inParam)'
-                                  style={styles.input}
-                                />
-                              </label>
-                            ))}
-                            {editFormData.actionType === "Update" && (
+                        switch (editFormData.actionType) {
+                          case "Insert":
+                          case "Update":
+                            return (
+                              <>
+                                <h4>Values:</h4>
+                                {columns.map((col, idx) => (
+                                  <label key={idx} style={styles.label}>
+                                    {col.name}:
+                                    <input
+                                      value={editFormData.values?.[col.name] || ""}
+                                      onChange={(e) =>
+                                        setEditFormData({
+                                          ...editFormData,
+                                          values: {
+                                            ...editFormData.values,
+                                            [col.name]: e.target.value,
+                                          },
+                                        })
+                                      }
+                                      placeholder='To use params, start with "in" (e.g. inParam)'
+                                      style={styles.input}
+                                    />
+                                  </label>
+                                ))}
+                                {editFormData.actionType === "Update" && (
+                                  <label style={styles.label}>
+                                    <h4>Condition:</h4>
+                                    <input
+                                      value={editFormData.condition || ""}
+                                      onChange={(e) =>
+                                        setEditFormData({ ...editFormData, condition: e.target.value })
+                                      }
+                                      placeholder="Condition to update table entries"
+                                      style={styles.input}
+                                    />
+                                  </label>
+                                )}
+                              </>
+                            );
+                          case "Delete":
+                            return (
                               <label style={styles.label}>
                                 <h4>Condition:</h4>
                                 <input
@@ -2203,48 +2233,32 @@ const DnDFlow = () => {
                                   onChange={(e) =>
                                     setEditFormData({ ...editFormData, condition: e.target.value })
                                   }
-                                  placeholder="Condition to update table entries"
+                                  placeholder="Condition to delete table entries"
                                   style={styles.input}
                                 />
                               </label>
-                            )}
-                          </>
-                        );
-                      case "Delete":
-                        return (
-                          <label style={styles.label}>
-                            <h4>Condition:</h4>
-                            <input
-                              value={editFormData.condition || ""}
-                              onChange={(e) =>
-                                setEditFormData({ ...editFormData, condition: e.target.value })
-                              }
-                              placeholder="Condition to delete table entries"
-                              style={styles.input}
-                            />
-                          </label>
-                        );
-                      case "Clear":
-                        return <p>This action will clear all rows in the target table.</p>;
-                      case "Assign":
-                        return (
-                          <label style={styles.label}>
-                            Expression:
-                            <input
-                              value={editFormData.expression || ""}
-                              placeholder="Changes to make (e.g. variable + 1)"
-                              onChange={(e) =>
-                                setEditFormData({ ...editFormData, expression: e.target.value })
-                              }
-                              style={styles.input}
-                            />
-                          </label>
-                        );
-                      default:
-                        return null;
-                    }
-                  })()}
-                </>)}
+                            );
+                          case "Clear":
+                            return <p>This action will clear all rows in the target table.</p>;
+                          case "Assign":
+                            return (
+                              <label style={styles.label}>
+                                Expression:
+                                <input
+                                  value={editFormData.expression || ""}
+                                  placeholder="Changes to make (e.g. variable + 1)"
+                                  onChange={(e) =>
+                                    setEditFormData({ ...editFormData, expression: e.target.value })
+                                  }
+                                  style={styles.input}
+                                />
+                              </label>
+                            );
+                          default:
+                            return null;
+                        }
+                      })()}
+                    </>)}
                 </>
               ) : selectedNode.type === "Definition" ? (
                 <>
