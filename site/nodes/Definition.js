@@ -80,7 +80,7 @@ const dynamicHeight = baseSize + extraRows * rowHeight + extraHeightForLabel;
           ) : (
             <>
               <div style={styles.subtext}>{data.definition || "No Definition"}</div>
-              
+              <div style={styles.subtext}>{data.value || "No Value"}</div>
             </>
           )}
         </div>
