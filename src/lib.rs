@@ -348,8 +348,6 @@ pub async fn fetch_dependencies(name: &str) -> Result<JsValue, JsValue> {
     );
 
     let response = Request::get(&url)
-        .header("Content-Type", "application/json")
-        .header("X-Requested-With", "XMLHttpRequest")
         .send()
         .await
         .map_err(|e| JsValue::from_str(&format!("Request failed: {:?}", e)))?;

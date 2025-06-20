@@ -295,7 +295,7 @@ const useStore = create((set, get) => ({
         node.type === 'Module' ? [node, ...env.nodes] : [...env.nodes, node];
       env.nodes = updatedNodes.map((n) => (n.id === node.id ? node : n));
 
-      //applyLayoutToEnv(env);
+      applyLayoutToEnv(env);
 
       return { environments: { ...state.environments } };
     });
@@ -343,7 +343,7 @@ const useStore = create((set, get) => ({
 
       env.edges = [...(env.edges || []), edge];
 
-      //applyLayoutToEnv(env);
+      applyLayoutToEnv(env);
 
       return { environments: { ...state.environments } };
     });

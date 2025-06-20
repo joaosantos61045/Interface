@@ -569,7 +569,7 @@ const DnDFlow = () => {
           /update\s+\w+\s+in\s+([a-zA-Z_]\w*)\s+with/,
           /delete\s+\w+\s+in\s+([a-zA-Z_]\w*)\s+where/,
         ];
-
+        
         let targetLabel = null;
         for (const pattern of patterns) {
           const match = node.data.action.match(pattern);
@@ -1140,6 +1140,7 @@ const DnDFlow = () => {
 
           // Replace targetNodeLabel with alias 'a' in the condition
           const targetLabelRegex = new RegExp(`\\b${formData.targetNodeLabel}\\b`, "g");
+          console.log(targetLabelRegex)
           condition = condition.replace(targetLabelRegex, "a");
         }
 
