@@ -473,6 +473,7 @@ const DnDFlow = () => {
           parentId == envId
             ? addNode(newNode, envId)
             : addNode(newNode, envId, parentId);
+            fitView()
         }
       }
 
@@ -754,12 +755,6 @@ const DnDFlow = () => {
   };
 
 
-  const layerButtons = useCallback(() => {
-
-    const newNodes = layoutCircularLayers(nodes, edges);
-    setNodes(newNodes);
-
-  });
 
   const onLayout = useCallback(
     (direction) => {
@@ -950,7 +945,7 @@ const DnDFlow = () => {
         } else if (editFormData.actionType === "Delete") {
           message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { delete a in ${editFormData.targetNodeLabel} where ${condition}}`;
         } else {
-          message = `def ${editFormData.label} = action { ${editFormData.targetNodeLabel} := [] }`;
+          message = `def ${editFormData.label} = action { delete a in ${editFormData.targetNodeLabel} where true }`;
         }
         break;
 
@@ -1070,7 +1065,8 @@ const DnDFlow = () => {
       case 'Definition':
         console.log(formData)
         if (formData.definitionType == "Expression") {
-          message = `def ${formData.label} = ${formData.definition}`;
+          
+          message = `def ${formData.label} = ${formData.expression}`;
         } else if (formData.definitionType == "Size") {
           message = `def ${formData.label} = foreach(x in ${formData.targetNodeLabel} with y = 0) y + 1`;
         } else if (formData.definitionType == "Mapping") {
@@ -1159,7 +1155,7 @@ const DnDFlow = () => {
           message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { delete a in ${formData.targetNodeLabel} where ${condition}}`;
 
         } else {
-          message = `def ${formData.label} = action { ${formData.targetNodeLabel} := [] }`;
+          message = `def ${formData.label} = action { delete a in ${formData.targetNodeLabel} where true}`;
         }
         console.log(message)
         break;
@@ -1202,7 +1198,7 @@ const DnDFlow = () => {
       if (connectionState.isValid || connectionState.fromHandle.type === 'target') {
         return;
       }
-
+      
       const fromNodeId = connectionState.fromNode.id;
       const fromNodeType = connectionState.fromNode.type;
       let id = getId();
@@ -1216,6 +1212,7 @@ const DnDFlow = () => {
       let edgeType = 'default';
       let action = "Unknown";
       if (fromNodeType === 'Action') {
+        return;
         newNodeType = 'Variable';
         newNodeData = { label: id, value: "" };
         edgeType = 'action';
@@ -1369,7 +1366,7 @@ const DnDFlow = () => {
           color: "#333",
           marginBottom: "20px",
         }}>
-          Meerkat UI
+          Visual Meerkat
         </h2>
 
         <div style={{ flex: 1, border: "1px solid #ccc", borderRadius: "8px" }}>
@@ -2570,6 +2567,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1000,
+    
   },
   modal: {
     background: "#fff",
@@ -2578,6 +2576,8 @@ const styles = {
     boxShadow: "0 4px 10px rgba(0, 0, 0, 0.15)", // Softer shadow for depth
     textAlign: "center",
     width: "350px", // Slightly wider modal
+    maxHeight: "90vh",        // Limit height to 90% of viewport height
+  overflowY: "auto",  
   },
   saveButton: {
     padding: "10px 20px",
@@ -2615,6 +2615,8 @@ const styles = {
     width: "350px", // Slightly wider config panel
     zIndex: 1000,
     textAlign: "center",
+    maxHeight: "90vh",        // Limit height to 90% of viewport height
+  overflowY: "auto",  
   },
   input: {
     width: "100%",
