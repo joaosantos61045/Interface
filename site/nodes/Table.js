@@ -12,7 +12,7 @@ const TableNode = ({ id, data, isConnectable }) => {
  
   // FILTER + PARSE parsedValue if present
   let filteredParsedValue = [];
- 
+
   if (Array.isArray(data.parsedValue) && data.parsedValue.length > 0) {
   filteredParsedValue = data.parsedValue
     .filter((item) => {

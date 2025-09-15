@@ -62,22 +62,22 @@ const Sidebar = () => {
             </div>
 
             {/* Draggable Node Buttons */}
-            <div className="dndnode variable shape-rounded-square" onDragStart={(e) => onDragStart(e, "Variable")} draggable>
+            <div className="dndnode variable shape-rounded-square" onDragStart={(e) => onDragStart(e, "Variable")} onTouchStart={() => setType("Variable")} draggable>
               Variable
             </div>
-            <div className="dndnode definition shape-diamond " onDragStart={(e) => onDragStart(e, "Definition")} draggable>
+            <div className="dndnode definition shape-diamond " onDragStart={(e) => onDragStart(e, "Definition")} onTouchStart={() => setType("Definition")} draggable>
               Definition
             </div>
-            <div className="dndnode action shape-hexagon" onDragStart={(e) => onDragStart(e, "Action")} draggable>
+            <div className="dndnode action shape-hexagon" onDragStart={(e) => onDragStart(e, "Action")} onTouchStart={() => setType("Action")} draggable>
               Action
             </div>
-            <div className="dndnode table shape-table" onDragStart={(e) => onDragStart(e, "Table")} draggable>
+            <div className="dndnode table shape-table" onDragStart={(e) => onDragStart(e, "Table")} onTouchStart={() => setType("Table")} draggable>
               Table
             </div>
-            <div className="dndnode html shape-document" onDragStart={(e) => onDragStart(e, "HTML")} draggable>
+            <div className="dndnode html shape-document" onDragStart={(e) => onDragStart(e, "HTML")} onTouchStart={() => setType("HTML")} draggable>
               HTML
             </div>
-            <div className="dndnode group shape-rounded" onDragStart={(e) => onDragStart(e, "Module")} draggable>
+            <div className="dndnode group shape-rounded" onDragStart={(e) => onDragStart(e, "Module")} onTouchStart={() => setType("Module")} draggable>
               Module
             </div>
           </aside>

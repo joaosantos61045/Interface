@@ -60,7 +60,7 @@ const DnDFlow = () => {
   const pathStack = useStore((state) => state.pathStack);
   const setEnv = useStore((state) => state.setEnv);
   const { screenToFlowPosition, setCenter } = useReactFlow();
-  const [type] = useDnD();
+  const [type,setType] = useDnD();
   const handleParamChange = useStore((state) => state.setParamInput);
   const { refs, floatingStyles } = useFloating();
   let usid = localStorage.getItem("usid");
@@ -440,11 +440,29 @@ const DnDFlow = () => {
           };
 
         } else if (nodeType === "Action") {
+          const patterns = [
+            /([a-zA-Z_]\w*)\s*:=/,                     // assignment
+            /insert\s+.+\s+into\s+([a-zA-Z_]\w*)/,    // insert into table
+            /update\s+\w+\s+in\s+([a-zA-Z_]\w*)\s+with/, // update in table
+            /delete\s+\w+\s+in\s+([a-zA-Z_]\w*)\s+where/ // delete from table
+          ];
+
+          let target = null;
+
+          // Try each pattern
+          for (const pattern of patterns) {
+            const match = definition.match(pattern);
+            if (match) {
+              target = match[1]; // first capturing group
+              break;
+            }
+          }
+
           newNode = {
             id,
             type: "Action",
             position,
-            data: { label, action: definition, value: value, parsedValue, moduleName }
+            data: { label, action: definition, value: value, parsedValue, moduleName,target }
           };
 
         } else if (nodeType === "Module") {
@@ -473,7 +491,7 @@ const DnDFlow = () => {
           parentId == envId
             ? addNode(newNode, envId)
             : addNode(newNode, envId, parentId);
-            fitView()
+          fitView()
         }
       }
 
@@ -570,7 +588,7 @@ const DnDFlow = () => {
           /update\s+\w+\s+in\s+([a-zA-Z_]\w*)\s+with/,
           /delete\s+\w+\s+in\s+([a-zA-Z_]\w*)\s+where/,
         ];
-        
+
         let targetLabel = null;
         for (const pattern of patterns) {
           const match = node.data.action.match(pattern);
@@ -850,6 +868,42 @@ const DnDFlow = () => {
     event.dataTransfer.dropEffect = "move";
   }, []);
 
+
+  const onTouchEnd = useCallback(
+    (event) => {
+    
+      console.log("Touch end:", type);
+      if (!type) return;
+
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      setPendingNode({ type, position });
+
+
+      const defaultData = {
+        Variable: { label: "var1", value: 1 },
+        Definition: { label: "def1", definition: "", },
+        Action: {
+          label: "",
+          actionType: "",
+          targetNodeId: "",
+          values: {},     // For Insert/Update
+          condition: "",
+          // For Update/Delete
+        },
+        Table: { label: "tab", columns: [{ name: "", type: "string" }], rows: [] },
+        HTML: { label: "page" },
+        Module: { label: "mod<type param>*" },
+      };
+
+      setFormData(defaultData[type] || { label: "" });
+      setType(null);
+    },
+    [screenToFlowPosition, type]
+  );
   const wrapInNestedModules = (message) => {
     const modules = pathStack.slice(1).reverse(); // Exclude 'root' and reverse order
 
@@ -1065,7 +1119,7 @@ const DnDFlow = () => {
       case 'Definition':
         console.log(formData)
         if (formData.definitionType == "Expression") {
-          
+
           message = `def ${formData.label} = ${formData.expression}`;
         } else if (formData.definitionType == "Size") {
           message = `def ${formData.label} = foreach(x in ${formData.targetNodeLabel} with y = 0) y + 1`;
@@ -1110,8 +1164,9 @@ const DnDFlow = () => {
         const paramNames = [];
         const formattedValues = Object.entries(formData.values || {})
           .map(([key, val]) => {
+            
             let trimmed = String(val).trim();
-
+            
             // If surrounded by double-double quotes, unwrap to single quoted
             if (trimmed.startsWith('""') && trimmed.endsWith('""')) {
               trimmed = `"${trimmed.slice(2, -2)}"`;
@@ -1125,9 +1180,8 @@ const DnDFlow = () => {
             return `${key}: ${trimmed}`;
           })
           .join(", ");
-
+         
         let condition = formData.condition || "";
-
         // Extract params from condition
         if (condition) {
 
@@ -1143,7 +1197,7 @@ const DnDFlow = () => {
         const paramList = paramNames.join(" ");
 
         if (formData.actionType === "Assign") {
-          message = `def ${formData.label} = action { ${formData.targetNodeLabel} := ${formData.expression}}`;
+          message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { ${formData.targetNodeLabel} := ${formData.expression}}`;
 
         } else if (formData.actionType === "Insert") {
           message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { insert {${formattedValues}} into ${formData.targetNodeLabel}}`;
@@ -1198,7 +1252,7 @@ const DnDFlow = () => {
       if (connectionState.isValid || connectionState.fromHandle.type === 'target') {
         return;
       }
-      
+
       const fromNodeId = connectionState.fromNode.id;
       const fromNodeType = connectionState.fromNode.type;
       let id = getId();
@@ -1385,6 +1439,7 @@ const DnDFlow = () => {
             onNodeDoubleClick={onNodeDoubleClick}
             onNodeClick={onNodeClick}
             onDragOver={onDragOver}
+            onTouchEnd={onTouchEnd}
             onPaneClick={onPaneClick}
             fitView
             style={{
@@ -2202,7 +2257,7 @@ const DnDFlow = () => {
                                 return <option value="Assign">Assign</option>;
                               }
                               if (targetType === "Table") {
-                                return ["Manual", "Insert", "Update", "Delete", "Clear"].map((type) => (
+                                return [ "Insert", "Update", "Delete", "Clear"].map((type) => (
                                   <option key={type} value={type}>{type}</option>
                                 ));
                               }
@@ -2567,7 +2622,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1000,
-    
+
   },
   modal: {
     background: "#fff",
@@ -2577,7 +2632,7 @@ const styles = {
     textAlign: "center",
     width: "350px", // Slightly wider modal
     maxHeight: "90vh",        // Limit height to 90% of viewport height
-  overflowY: "auto",  
+    overflowY: "auto",
   },
   saveButton: {
     padding: "10px 20px",
@@ -2616,7 +2671,7 @@ const styles = {
     zIndex: 1000,
     textAlign: "center",
     maxHeight: "90vh",        // Limit height to 90% of viewport height
-  overflowY: "auto",  
+    overflowY: "auto",
   },
   input: {
     width: "100%",

@@ -68,7 +68,7 @@ const useStore = create((set, get) => ({
         [key]: value,
       },
     }))
-    
+
   },
   resetParamInputs: () => set({ paramInputs: {} }),
   activeFilters: new Set([
@@ -188,40 +188,63 @@ const useStore = create((set, get) => ({
         }
 
         case "Action": {
-          const actionCode = (sourceNode.data.action || "").trim();
-          const actionLabel = sourceNode.data.label || "action";
+  const actionCode = (sourceNode.data.action || "").trim();
+  const actionLabel = sourceNode.data.label || "action";
+  const targetId = sourceNode.data.target;
 
-          const allParams = [...actionCode.matchAll(/\(\s*([^)]+?)\s*\)\s*=>/g)]
-            .map(match => match[1].trim())
-            .join(" ")
-            .split(/\s+/)
-            .filter(Boolean);
+  // Find the target node if available
+  const t1 = nodes.find((n) => n.id === targetId);
 
-          if (allParams.length === 0) {
-            newHtmlFragment = `
-      <form>
-        <button doaction=(${actionLabel})>
-          "${actionLabel}"
-        </button>
-      </form>`;
-          } else {
-            const inputsHtml = allParams.map(name => {
-              const isNumeric = /(^|[^a-zA-Z])id([^a-zA-Z]|$)/i.test(name); // matches "id", "userId", etc.
-              const typeAttr = isNumeric ? ` type="number"` : ``;
-              return `<input id="${name}"${typeAttr} />`;
-            }).join("\n");
+  // Extract parameters from action code
+  const allParams = [...actionCode.matchAll(/\(\s*([^)]+?)\s*\)\s*=>/g)]
+    .map(match => match[1].trim())
+    .join(" ")
+    .split(/\s+/)
+    .filter(Boolean);
 
-            const doactionParams = allParams.map(name => `#${name}`).join(" ");
-            newHtmlFragment = `
-      <form>
-        ${inputsHtml}
-        <button doaction=(${actionLabel} ${doactionParams})>
-          "${actionLabel}"
-        </button>
-      </form>`;
-          }
-          break;
-        }
+  // Map action param to column name in target
+  const mapParamToColumn = (param) => {
+    if (!t1 || !t1.data || !t1.data.columns) return null;
+    let name = param;
+    if (name.startsWith("in") && name.length > 2) {
+      // Strip 'in' prefix, lowercase first char
+      const stripped = name.slice(2);
+      name = stripped.charAt(0).toLowerCase() + stripped.slice(1).toLowerCase();
+    }
+    // Find a column that matches
+    const col = t1.data.columns.find(c => c.name === name);
+    console.log("Mapping param", name, "to column", col);
+    return col || null;
+  };
+
+  if (allParams.length === 0) {
+    newHtmlFragment = `
+<form>
+  <button doaction=(${actionLabel})>
+    "${actionLabel}"
+  </button>
+</form>`;
+  } else {
+    const inputsHtml = allParams.map(param => {
+      const col = mapParamToColumn(param);
+      const typeAttr = col && col.type === "number" ? ` type="number"` : "";
+      return `<input id="${param}"${typeAttr} />`;
+    }).join("\n");
+
+    const doactionParams = allParams.map(name => `#${name}`).join(" ");
+    newHtmlFragment = `
+<form>
+  ${inputsHtml}
+  <button doaction=(${actionLabel} ${doactionParams})>
+    "${actionLabel}"
+  </button>
+</form>`;
+  }
+
+  break;
+}
+
+
 
 
         case "Definition": {
@@ -237,18 +260,32 @@ const useStore = create((set, get) => ({
           const tableLabel = sourceNode.data.label || "Table";
           const columns = sourceNode.data.columns || [];
 
-          const eFields = columns.map(col => `(e.${col.name})`).join("  ");
+          // Header row as one string literal
+          const headerRow = `"${columns.map(col => col.name).join(' | ')}"`;
 
+          // Each field wrapped individually with a literal space between
+          const rowExpression = columns.map(col => `(e.${col.name})`).join(' " | " ');
 
           newHtmlFragment = `
-    <ul>
-      (map(e in ${tableLabel})
-        <li>
-          ${eFields}
-        </li>)
-    </ul>`;
+<div>
+  <div>${headerRow}</div>
+  <ul>
+    (map(e in ${tableLabel})
+      <li>
+        ${rowExpression}
+      </li>)
+  </ul>
+</div>`;
           break;
         }
+
+
+
+
+
+
+
+
 
 
       }

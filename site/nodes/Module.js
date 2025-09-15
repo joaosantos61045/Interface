@@ -54,9 +54,9 @@ const ModuleNode = ({ id, data, isConnectable }) => {
 
 const glowKeyframes = `
 @keyframes glow-mod {
-  0% { box-shadow: 0 0 0px #a855f7 }
-  50% { box-shadow: 0 0 12px 4px #a855f7}
-  100% { box-shadow: 0 0 0px #a855f7}
+  0% { box-shadow: 0 0 0px #fbbf24 }
+  50% { box-shadow: 0 0 12px 4px #fbbf24}
+  100% { box-shadow: 0 0 0px #fbbf24}
 }
 `;
 
@@ -69,9 +69,9 @@ if (typeof document !== "undefined" && !document.getElementById("glow-mod-keyfra
 const styles = {
   node: {
     padding: "20px",
-    border: "2px solid #a855f7",
+    border: "2px solid #fbbf24",
     borderRadius: "16px",
-    background: "linear-gradient(135deg, #e6e0ff 0%, #f3f0ff 100%)",
+    background: "linear-gradient(135deg, #f6f6f8ff 0%, #f0f0c0ff 100%)",
     width: "auto",
     minWidth: "220px",
     maxWidth: "400px",
@@ -92,12 +92,12 @@ const styles = {
   header: {
     fontWeight: 700,
     fontSize: "18px",
-    color: "#9333ea",
+    color: "#fbbf24",
   },
   button: {
     padding: "6px 14px",
     borderRadius: "8px",
-    background: "#9333ea",
+    background: "#fbbf24",
     color: "#fff",
     border: "none",
     fontWeight: "bold",

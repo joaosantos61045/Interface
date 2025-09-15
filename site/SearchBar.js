@@ -65,7 +65,7 @@ const SearchBar = ({ nodes }) => {
             position: 'absolute',
             width: '220px',
             boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.1)', // Soft shadow for depth
-            zIndex: 1100,
+            zIndex: 1600,
           }}
         >
           {results.map((node) => (
