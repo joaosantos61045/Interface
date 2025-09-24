@@ -60,7 +60,7 @@ const DnDFlow = () => {
   const pathStack = useStore((state) => state.pathStack);
   const setEnv = useStore((state) => state.setEnv);
   const { screenToFlowPosition, setCenter } = useReactFlow();
-  const [type,setType] = useDnD();
+  const [type, setType] = useDnD();
   const handleParamChange = useStore((state) => state.setParamInput);
   const { refs, floatingStyles } = useFloating();
   let usid = localStorage.getItem("usid");
@@ -462,7 +462,7 @@ const DnDFlow = () => {
             id,
             type: "Action",
             position,
-            data: { label, action: definition, value: value, parsedValue, moduleName,target }
+            data: { label, action: definition, value: value, parsedValue, moduleName, target }
           };
 
         } else if (nodeType === "Module") {
@@ -613,15 +613,16 @@ const DnDFlow = () => {
           if (targetNode) {
             let edgeId = `${source}->${targetNode.id}`;
             let edgeType = "action";
+           
             let edgeData = { action: node.data.action };
-
+            
             // If this action node already has an "action" edge, use "default"
             const alreadyHasActionEdge = edges.some(
               (e) => e.source === source && e.type === "action"
             );
             if (alreadyHasActionEdge) {
               edgeType = "default";
-              edgeData = {};
+              
             }
 
             if (!edges.find((e) => e.id === edgeId)) {
@@ -636,6 +637,21 @@ const DnDFlow = () => {
                 },
                 moduleId
               );
+            } else{
+              if(edges.find((e) => e.id === edgeId).data?.action !== node.data.action && edges.find((e) => e.id === edgeId).type !== "default"){
+                removeEdge(edgeId, moduleId);
+                addEdge(
+                {
+                  id: edgeId,
+                  source,
+                  target: targetNode.id,
+                  type: "action",
+                  data: edgeData,
+                  reconnectable: true,
+                },
+                moduleId);
+              }
+             
             }
           }
         }
@@ -871,7 +887,7 @@ const DnDFlow = () => {
 
   const onTouchEnd = useCallback(
     (event) => {
-    
+
       console.log("Touch end:", type);
       if (!type) return;
 
@@ -961,7 +977,9 @@ const DnDFlow = () => {
           setSelectedTab("Basic");
           return;
         }
+
         const paramNames = [];
+
         const formattedValues = Object.entries(editFormData.values || {})
           .map(([key, val]) => {
             let trimmed = String(val).trim();
@@ -988,10 +1006,18 @@ const DnDFlow = () => {
           condition = condition.replace(targetLabelRegex, "a");
         }
 
-        const paramList = paramNames.join(" ");
+        // Extract params from expression if Assign
+        let expression = editFormData.expression || "";
+        if (editFormData.actionType === "Assign" && expression) {
+          const matches = expression.match(/\bin\w+\b/g);
+          if (matches) paramNames.push(...matches);
+        }
+
+        //  Deduplicate params 
+        const paramList = [...new Set(paramNames)].join(" ");
 
         if (editFormData.actionType === "Assign") {
-          message = `def ${editFormData.label} = action { ${editFormData.targetNodeLabel} := ${editFormData.expression}}`;
+          message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { ${editFormData.targetNodeLabel} := ${expression}}`;
         } else if (editFormData.actionType === "Insert") {
           message = `def ${editFormData.label}${paramList ? ` ${paramList}` : ""} = action { insert {${formattedValues}} into ${editFormData.targetNodeLabel}}`;
         } else if (editFormData.actionType === "Update") {
@@ -1001,6 +1027,7 @@ const DnDFlow = () => {
         } else {
           message = `def ${editFormData.label} = action { delete a in ${editFormData.targetNodeLabel} where true }`;
         }
+
         break;
 
       case 'Module':
@@ -1161,12 +1188,14 @@ const DnDFlow = () => {
           setSelectedTab("Basic")
           return;
         }
+
         const paramNames = [];
+        console.log(formData)
+
         const formattedValues = Object.entries(formData.values || {})
           .map(([key, val]) => {
-            
             let trimmed = String(val).trim();
-            
+
             // If surrounded by double-double quotes, unwrap to single quoted
             if (trimmed.startsWith('""') && trimmed.endsWith('""')) {
               trimmed = `"${trimmed.slice(2, -2)}"`;
@@ -1180,24 +1209,29 @@ const DnDFlow = () => {
             return `${key}: ${trimmed}`;
           })
           .join(", ");
-         
+
         let condition = formData.condition || "";
+
         // Extract params from condition
         if (condition) {
-
           const matches = condition.match(/\bin\w+\b/g);
           if (matches) paramNames.push(...matches);
 
-          // Replace targetNodeLabel with alias 'a' in the condition
           const targetLabelRegex = new RegExp(`\\b${formData.targetNodeLabel}\\b`, "g");
-          console.log(targetLabelRegex)
           condition = condition.replace(targetLabelRegex, "a");
+        }
+
+        // Extract params from expression if it's Assign
+        let expression = formData.expression || "";
+        if (formData.actionType === "Assign" && expression) {
+          const matches = expression.match(/\bin\w+\b/g);
+          if (matches) paramNames.push(...matches);
         }
 
         const paramList = paramNames.join(" ");
 
         if (formData.actionType === "Assign") {
-          message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { ${formData.targetNodeLabel} := ${formData.expression}}`;
+          message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { ${formData.targetNodeLabel} := ${expression}}`;
 
         } else if (formData.actionType === "Insert") {
           message = `def ${formData.label}${paramList ? ` ${paramList}` : ""} = action { insert {${formattedValues}} into ${formData.targetNodeLabel}}`;
@@ -1211,6 +1245,7 @@ const DnDFlow = () => {
         } else {
           message = `def ${formData.label} = action { delete a in ${formData.targetNodeLabel} where true}`;
         }
+
         console.log(message)
         break;
       case 'Module':
@@ -2257,7 +2292,7 @@ const DnDFlow = () => {
                                 return <option value="Assign">Assign</option>;
                               }
                               if (targetType === "Table") {
-                                return [ "Insert", "Update", "Delete", "Clear"].map((type) => (
+                                return ["Insert", "Update", "Delete", "Clear"].map((type) => (
                                   <option key={type} value={type}>{type}</option>
                                 ));
                               }
